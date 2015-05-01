@@ -43,7 +43,7 @@ public class HiveRecordSinkProvider
         HiveOutputTableHandle handle = checkType(tableHandle, HiveOutputTableHandle.class, "tableHandle");
 
         Path target = new Path(handle.getTemporaryPath(), randomUUID().toString());
-        JobConf conf = new JobConf(hdfsEnvironment.getConfiguration(target));
+        JobConf conf = new JobConf(hdfsEnvironment.getConfiguration(target, handle.getConnectorSession()));
 
         return new HiveRecordSink(handle, target, conf);
     }

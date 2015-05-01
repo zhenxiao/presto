@@ -331,7 +331,7 @@ public class HiveMetadata
             }
         }
 
-        Path targetPath = getTargetPath(schemaName, tableName, schemaTableName);
+        Path targetPath = getTargetPath(schemaName, tableName, schemaTableName, session);
 
         HiveStorageFormat hiveStorageFormat = getHiveStorageFormat(session, this.hiveStorageFormat);
         SerDeInfo serdeInfo = new SerDeInfo();
@@ -411,9 +411,9 @@ public class HiveMetadata
 
         buildColumnInfo(tableMetadata, columnNames, columnTypes);
 
-        Path targetPath = getTargetPath(schemaName, tableName, schemaTableName);
+        Path targetPath = getTargetPath(schemaName, tableName, schemaTableName, session);
 
-        if (!useTemporaryDirectory(targetPath)) {
+        if (!useTemporaryDirectory(targetPath, session)) {
             return new HiveOutputTableHandle(
                     connectorId,
                     schemaName,
@@ -434,7 +434,7 @@ public class HiveMetadata
         // create a temporary directory on the same filesystem
         Path temporaryRoot = new Path(targetPath, temporaryPrefix);
         Path temporaryPath = new Path(temporaryRoot, randomUUID().toString());
-        createDirectories(temporaryPath);
+        createDirectories(temporaryPath, session);
 
         return new HiveOutputTableHandle(
                 connectorId,
@@ -459,12 +459,12 @@ public class HiveMetadata
 
         // rename if using a temporary directory
         if (handle.hasTemporaryPath()) {
-            if (pathExists(targetPath)) {
+            if (pathExists(targetPath, handle.getConnectorSession())) {
                 SchemaTableName table = new SchemaTableName(handle.getSchemaName(), handle.getTableName());
                 throw new PrestoException(HIVE_PATH_ALREADY_EXISTS, format("Unable to commit creation of table '%s': target directory already exists: %s", table, targetPath));
             }
             // rename the temporary directory to the target
-            rename(new Path(handle.getTemporaryPath()), targetPath);
+            rename(new Path(handle.getTemporaryPath()), targetPath, handle.getConnectorSession());
         }
 
         // create the table in the metastore
@@ -518,7 +518,10 @@ public class HiveMetadata
         metastore.createTable(table);
     }
 
-    private Path getTargetPath(String schemaName, String tableName, SchemaTableName schemaTableName)
+    private Path getTargetPath(String schemaName,
+                                String tableName,
+                                SchemaTableName schemaTableName,
+                                ConnectorSession session)
     {
         String location = getDatabase(schemaName).getLocationUri();
         if (isNullOrEmpty(location)) {
@@ -526,16 +529,16 @@ public class HiveMetadata
         }
 
         Path databasePath = new Path(location);
-        if (!pathExists(databasePath)) {
+        if (!pathExists(databasePath, session)) {
             throw new PrestoException(HIVE_DATABASE_LOCATION_ERROR, format("Database '%s' location does not exist: %s", schemaName, databasePath));
         }
-        if (!isDirectory(databasePath)) {
+        if (!isDirectory(databasePath, session)) {
             throw new PrestoException(HIVE_DATABASE_LOCATION_ERROR, format("Database '%s' location is not a directory: %s", schemaName, databasePath));
         }
 
         // verify the target directory for the table
         Path targetPath = new Path(databasePath, tableName);
-        if (pathExists(targetPath)) {
+        if (pathExists(targetPath, session)) {
             throw new PrestoException(HIVE_PATH_ALREADY_EXISTS, format("Target directory for table '%s' already exists: %s", schemaTableName, targetPath));
         }
         return targetPath;
@@ -551,41 +554,41 @@ public class HiveMetadata
         }
     }
 
-    private boolean useTemporaryDirectory(Path path)
+    private boolean useTemporaryDirectory(Path path, ConnectorSession session)
     {
         try {
             // skip using temporary directory for S3
-            return !(hdfsEnvironment.getFileSystem(path) instanceof PrestoS3FileSystem);
+            return !(hdfsEnvironment.getFileSystem(path, session) instanceof PrestoS3FileSystem);
         }
         catch (IOException e) {
             throw new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed checking path: " + path, e);
         }
     }
 
-    private boolean pathExists(Path path)
+    private boolean pathExists(Path path, ConnectorSession session)
     {
         try {
-            return hdfsEnvironment.getFileSystem(path).exists(path);
+            return hdfsEnvironment.getFileSystem(path, session).exists(path);
         }
         catch (IOException e) {
             throw new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed checking path: " + path, e);
         }
     }
 
-    private boolean isDirectory(Path path)
+    private boolean isDirectory(Path path, ConnectorSession session)
     {
         try {
-            return hdfsEnvironment.getFileSystem(path).isDirectory(path);
+            return hdfsEnvironment.getFileSystem(path, session).isDirectory(path);
         }
         catch (IOException e) {
             throw new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed checking path: " + path, e);
         }
     }
 
-    private void createDirectories(Path path)
+    private void createDirectories(Path path, ConnectorSession session)
     {
         try {
-            if (!hdfsEnvironment.getFileSystem(path).mkdirs(path)) {
+            if (!hdfsEnvironment.getFileSystem(path, session).mkdirs(path)) {
                 throw new IOException("mkdirs returned false");
             }
         }
@@ -594,10 +597,10 @@ public class HiveMetadata
         }
     }
 
-    private void rename(Path source, Path target)
+    private void rename(Path source, Path target, ConnectorSession session)
     {
         try {
-            if (!hdfsEnvironment.getFileSystem(source).rename(source, target)) {
+            if (!hdfsEnvironment.getFileSystem(source, session).rename(source, target)) {
                 throw new IOException("rename returned false");
             }
         }

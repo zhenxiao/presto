@@ -77,7 +77,7 @@ public class HivePageSourceProvider
         long start = hiveSplit.getStart();
         long length = hiveSplit.getLength();
 
-        Configuration configuration = hdfsEnvironment.getConfiguration(path);
+        Configuration configuration = hdfsEnvironment.getConfiguration(path, session);
 
         TupleDomain<HiveColumnHandle> effectivePredicate = hiveSplit.getEffectivePredicate();
 

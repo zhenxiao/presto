@@ -28,6 +28,7 @@ public final class HiveSessionProperties
     private static final String ORC_MAX_MERGE_DISTANCE = "orc_max_merge_distance";
     private static final String ORC_MAX_BUFFER_SIZE = "orc_max_buffer_size";
     private static final String ORC_STREAM_BUFFER_SIZE = "orc_stream_buffer_size";
+    private static final String AWS_IAM_ROLE = "aws_iam_role";
 
     private HiveSessionProperties()
     {
@@ -121,5 +122,14 @@ public final class HiveSessionProperties
         catch (IllegalArgumentException e) {
             throw new PrestoException(NOT_SUPPORTED, "Invalid Hive session property '" + FORCE_LOCAL_SCHEDULING + "=" + forceLocalScheduling + "'");
         }
+    }
+
+    public static String getAwsIamRole(ConnectorSession session, String defaultValue)
+    {
+        String awsIamRoleString = session.getProperties().get(AWS_IAM_ROLE);
+        if (awsIamRoleString == null) {
+            return defaultValue;
+        }
+        return awsIamRoleString;
     }
 }

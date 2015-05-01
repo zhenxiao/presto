@@ -15,6 +15,7 @@ package com.facebook.presto.hive;
 
 import com.facebook.presto.hadoop.HadoopFileSystemCache;
 import com.facebook.presto.hadoop.HadoopNative;
+import com.facebook.presto.spi.ConnectorSession;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -23,6 +24,7 @@ import javax.inject.Inject;
 
 import java.io.IOException;
 
+import static com.facebook.presto.hive.HiveSessionProperties.getAwsIamRole;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class HdfsEnvironment
@@ -34,23 +36,32 @@ public class HdfsEnvironment
 
     private final HdfsConfiguration hdfsConfiguration;
     private final boolean verifyChecksum;
+    private final String defaultAwsRole;
 
     @Inject
     public HdfsEnvironment(HdfsConfiguration hdfsConfiguration, HiveClientConfig config)
     {
         this.hdfsConfiguration = checkNotNull(hdfsConfiguration, "hdfsConfiguration is null");
         this.verifyChecksum = checkNotNull(config, "config is null").isVerifyChecksum();
+        this.defaultAwsRole = checkNotNull(config, "config is null").getS3AwsRoleArn();
     }
 
-    public Configuration getConfiguration(Path path)
+    public Configuration getConfiguration(Path path, ConnectorSession session)
     {
-        return hdfsConfiguration.getConfiguration(path.toUri());
+        Configuration config = hdfsConfiguration.getConfiguration(path.toUri());
+        String awsIamRole = getAwsIamRole(session, this.defaultAwsRole);
+        if (awsIamRole != null) {
+            config.set(PrestoS3FileSystem.S3_ROLE_ARN, awsIamRole);
+            config.setBoolean("fs.s3.impl.disable.cache", true);
+            config.setBoolean("fs.s3n.impl.disable.cache", true);
+        }
+        return config;
     }
 
-    public FileSystem getFileSystem(Path path)
+    public FileSystem getFileSystem(Path path, ConnectorSession session)
             throws IOException
     {
-        FileSystem fileSystem = path.getFileSystem(getConfiguration(path));
+        FileSystem fileSystem = path.getFileSystem(getConfiguration(path, session));
         fileSystem.setVerifyChecksum(verifyChecksum);
 
         return fileSystem;
