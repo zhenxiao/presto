@@ -19,6 +19,7 @@ import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.BigintType;
 import com.facebook.presto.spi.type.BooleanType;
+import com.facebook.presto.spi.type.CharType;
 import com.facebook.presto.spi.type.DateType;
 import com.facebook.presto.spi.type.DoubleType;
 import com.facebook.presto.spi.type.IntegerType;
@@ -166,7 +167,7 @@ public class QueryBuilder
             else if (typeAndValue.getType().equals(TimestampWithTimeZoneType.TIMESTAMP_WITH_TIME_ZONE)) {
                 statement.setTimestamp(i + 1, new Timestamp(unpackMillisUtc((long) typeAndValue.getValue())));
             }
-            else if (typeAndValue.getType() instanceof VarcharType) {
+            else if (typeAndValue.getType() instanceof VarcharType || typeAndValue.getType() instanceof CharType) {
                 statement.setString(i + 1, ((Slice) typeAndValue.getValue()).toStringUtf8());
             }
             else {
@@ -192,6 +193,7 @@ public class QueryBuilder
                 validType.equals(TimeWithTimeZoneType.TIME_WITH_TIME_ZONE) ||
                 validType.equals(TimestampType.TIMESTAMP) ||
                 validType.equals(TimestampWithTimeZoneType.TIMESTAMP_WITH_TIME_ZONE) ||
+                validType instanceof CharType ||
                 validType instanceof VarcharType;
     }
 
