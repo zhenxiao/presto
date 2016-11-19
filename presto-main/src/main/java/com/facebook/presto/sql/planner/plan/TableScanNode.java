@@ -17,6 +17,7 @@ import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.metadata.TableLayoutHandle;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.type.NestedField;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.tree.Expression;
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -59,6 +60,8 @@ public class TableScanNode
     // In this way, we are always guaranteed to have a readable predicate that provides some kind of upper bound on the constraints.
     private final Expression originalConstraint;
 
+    private Optional<Map<Symbol, NestedField>> nestedFields;
+
     @JsonCreator
     public TableScanNode(
             @JsonProperty("id") PlanNodeId id,
@@ -67,7 +70,8 @@ public class TableScanNode
             @JsonProperty("assignments") Map<Symbol, ColumnHandle> assignments,
             @JsonProperty("layout") Optional<TableLayoutHandle> tableLayout,
             @JsonProperty("currentConstraint") TupleDomain<ColumnHandle> currentConstraint,
-            @JsonProperty("originalConstraint") @Nullable Expression originalConstraint)
+            @JsonProperty("originalConstraint") @Nullable Expression originalConstraint,
+            @JsonProperty("nestedFields") @Nullable Optional<Map<Symbol, NestedField>> nestedFields)
     {
         super(id);
         requireNonNull(table, "table is null");
@@ -84,6 +88,7 @@ public class TableScanNode
         this.originalConstraint = originalConstraint;
         this.tableLayout = tableLayout;
         this.currentConstraint = currentConstraint;
+        this.nestedFields = nestedFields;
     }
 
     @JsonProperty("table")
@@ -124,6 +129,17 @@ public class TableScanNode
         return currentConstraint;
     }
 
+    @JsonProperty
+    public Optional<Map<Symbol, NestedField>> getNestedFields()
+    {
+        return nestedFields;
+    }
+
+    public void setNestedFields(Optional<Map<Symbol, NestedField>> nestedFields)
+    {
+        this.nestedFields = nestedFields;
+    }
+
     @Override
     public List<PlanNode> getSources()
     {
@@ -146,6 +162,7 @@ public class TableScanNode
                 .add("assignments", assignments)
                 .add("currentConstraint", currentConstraint)
                 .add("originalConstraint", originalConstraint)
+                .add("nestedFields", nestedFields)
                 .toString();
     }
 

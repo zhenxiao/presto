@@ -182,7 +182,8 @@ public class BeginTableWrite
                         scan.getAssignments(),
                         Optional.of(layout),
                         scan.getCurrentConstraint(),
-                        scan.getOriginalConstraint());
+                        scan.getOriginalConstraint(),
+                        scan.getNestedFields());
             }
 
             if (node instanceof FilterNode) {

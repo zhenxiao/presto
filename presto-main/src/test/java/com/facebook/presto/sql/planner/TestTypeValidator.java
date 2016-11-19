@@ -101,7 +101,8 @@ public class TestTypeValidator
                 assignments,
                 Optional.empty(),
                 TupleDomain.all(),
-                null);
+                null,
+                Optional.empty());
     }
 
     @Test

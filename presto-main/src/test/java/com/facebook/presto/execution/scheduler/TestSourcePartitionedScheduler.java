@@ -434,7 +434,8 @@ public class TestSourcePartitionedScheduler
                 ImmutableMap.of(symbol, new TestingColumnHandle("column")),
                 Optional.empty(),
                 TupleDomain.all(),
-                null);
+                null,
+                Optional.empty());
 
         RemoteSourceNode remote = new RemoteSourceNode(new PlanNodeId("remote_id"), new PlanFragmentId("plan_fragment_id"), ImmutableList.of());
         PlanFragment testFragment = new PlanFragment(

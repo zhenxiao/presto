@@ -92,6 +92,7 @@ public final class SystemSessionProperties
     public static final String USE_MARK_DISTINCT = "use_mark_distinct";
     public static final String PREFER_PARTITIAL_AGGREGATION = "prefer_partial_aggregation";
     public static final String MAX_GROUPING_SETS = "max_grouping_sets";
+    public static final String PRUNE_NESTED_FIELDS = "prune_nested_fields";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -254,6 +255,11 @@ public final class SystemSessionProperties
                         OPTIMIZE_METADATA_QUERIES,
                         "Enable optimization for metadata queries",
                         featuresConfig.isOptimizeMetadataQueries(),
+                        false),
+                booleanSessionProperty(
+                        PRUNE_NESTED_FIELDS,
+                        "Prune unused nested fields",
+                        featuresConfig.isPruneNestedFields(),
                         false),
                 integerSessionProperty(
                         QUERY_PRIORITY,
@@ -504,6 +510,11 @@ public final class SystemSessionProperties
     public static boolean isOptimizeMetadataQueries(Session session)
     {
         return session.getSystemProperty(OPTIMIZE_METADATA_QUERIES, Boolean.class);
+    }
+
+    public static boolean isPruneRowTypeFields(Session session)
+    {
+        return session.getSystemProperty(PRUNE_NESTED_FIELDS, Boolean.class);
     }
 
     public static DataSize getQueryMaxMemory(Session session)

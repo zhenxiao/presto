@@ -380,7 +380,8 @@ public class PlanBuilder
                 assignments,
                 tableLayout,
                 tupleDomain,
-                originalConstraint);
+                originalConstraint,
+                Optional.empty());
     }
 
     public TableFinishNode tableDelete(SchemaTableName schemaTableName, PlanNode deleteSource, Symbol deleteRowId)

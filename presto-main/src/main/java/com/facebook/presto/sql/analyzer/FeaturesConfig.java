@@ -86,6 +86,7 @@ public class FeaturesConfig
     private boolean pagesIndexEagerCompactionEnabled;
 
     private boolean dictionaryAggregation;
+    private boolean pruneNestedFields;
 
     private int re2JDfaStatesLimit = Integer.MAX_VALUE;
     private int re2JDfaRetries = 5;
@@ -758,6 +759,18 @@ public class FeaturesConfig
     public FeaturesConfig setMaxGroupingSets(int maxGroupingSets)
     {
         this.maxGroupingSets = maxGroupingSets;
+        return this;
+    }
+
+    public boolean isPruneNestedFields()
+    {
+        return pruneNestedFields;
+    }
+
+    @Config("optimizer.prune-nested-fields")
+    public FeaturesConfig setPruneNestedFields(boolean pruneNestedFields)
+    {
+        this.pruneNestedFields = pruneNestedFields;
         return this;
     }
 }
