@@ -338,4 +338,14 @@ public final class ExpressionUtils
             }
         }, expression);
     }
+
+    public static boolean isIdentityProjection(Symbol symbol, Expression expression)
+    {
+        if (expression instanceof SymbolReference) {
+            if (((SymbolReference) expression).getName().equals(symbol.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
