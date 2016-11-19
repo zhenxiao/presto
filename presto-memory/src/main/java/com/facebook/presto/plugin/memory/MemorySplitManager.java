@@ -20,11 +20,14 @@ import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.FixedSplitSource;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 
 import javax.inject.Inject;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public final class MemorySplitManager
         implements ConnectorSplitManager
@@ -38,7 +41,7 @@ public final class MemorySplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields)
     {
         MemoryTableLayoutHandle layout = (MemoryTableLayoutHandle) layoutHandle;
 

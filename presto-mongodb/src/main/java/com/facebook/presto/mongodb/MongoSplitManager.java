@@ -20,11 +20,14 @@ import com.facebook.presto.spi.FixedSplitSource;
 import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 
 import javax.inject.Inject;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static com.facebook.presto.spi.HostAddress.fromParts;
 import static java.util.stream.Collectors.toList;
@@ -43,7 +46,7 @@ public class MongoSplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields)
     {
         MongoTableLayoutHandle tableLayout = (MongoTableLayoutHandle) layout;
         MongoTableHandle tableHandle = tableLayout.getTable();

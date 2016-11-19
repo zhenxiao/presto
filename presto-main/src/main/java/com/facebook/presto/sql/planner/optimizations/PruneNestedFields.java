@@ -70,13 +70,13 @@ public class PruneNestedFields
         {
             Map<String, NestedField> fields = context.get();
             processNestedFields(node.getOriginalConstraint(), fields);
-            ImmutableMap.Builder<Symbol, NestedField> builder = ImmutableMap.builder();
+            ImmutableMap.Builder<String, NestedField> builder = ImmutableMap.builder();
             Map<Symbol, ColumnHandle> assignments = node.getAssignments();
             for (Map.Entry<String, NestedField> entry : fields.entrySet()) {
                 Symbol columnName = new Symbol(entry.getKey());
                 if (assignments.containsKey(columnName)) {
                     NestedField field = new NestedField(columnName.getName(), entry.getValue().getFields());
-                    builder.put(columnName, field);
+                    builder.put(columnName.getName(), field);
                 }
             }
             return new TableScanNode(

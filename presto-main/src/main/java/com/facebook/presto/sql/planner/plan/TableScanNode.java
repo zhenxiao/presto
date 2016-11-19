@@ -60,7 +60,7 @@ public class TableScanNode
     // In this way, we are always guaranteed to have a readable predicate that provides some kind of upper bound on the constraints.
     private final Expression originalConstraint;
 
-    private Optional<Map<Symbol, NestedField>> nestedFields;
+    private Optional<Map<String, NestedField>> nestedFields;
 
     @JsonCreator
     public TableScanNode(
@@ -71,7 +71,7 @@ public class TableScanNode
             @JsonProperty("layout") Optional<TableLayoutHandle> tableLayout,
             @JsonProperty("currentConstraint") TupleDomain<ColumnHandle> currentConstraint,
             @JsonProperty("originalConstraint") @Nullable Expression originalConstraint,
-            @JsonProperty("nestedFields") @Nullable Optional<Map<Symbol, NestedField>> nestedFields)
+            @JsonProperty("nestedFields") @Nullable Optional<Map<String, NestedField>> nestedFields)
     {
         super(id);
         requireNonNull(table, "table is null");
@@ -130,12 +130,12 @@ public class TableScanNode
     }
 
     @JsonProperty
-    public Optional<Map<Symbol, NestedField>> getNestedFields()
+    public Optional<Map<String, NestedField>> getNestedFields()
     {
         return nestedFields;
     }
 
-    public void setNestedFields(Optional<Map<Symbol, NestedField>> nestedFields)
+    public void setNestedFields(Optional<Map<String, NestedField>> nestedFields)
     {
         this.nestedFields = nestedFields;
     }

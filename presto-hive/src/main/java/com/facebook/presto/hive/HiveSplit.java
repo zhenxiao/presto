@@ -16,6 +16,7 @@ package com.facebook.presto.hive;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.type.NestedField;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
@@ -50,6 +51,7 @@ public class HiveSplit
     private final boolean forceLocalScheduling;
     private final Map<Integer, HiveType> columnCoercions; // key: hiveColumnIndex
     private final Optional<BucketConversion> bucketConversion;
+    private final Optional<Map<String, NestedField>> nestedFields;
 
     @JsonCreator
     public HiveSplit(
@@ -67,7 +69,8 @@ public class HiveSplit
             @JsonProperty("forceLocalScheduling") boolean forceLocalScheduling,
             @JsonProperty("effectivePredicate") TupleDomain<HiveColumnHandle> effectivePredicate,
             @JsonProperty("columnCoercions") Map<Integer, HiveType> columnCoercions,
-            @JsonProperty("bucketConversion") Optional<BucketConversion> bucketConversion)
+            @JsonProperty("bucketConversion") Optional<BucketConversion> bucketConversion,
+            @JsonProperty("nestedFields") Optional<Map<String, NestedField>> nestedFields)
     {
         checkArgument(start >= 0, "start must be positive");
         checkArgument(length >= 0, "length must be positive");
@@ -99,6 +102,7 @@ public class HiveSplit
         this.effectivePredicate = effectivePredicate;
         this.columnCoercions = columnCoercions;
         this.bucketConversion = bucketConversion;
+        this.nestedFields = nestedFields;
     }
 
     @JsonProperty
@@ -192,6 +196,12 @@ public class HiveSplit
         return bucketConversion;
     }
 
+    @JsonProperty
+    public Optional<Map<String, NestedField>> getNestedFields()
+    {
+        return nestedFields;
+    }
+
     @Override
     public boolean isRemotelyAccessible()
     {
@@ -211,6 +221,7 @@ public class HiveSplit
                 .put("table", table)
                 .put("forceLocalScheduling", forceLocalScheduling)
                 .put("partitionName", partitionName)
+                .put("nestedFields", nestedFields)
                 .build();
     }
 
@@ -223,6 +234,7 @@ public class HiveSplit
                 .addValue(length)
                 .addValue(fileSize)
                 .addValue(effectivePredicate)
+                .addValue(nestedFields)
                 .toString();
     }
 

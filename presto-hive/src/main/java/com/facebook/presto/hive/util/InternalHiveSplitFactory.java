@@ -22,6 +22,7 @@ import com.facebook.presto.hive.InternalHiveSplit.InternalHiveBlock;
 import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
@@ -58,6 +59,7 @@ public class InternalHiveSplitFactory
     private final Map<Integer, HiveTypeName> columnCoercions;
     private final Optional<BucketConversion> bucketConversion;
     private final boolean forceLocalScheduling;
+    private final Optional<Map<String, NestedField>> nestedFields;
 
     public InternalHiveSplitFactory(
             FileSystem fileSystem,
@@ -68,7 +70,8 @@ public class InternalHiveSplitFactory
             TupleDomain<HiveColumnHandle> effectivePredicate,
             Map<Integer, HiveTypeName> columnCoercions,
             Optional<BucketConversion> bucketConversion,
-            boolean forceLocalScheduling)
+            boolean forceLocalScheduling,
+            Optional<Map<String, NestedField>> nestedFields)
     {
         this.fileSystem = requireNonNull(fileSystem, "fileSystem is null");
         this.partitionName = requireNonNull(partitionName, "partitionName is null");
@@ -79,6 +82,7 @@ public class InternalHiveSplitFactory
         this.columnCoercions = requireNonNull(columnCoercions, "columnCoercions is null");
         this.bucketConversion = requireNonNull(bucketConversion, "bucketConversion is null");
         this.forceLocalScheduling = forceLocalScheduling;
+        this.nestedFields = nestedFields;
     }
 
     public String getPartitionName()
@@ -105,7 +109,8 @@ public class InternalHiveSplitFactory
                 status.getLen(),
                 status.getLen(),
                 bucketNumber,
-                isSplittable(inputFormat, fileSystem, status.getPath()));
+                isSplittable(inputFormat, fileSystem, status.getPath()),
+                nestedFields);
     }
 
     public Optional<InternalHiveSplit> createInternalHiveSplit(FileSplit split)
@@ -119,7 +124,8 @@ public class InternalHiveSplitFactory
                 split.getLength(),
                 file.getLen(),
                 OptionalInt.empty(),
-                false);
+                false,
+                nestedFields);
     }
 
     private Optional<InternalHiveSplit> createInternalHiveSplit(
@@ -129,7 +135,8 @@ public class InternalHiveSplitFactory
             long length,
             long fileSize,
             OptionalInt bucketNumber,
-            boolean splittable)
+            boolean splittable,
+            Optional<Map<String, NestedField>> nestedFields)
     {
         String pathString = path.toString();
         if (!pathMatchesPredicate(pathDomain, pathString)) {
@@ -183,7 +190,8 @@ public class InternalHiveSplitFactory
                 splittable,
                 forceLocalScheduling && allBlocksHaveRealAddress(blocks),
                 columnCoercions,
-                bucketConversion));
+                bucketConversion,
+                nestedFields));
     }
 
     private static void checkBlocks(List<InternalHiveBlock> blocks, long start, long length)

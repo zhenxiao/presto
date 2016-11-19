@@ -16,6 +16,10 @@ package com.facebook.presto.spi.connector;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
+import com.facebook.presto.spi.type.NestedField;
+
+import java.util.Map;
+import java.util.Optional;
 
 public interface ConnectorSplitManager
 {
@@ -23,7 +27,8 @@ public interface ConnectorSplitManager
             ConnectorTransactionHandle transactionHandle,
             ConnectorSession session,
             ConnectorTableLayoutHandle layout,
-            SplitSchedulingStrategy splitSchedulingStrategy);
+            SplitSchedulingStrategy splitSchedulingStrategy,
+            Optional<Map<String, NestedField>> nestedFields);
 
     enum SplitSchedulingStrategy
     {

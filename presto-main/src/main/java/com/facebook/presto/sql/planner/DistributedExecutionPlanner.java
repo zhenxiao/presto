@@ -146,7 +146,8 @@ public class DistributedExecutionPlanner
             SplitSource splitSource = splitManager.getSplits(
                     session,
                     node.getLayout().get(),
-                    pipelineExecutionStrategy == GROUPED_EXECUTION ? GROUPED_SCHEDULING : UNGROUPED_SCHEDULING);
+                    pipelineExecutionStrategy == GROUPED_EXECUTION ? GROUPED_SCHEDULING : UNGROUPED_SCHEDULING,
+                    node.getNestedFields());
 
             splitSources.add(splitSource);
 

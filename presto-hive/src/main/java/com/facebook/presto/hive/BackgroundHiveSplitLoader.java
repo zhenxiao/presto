@@ -29,6 +29,7 @@ import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Streams;
@@ -57,6 +58,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -103,6 +105,7 @@ public class BackgroundHiveSplitLoader
     private final ConnectorSession session;
     private final ConcurrentLazyQueue<HivePartitionMetadata> partitions;
     private final Deque<Iterator<InternalHiveSplit>> fileIterators = new ConcurrentLinkedDeque<>();
+    private final Optional<Map<String, NestedField>> nestedFields;
 
     // Purpose of this lock:
     // * Write lock: when you need a consistent view across partitions, fileIterators, and hiveSplitSource.
@@ -135,7 +138,8 @@ public class BackgroundHiveSplitLoader
             DirectoryLister directoryLister,
             Executor executor,
             int loaderConcurrency,
-            boolean recursiveDirWalkerEnabled)
+            boolean recursiveDirWalkerEnabled,
+            Optional<Map<String, NestedField>> nestedFields)
     {
         this.table = table;
         this.compactEffectivePredicate = compactEffectivePredicate;
@@ -146,6 +150,7 @@ public class BackgroundHiveSplitLoader
         this.namenodeStats = namenodeStats;
         this.directoryLister = directoryLister;
         this.recursiveDirWalkerEnabled = recursiveDirWalkerEnabled;
+        this.nestedFields = nestedFields;
         this.executor = executor;
         this.partitions = new ConcurrentLazyQueue<>(partitions);
         this.hdfsContext = new HdfsContext(session, table.getDatabaseName(), table.getTableName());
@@ -292,7 +297,7 @@ public class BackgroundHiveSplitLoader
                 FileInputFormat.setInputPaths(targetJob, targetPath);
                 InputSplit[] targetSplits = targetInputFormat.getSplits(targetJob, 0);
 
-                InternalHiveSplitFactory splitFactory = new InternalHiveSplitFactory(targetFilesystem, partitionName, inputFormat, schema, partitionKeys, effectivePredicate, partition.getColumnCoercions(), Optional.empty(), isForceLocalScheduling(session));
+                InternalHiveSplitFactory splitFactory = new InternalHiveSplitFactory(targetFilesystem, partitionName, inputFormat, schema, partitionKeys, effectivePredicate, partition.getColumnCoercions(), Optional.empty(), isForceLocalScheduling(session), nestedFields);
                 lastResult = addSplitsToSource(targetSplits, splitFactory);
                 if (stopped) {
                     return COMPLETED_FUTURE;
@@ -327,7 +332,8 @@ public class BackgroundHiveSplitLoader
                 effectivePredicate,
                 partition.getColumnCoercions(),
                 bucketConversionRequiresWorkerParticipation ? bucketConversion : Optional.empty(),
-                isForceLocalScheduling(session));
+                isForceLocalScheduling(session),
+                nestedFields);
 
         // To support custom input formats, we want to call getSplits()
         // on the input format to obtain file splits.

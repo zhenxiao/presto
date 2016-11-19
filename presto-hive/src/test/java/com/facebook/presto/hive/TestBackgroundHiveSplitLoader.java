@@ -260,7 +260,8 @@ public class TestBackgroundHiveSplitLoader
                 new TestingDirectoryLister(files),
                 EXECUTOR,
                 2,
-                false);
+                false,
+                Optional.empty());
     }
 
     private static BackgroundHiveSplitLoader backgroundHiveSplitLoaderOfflinePartitions()
@@ -279,7 +280,8 @@ public class TestBackgroundHiveSplitLoader
                 new TestingDirectoryLister(TEST_FILES),
                 directExecutor(),
                 2,
-                false);
+                false,
+                Optional.empty());
     }
 
     private static Iterable<HivePartitionMetadata> createPartitionMetadataWithOfflinePartitions()

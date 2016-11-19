@@ -15,6 +15,7 @@ package com.facebook.presto.hive;
 
 import com.facebook.presto.hive.HiveSplit.BucketConversion;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.openjdk.jol.info.ClassLayout;
@@ -57,6 +58,7 @@ public class InternalHiveSplit
     private final boolean forceLocalScheduling;
     private final Map<Integer, HiveTypeName> columnCoercions;
     private final Optional<BucketConversion> bucketConversion;
+    private final Optional<Map<String, NestedField>> nestedFields;
 
     private long start;
     private int currentBlockIndex;
@@ -74,7 +76,8 @@ public class InternalHiveSplit
             boolean splittable,
             boolean forceLocalScheduling,
             Map<Integer, HiveTypeName> columnCoercions,
-            Optional<BucketConversion> bucketConversion)
+            Optional<BucketConversion> bucketConversion,
+            Optional<Map<String, NestedField>> nestedFields)
     {
         checkArgument(start >= 0, "start must be positive");
         checkArgument(end >= 0, "length must be positive");
@@ -87,6 +90,7 @@ public class InternalHiveSplit
         requireNonNull(bucketNumber, "bucketNumber is null");
         requireNonNull(columnCoercions, "columnCoercions is null");
         requireNonNull(bucketConversion, "bucketConversion is null");
+        requireNonNull(nestedFields, "nestedFields is null");
 
         this.partitionName = partitionName;
         this.path = path;
@@ -101,6 +105,7 @@ public class InternalHiveSplit
         this.forceLocalScheduling = forceLocalScheduling;
         this.columnCoercions = ImmutableMap.copyOf(columnCoercions);
         this.bucketConversion = bucketConversion;
+        this.nestedFields = nestedFields;
     }
 
     public String getPath()
@@ -161,6 +166,11 @@ public class InternalHiveSplit
     public Optional<BucketConversion> getBucketConversion()
     {
         return bucketConversion;
+    }
+
+    public Optional<Map<String, NestedField>> getNestedFields()
+    {
+        return nestedFields;
     }
 
     public InternalHiveBlock currentBlock()

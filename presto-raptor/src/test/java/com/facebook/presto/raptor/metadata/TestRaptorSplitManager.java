@@ -206,7 +206,7 @@ public class TestRaptorSplitManager
     private static ConnectorSplitSource getSplits(RaptorSplitManager splitManager, ConnectorTableLayoutResult layout)
     {
         ConnectorTransactionHandle transaction = new RaptorTransactionHandle();
-        return splitManager.getSplits(transaction, SESSION, layout.getTableLayout().getHandle(), UNGROUPED_SCHEDULING);
+        return splitManager.getSplits(transaction, SESSION, layout.getTableLayout().getHandle(), UNGROUPED_SCHEDULING, Optional.empty());
     }
 
     private static List<ConnectorSplit> getSplits(ConnectorSplitSource source, int maxSize)
