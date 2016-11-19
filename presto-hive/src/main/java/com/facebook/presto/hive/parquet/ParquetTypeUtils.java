@@ -20,6 +20,7 @@ import com.facebook.presto.spi.type.BooleanType;
 import com.facebook.presto.spi.type.DecimalType;
 import com.facebook.presto.spi.type.DoubleType;
 import com.facebook.presto.spi.type.IntegerType;
+import com.facebook.presto.spi.type.NestedField;
 import com.facebook.presto.spi.type.RealType;
 import com.facebook.presto.spi.type.TimestampType;
 import com.facebook.presto.spi.type.Type;
@@ -33,9 +34,13 @@ import parquet.io.MessageColumnIO;
 import parquet.io.ParquetDecodingException;
 import parquet.io.PrimitiveColumnIO;
 import parquet.schema.DecimalMetadata;
+import parquet.schema.GroupType;
 import parquet.schema.MessageType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +48,7 @@ import java.util.Optional;
 
 import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
 import static java.util.Optional.empty;
 import static parquet.schema.OriginalType.DECIMAL;
 import static parquet.schema.Type.Repetition.REPEATED;
@@ -221,19 +227,18 @@ public final class ParquetTypeUtils
         }
     }
 
-    private static parquet.schema.Type getParquetTypeByName(String columnName, MessageType messageType)
+    private static parquet.schema.Type getParquetTypeByName(String columnName, GroupType groupType)
     {
-        if (messageType.containsField(columnName)) {
-            return messageType.getType(columnName);
+        if (groupType.containsField(columnName)) {
+            return groupType.getType(columnName);
         }
         // parquet is case-sensitive, but hive is not. all hive columns get converted to lowercase
         // check for direct match above but if no match found, try case-insensitive match
-        for (parquet.schema.Type type : messageType.getFields()) {
+        for (parquet.schema.Type type : groupType.getFields()) {
             if (type.getName().equalsIgnoreCase(columnName)) {
                 return type;
             }
         }
-
         return null;
     }
 
@@ -255,5 +260,63 @@ public final class ParquetTypeUtils
     public static boolean isValueNull(boolean required, int definitionLevel, int maxDefinitionLevel)
     {
         return !required && (definitionLevel == maxDefinitionLevel - 1);
+    }
+
+    public static parquet.schema.Type getColumnType(HiveColumnHandle column, MessageType messageType, boolean useParquetColumnNames, Optional<Map<String, NestedField>> nestedFields)
+    {
+        parquet.schema.Type columnType = getParquetType(column, messageType, useParquetColumnNames);
+        if (nestedFields.isPresent()) {
+            NestedField nestedField = nestedFields.get().get(column.getName());
+            if (nestedField != null) {
+                return getFieldType(messageType, nestedField);
+            }
+        }
+        return columnType;
+    }
+
+    private static parquet.schema.Type getFieldType(GroupType groupType, NestedField field)
+    {
+        parquet.schema.Type fieldType = getParquetTypeByName(field.getName(), groupType);
+        if (fieldType == null) {
+            return null;
+        }
+
+        Map<String, NestedField> children = field.getFields();
+        if (children.isEmpty()) {
+            return fieldType;
+        }
+
+        GroupType fields = (GroupType) fieldType;
+        List<parquet.schema.Type> childrenTypes = new ArrayList<>(children.size());
+        for (NestedField child : children.values()) {
+            parquet.schema.Type parquetType = getFieldType(fields, child);
+            if (parquetType != null) {
+                childrenTypes.add(parquetType);
+            }
+        }
+
+        if (childrenTypes.isEmpty()) {
+            return fieldType;
+        }
+
+        Collections.sort(childrenTypes, new ParquetFieldComparator(fields));
+        return new MessageType(fieldType.getName(), childrenTypes);
+    }
+
+    private static class ParquetFieldComparator
+            implements Comparator<parquet.schema.Type>
+    {
+        private final GroupType fields;
+
+        public ParquetFieldComparator(GroupType fields)
+        {
+            this.fields = requireNonNull(fields, "fields is null");
+        }
+
+        @Override
+        public int compare(parquet.schema.Type left, parquet.schema.Type right)
+        {
+            return fields.getFieldIndex(left.getName()) - fields.getFieldIndex(right.getName());
+        }
     }
 }

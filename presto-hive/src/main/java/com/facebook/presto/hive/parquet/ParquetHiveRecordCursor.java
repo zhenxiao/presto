@@ -25,6 +25,7 @@ import com.facebook.presto.spi.block.BlockBuilder;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.DecimalType;
 import com.facebook.presto.spi.type.Decimals;
+import com.facebook.presto.spi.type.NestedField;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.collect.ImmutableList;
@@ -72,8 +73,8 @@ import static com.facebook.presto.hive.HiveErrorCode.HIVE_MISSING_DATA;
 import static com.facebook.presto.hive.HiveUtil.closeWithSuppression;
 import static com.facebook.presto.hive.HiveUtil.getDecimalType;
 import static com.facebook.presto.hive.parquet.HdfsParquetDataSource.buildHdfsParquetDataSource;
+import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getColumnType;
 import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getDescriptors;
-import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getParquetType;
 import static com.facebook.presto.hive.parquet.predicate.ParquetPredicateUtils.buildParquetPredicate;
 import static com.facebook.presto.hive.parquet.predicate.ParquetPredicateUtils.getParquetTupleDomain;
 import static com.facebook.presto.hive.parquet.predicate.ParquetPredicateUtils.predicateMatches;
@@ -103,6 +104,7 @@ import static parquet.schema.OriginalType.MAP_KEY_VALUE;
 public class ParquetHiveRecordCursor
         implements RecordCursor
 {
+    private final Optional<Map<String, NestedField>> nestedFields;
     private final ParquetRecordReader<FakeParquetRecord> recordReader;
 
     private final Type[] types;
@@ -134,7 +136,8 @@ public class ParquetHiveRecordCursor
             TypeManager typeManager,
             boolean predicatePushdownEnabled,
             TupleDomain<HiveColumnHandle> effectivePredicate,
-            FileFormatDataSourceStats stats)
+            FileFormatDataSourceStats stats,
+            Optional<Map<String, NestedField>> nestedFields)
     {
         requireNonNull(path, "path is null");
         checkArgument(length >= 0, "length is negative");
@@ -162,6 +165,7 @@ public class ParquetHiveRecordCursor
             types[columnIndex] = typeManager.getType(column.getTypeSignature());
         }
 
+        this.nestedFields = nestedFields;
         this.recordReader = createParquetRecordReader(
                 hdfsEnvironment,
                 sessionUser,
@@ -339,7 +343,7 @@ public class ParquetHiveRecordCursor
 
             List<parquet.schema.Type> fields = columns.stream()
                     .filter(column -> column.getColumnType() == REGULAR)
-                    .map(column -> getParquetType(column, fileSchema, useParquetColumnNames))
+                    .map(column -> getColumnType(column, fileSchema, useParquetColumnNames, nestedFields))
                     .filter(Objects::nonNull)
                     .collect(toList());
 
@@ -421,7 +425,7 @@ public class ParquetHiveRecordCursor
             for (int i = 0; i < columns.size(); i++) {
                 HiveColumnHandle column = columns.get(i);
                 if (column.getColumnType() == REGULAR) {
-                    parquet.schema.Type parquetType = getParquetType(column, messageType, useParquetColumnNames);
+                    parquet.schema.Type parquetType = getColumnType(column, messageType, useParquetColumnNames, nestedFields);
                     if (parquetType == null) {
                         continue;
                     }
@@ -451,7 +455,7 @@ public class ParquetHiveRecordCursor
         {
             List<parquet.schema.Type> fields = columns.stream()
                     .filter(column -> column.getColumnType() == REGULAR)
-                    .map(column -> getParquetType(column, messageType, useParquetColumnNames))
+                    .map(column -> getColumnType(column, messageType, useParquetColumnNames, nestedFields))
                     .filter(Objects::nonNull)
                     .collect(toList());
             MessageType requestedProjection = new MessageType(messageType.getName(), fields);

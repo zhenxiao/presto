@@ -23,6 +23,7 @@ import com.facebook.presto.spi.block.LazyBlock;
 import com.facebook.presto.spi.block.LazyBlockLoader;
 import com.facebook.presto.spi.block.RunLengthEncodedBlock;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.type.NestedField;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.collect.ImmutableList;
@@ -32,14 +33,15 @@ import parquet.schema.MessageType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.REGULAR;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_BAD_DATA;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_CURSOR_ERROR;
+import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getColumnType;
 import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getFieldIndex;
-import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getParquetType;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
 import static parquet.io.ColumnIOConverter.constructField;
@@ -72,7 +74,8 @@ public class ParquetPageSource
             Properties splitSchema,
             List<HiveColumnHandle> columns,
             TupleDomain<HiveColumnHandle> effectivePredicate,
-            boolean useParquetColumnNames)
+            boolean useParquetColumnNames,
+            Optional<Map<String, NestedField>> nestedFields)
     {
         requireNonNull(splitSchema, "splitSchema is null");
         requireNonNull(columns, "columns is null");
@@ -99,7 +102,7 @@ public class ParquetPageSource
             typesBuilder.add(type);
             hiveColumnIndexes[columnIndex] = column.getHiveColumnIndex();
 
-            if (getParquetType(column, fileSchema, useParquetColumnNames) == null) {
+            if (getColumnType(column, fileSchema, useParquetColumnNames, nestedFields) == null) {
                 constantBlocks[columnIndex] = RunLengthEncodedBlock.create(type, null, MAX_VECTOR_LENGTH);
                 fieldsBuilder.add(Optional.empty());
             }
