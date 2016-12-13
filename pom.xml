@@ -124,6 +124,7 @@
         <module>presto-pinot</module>
         <module>presto-event-listener</module>
         <module>presto-geo</module>
+        <module>presto-udf</module>
     </modules>
 
     <dependencyManagement>
@@ -457,6 +458,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-sqlserver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-udf</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
