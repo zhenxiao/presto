@@ -171,7 +171,8 @@ public class BeginTableWrite
                         session,
                         handle,
                         new Constraint<>(scan.getCurrentConstraint(), bindings -> true),
-                        Optional.of(ImmutableSet.copyOf(scan.getAssignments().values())));
+                        Optional.of(ImmutableSet.copyOf(scan.getAssignments().values())),
+                        Optional.empty());
                 verify(layouts.size() == 1, "Expected exactly one layout for delete");
                 TableLayoutHandle layout = Iterables.getOnlyElement(layouts).getLayout().getHandle();
 

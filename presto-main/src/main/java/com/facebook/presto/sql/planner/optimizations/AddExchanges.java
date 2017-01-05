@@ -563,7 +563,8 @@ public class AddExchanges
                     new Constraint<>(newDomain, evaluator::isCandidate),
                     Optional.of(node.getOutputSymbols().stream()
                             .map(node.getAssignments()::get)
-                            .collect(toImmutableSet())));
+                            .collect(toImmutableSet())),
+                    decomposedPredicate.getNestedTupleDomain());
 
             if (layouts.isEmpty()) {
                 return emptyRelation(node.getOutputSymbols());

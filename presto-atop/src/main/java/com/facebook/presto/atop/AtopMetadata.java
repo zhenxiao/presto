@@ -28,6 +28,7 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -89,7 +90,8 @@ public class AtopMetadata
     public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session,
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
-            Optional<Set<ColumnHandle>> desiredColumns)
+            Optional<Set<ColumnHandle>> desiredColumns,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         AtopTableHandle tableHandle = (AtopTableHandle) table;
         Optional<Map<ColumnHandle, Domain>> domains = constraint.getSummary().getDomains();

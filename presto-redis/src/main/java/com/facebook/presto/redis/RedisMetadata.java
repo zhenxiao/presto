@@ -27,6 +27,7 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.TableNotFoundException;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
@@ -132,7 +133,8 @@ public class RedisMetadata
             ConnectorSession session,
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
-            Optional<Set<ColumnHandle>> desiredColumns)
+            Optional<Set<ColumnHandle>> desiredColumns,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         RedisTableHandle tableHandle = convertTableHandle(table);
 
@@ -147,7 +149,7 @@ public class RedisMetadata
         RedisTableLayoutHandle layout = convertLayout(handle);
 
         // tables in this connector have a single layout
-        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty())
+        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty())
                 .get(0)
                 .getTableLayout();
     }

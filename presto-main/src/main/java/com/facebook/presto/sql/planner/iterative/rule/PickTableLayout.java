@@ -204,7 +204,8 @@ public class PickTableLayout
                 context.getSession(),
                 node.getTable(),
                 new Constraint<>(simplifiedConstraint, bindings -> true),
-                Optional.of(ImmutableSet.copyOf(node.getAssignments().values())));
+                Optional.of(ImmutableSet.copyOf(node.getAssignments().values())),
+                decomposedPredicate.getNestedTupleDomain());
         if (layouts.isEmpty()) {
             return new ValuesNode(context.getIdAllocator().getNextId(), node.getOutputSymbols(), ImmutableList.of());
         }
