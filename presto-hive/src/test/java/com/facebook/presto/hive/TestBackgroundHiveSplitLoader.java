@@ -261,6 +261,7 @@ public class TestBackgroundHiveSplitLoader
                 EXECUTOR,
                 2,
                 false,
+                Optional.empty(),
                 Optional.empty());
     }
 
@@ -281,6 +282,7 @@ public class TestBackgroundHiveSplitLoader
                 directExecutor(),
                 2,
                 false,
+                Optional.empty(),
                 Optional.empty());
     }
 

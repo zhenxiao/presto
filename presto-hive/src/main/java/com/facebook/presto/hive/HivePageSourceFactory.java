@@ -39,5 +39,6 @@ public interface HivePageSourceFactory
             List<HiveColumnHandle> columns,
             TupleDomain<HiveColumnHandle> effectivePredicate,
             DateTimeZone hiveStorageTimeZone,
-            Optional<Map<String, NestedField>> nestedFields);
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain);
 }

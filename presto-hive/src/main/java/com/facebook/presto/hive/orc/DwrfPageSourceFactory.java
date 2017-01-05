@@ -73,7 +73,8 @@ public class DwrfPageSourceFactory
             List<HiveColumnHandle> columns,
             TupleDomain<HiveColumnHandle> effectivePredicate,
             DateTimeZone hiveStorageTimeZone,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         if (!isDeserializerClass(schema, OrcSerde.class)) {
             return Optional.empty();

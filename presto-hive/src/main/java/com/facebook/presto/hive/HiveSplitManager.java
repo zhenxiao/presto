@@ -205,7 +205,8 @@ public class HiveSplitManager
                 executor,
                 splitLoaderConcurrency,
                 recursiveDfsWalkerEnabled,
-                nestedFields);
+                nestedFields,
+                layout.getNestedTupleDomain());
 
         HiveSplitSource splitSource;
         switch (splitSchedulingStrategy) {

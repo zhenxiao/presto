@@ -111,7 +111,8 @@ public class ParquetPageSourceFactory
             List<HiveColumnHandle> columns,
             TupleDomain<HiveColumnHandle> effectivePredicate,
             DateTimeZone hiveStorageTimeZone,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         if (!isParquetOptimizedReaderEnabled(session)) {
             return Optional.empty();
@@ -136,7 +137,8 @@ public class ParquetPageSourceFactory
                 isParquetPredicatePushdownEnabled(session),
                 effectivePredicate,
                 stats,
-                nestedFields));
+                nestedFields,
+                nestedTupleDomain));
     }
 
     public static ParquetPageSource createParquetPageSource(
@@ -154,7 +156,8 @@ public class ParquetPageSourceFactory
             boolean predicatePushdownEnabled,
             TupleDomain<HiveColumnHandle> effectivePredicate,
             FileFormatDataSourceStats stats,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         AggregatedMemoryContext systemMemoryContext = newSimpleAggregatedMemoryContext();
 

@@ -370,6 +370,7 @@ public enum FileFormat
                         TupleDomain.all(),
                         DateTimeZone.forID(session.getTimeZoneKey().getId()),
                         TYPE_MANAGER,
+                        Optional.empty(),
                         Optional.empty())
                 .get();
         return new RecordPageSource(columnTypes, recordCursor);
@@ -403,6 +404,7 @@ public enum FileFormat
                         columnHandles,
                         TupleDomain.all(),
                         DateTimeZone.forID(session.getTimeZoneKey().getId()),
+                        Optional.empty(),
                         Optional.empty())
                 .get();
     }

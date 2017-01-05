@@ -52,6 +52,7 @@ public class HiveSplit
     private final Map<Integer, HiveType> columnCoercions; // key: hiveColumnIndex
     private final Optional<BucketConversion> bucketConversion;
     private final Optional<Map<String, NestedField>> nestedFields;
+    private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
 
     @JsonCreator
     public HiveSplit(
@@ -70,7 +71,8 @@ public class HiveSplit
             @JsonProperty("effectivePredicate") TupleDomain<HiveColumnHandle> effectivePredicate,
             @JsonProperty("columnCoercions") Map<Integer, HiveType> columnCoercions,
             @JsonProperty("bucketConversion") Optional<BucketConversion> bucketConversion,
-            @JsonProperty("nestedFields") Optional<Map<String, NestedField>> nestedFields)
+            @JsonProperty("nestedFields") Optional<Map<String, NestedField>> nestedFields,
+            @JsonProperty("nestedTupleDomain") Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         checkArgument(start >= 0, "start must be positive");
         checkArgument(length >= 0, "length must be positive");
@@ -103,6 +105,7 @@ public class HiveSplit
         this.columnCoercions = columnCoercions;
         this.bucketConversion = bucketConversion;
         this.nestedFields = nestedFields;
+        this.nestedTupleDomain = nestedTupleDomain;
     }
 
     @JsonProperty
@@ -202,6 +205,12 @@ public class HiveSplit
         return nestedFields;
     }
 
+    @JsonProperty
+    public Optional<TupleDomain<List<String>>> getNestedTupleDomain()
+    {
+        return nestedTupleDomain;
+    }
+
     @Override
     public boolean isRemotelyAccessible()
     {
@@ -222,6 +231,7 @@ public class HiveSplit
                 .put("forceLocalScheduling", forceLocalScheduling)
                 .put("partitionName", partitionName)
                 .put("nestedFields", nestedFields)
+                .put("nestedTupleDomain", nestedTupleDomain)
                 .build();
     }
 
@@ -235,6 +245,7 @@ public class HiveSplit
                 .addValue(fileSize)
                 .addValue(effectivePredicate)
                 .addValue(nestedFields)
+                .addValue(nestedTupleDomain)
                 .toString();
     }
 

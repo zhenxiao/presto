@@ -106,6 +106,7 @@ public class BackgroundHiveSplitLoader
     private final ConcurrentLazyQueue<HivePartitionMetadata> partitions;
     private final Deque<Iterator<InternalHiveSplit>> fileIterators = new ConcurrentLinkedDeque<>();
     private final Optional<Map<String, NestedField>> nestedFields;
+    private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
 
     // Purpose of this lock:
     // * Write lock: when you need a consistent view across partitions, fileIterators, and hiveSplitSource.
@@ -139,7 +140,8 @@ public class BackgroundHiveSplitLoader
             Executor executor,
             int loaderConcurrency,
             boolean recursiveDirWalkerEnabled,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         this.table = table;
         this.compactEffectivePredicate = compactEffectivePredicate;
@@ -151,6 +153,7 @@ public class BackgroundHiveSplitLoader
         this.directoryLister = directoryLister;
         this.recursiveDirWalkerEnabled = recursiveDirWalkerEnabled;
         this.nestedFields = nestedFields;
+        this.nestedTupleDomain = nestedTupleDomain;
         this.executor = executor;
         this.partitions = new ConcurrentLazyQueue<>(partitions);
         this.hdfsContext = new HdfsContext(session, table.getDatabaseName(), table.getTableName());
@@ -297,7 +300,7 @@ public class BackgroundHiveSplitLoader
                 FileInputFormat.setInputPaths(targetJob, targetPath);
                 InputSplit[] targetSplits = targetInputFormat.getSplits(targetJob, 0);
 
-                InternalHiveSplitFactory splitFactory = new InternalHiveSplitFactory(targetFilesystem, partitionName, inputFormat, schema, partitionKeys, effectivePredicate, partition.getColumnCoercions(), Optional.empty(), isForceLocalScheduling(session), nestedFields);
+                InternalHiveSplitFactory splitFactory = new InternalHiveSplitFactory(targetFilesystem, partitionName, inputFormat, schema, partitionKeys, effectivePredicate, partition.getColumnCoercions(), Optional.empty(), isForceLocalScheduling(session), nestedFields, nestedTupleDomain);
                 lastResult = addSplitsToSource(targetSplits, splitFactory);
                 if (stopped) {
                     return COMPLETED_FUTURE;
@@ -333,7 +336,8 @@ public class BackgroundHiveSplitLoader
                 partition.getColumnCoercions(),
                 bucketConversionRequiresWorkerParticipation ? bucketConversion : Optional.empty(),
                 isForceLocalScheduling(session),
-                nestedFields);
+                nestedFields,
+                nestedTupleDomain);
 
         // To support custom input formats, we want to call getSplits()
         // on the input format to obtain file splits.

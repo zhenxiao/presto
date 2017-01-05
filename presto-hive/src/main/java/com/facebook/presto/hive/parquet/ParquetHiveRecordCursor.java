@@ -105,6 +105,7 @@ public class ParquetHiveRecordCursor
         implements RecordCursor
 {
     private final Optional<Map<String, NestedField>> nestedFields;
+    private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
     private final ParquetRecordReader<FakeParquetRecord> recordReader;
 
     private final Type[] types;
@@ -137,7 +138,8 @@ public class ParquetHiveRecordCursor
             boolean predicatePushdownEnabled,
             TupleDomain<HiveColumnHandle> effectivePredicate,
             FileFormatDataSourceStats stats,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         requireNonNull(path, "path is null");
         checkArgument(length >= 0, "length is negative");
@@ -166,6 +168,7 @@ public class ParquetHiveRecordCursor
         }
 
         this.nestedFields = nestedFields;
+        this.nestedTupleDomain = nestedTupleDomain;
         this.recordReader = createParquetRecordReader(
                 hdfsEnvironment,
                 sessionUser,

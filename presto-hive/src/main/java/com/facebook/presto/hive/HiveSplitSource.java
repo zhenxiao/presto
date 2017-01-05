@@ -376,7 +376,8 @@ class HiveSplitSource
                         (TupleDomain<HiveColumnHandle>) compactEffectivePredicate,
                         transformValues(internalSplit.getColumnCoercions(), HiveTypeName::toHiveType),
                         internalSplit.getBucketConversion(),
-                        internalSplit.getNestedFields()));
+                        internalSplit.getNestedFields(),
+                        internalSplit.getNestedTupleDomain()));
                 internalSplit.increaseStart(splitBytes);
 
                 if (internalSplit.isDone()) {

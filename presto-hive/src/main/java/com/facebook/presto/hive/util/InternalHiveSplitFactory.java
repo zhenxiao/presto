@@ -60,6 +60,7 @@ public class InternalHiveSplitFactory
     private final Optional<BucketConversion> bucketConversion;
     private final boolean forceLocalScheduling;
     private final Optional<Map<String, NestedField>> nestedFields;
+    private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
 
     public InternalHiveSplitFactory(
             FileSystem fileSystem,
@@ -71,7 +72,8 @@ public class InternalHiveSplitFactory
             Map<Integer, HiveTypeName> columnCoercions,
             Optional<BucketConversion> bucketConversion,
             boolean forceLocalScheduling,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         this.fileSystem = requireNonNull(fileSystem, "fileSystem is null");
         this.partitionName = requireNonNull(partitionName, "partitionName is null");
@@ -83,6 +85,7 @@ public class InternalHiveSplitFactory
         this.bucketConversion = requireNonNull(bucketConversion, "bucketConversion is null");
         this.forceLocalScheduling = forceLocalScheduling;
         this.nestedFields = nestedFields;
+        this.nestedTupleDomain = nestedTupleDomain;
     }
 
     public String getPartitionName()
@@ -110,7 +113,8 @@ public class InternalHiveSplitFactory
                 status.getLen(),
                 bucketNumber,
                 isSplittable(inputFormat, fileSystem, status.getPath()),
-                nestedFields);
+                nestedFields,
+                nestedTupleDomain);
     }
 
     public Optional<InternalHiveSplit> createInternalHiveSplit(FileSplit split)
@@ -125,7 +129,8 @@ public class InternalHiveSplitFactory
                 file.getLen(),
                 OptionalInt.empty(),
                 false,
-                nestedFields);
+                nestedFields,
+                nestedTupleDomain);
     }
 
     private Optional<InternalHiveSplit> createInternalHiveSplit(
@@ -136,7 +141,8 @@ public class InternalHiveSplitFactory
             long fileSize,
             OptionalInt bucketNumber,
             boolean splittable,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         String pathString = path.toString();
         if (!pathMatchesPredicate(pathDomain, pathString)) {
@@ -191,7 +197,8 @@ public class InternalHiveSplitFactory
                 forceLocalScheduling && allBlocksHaveRealAddress(blocks),
                 columnCoercions,
                 bucketConversion,
-                nestedFields));
+                nestedFields,
+                nestedTupleDomain));
     }
 
     private static void checkBlocks(List<InternalHiveBlock> blocks, long start, long length)

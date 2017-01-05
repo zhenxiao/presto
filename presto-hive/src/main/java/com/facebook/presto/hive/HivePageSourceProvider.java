@@ -109,8 +109,8 @@ public class HivePageSourceProvider
                 typeManager,
                 hiveSplit.getColumnCoercions(),
                 hiveSplit.getBucketConversion(),
-                hiveSplit.getNestedFields());
-
+                hiveSplit.getNestedFields(),
+                hiveSplit.getNestedTupleDomain());
         if (pageSource.isPresent()) {
             return pageSource.get();
         }
@@ -135,7 +135,8 @@ public class HivePageSourceProvider
             TypeManager typeManager,
             Map<Integer, HiveType> columnCoercions,
             Optional<BucketConversion> bucketConversion,
-            Optional<Map<String, NestedField>> nestedFields)
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
         List<ColumnMapping> columnMappings = ColumnMapping.buildColumnMappings(
                 partitionKeys,
@@ -169,7 +170,8 @@ public class HivePageSourceProvider
                     toColumnHandles(regularAndInterimColumnMappings, true),
                     effectivePredicate,
                     hiveStorageTimeZone,
-                    nestedFields);
+                    nestedFields,
+                    nestedTupleDomain);
             if (pageSource.isPresent()) {
                 return Optional.of(
                         new HivePageSource(
@@ -197,7 +199,8 @@ public class HivePageSourceProvider
                     effectivePredicate,
                     hiveStorageTimeZone,
                     typeManager,
-                    nestedFields);
+                    nestedFields,
+                    nestedTupleDomain);
 
             if (cursor.isPresent()) {
                 RecordCursor delegate = cursor.get();

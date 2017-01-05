@@ -41,5 +41,6 @@ public interface HiveRecordCursorProvider
             TupleDomain<HiveColumnHandle> effectivePredicate,
             DateTimeZone hiveStorageTimeZone,
             TypeManager typeManager,
-            Optional<Map<String, NestedField>> nestedFields);
+            Optional<Map<String, NestedField>> nestedFields,
+            Optional<TupleDomain<List<String>>> nestedTupleDomain);
 }

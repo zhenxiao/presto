@@ -62,6 +62,7 @@ public class TestHiveSplit
                         32,
                         16,
                         ImmutableList.of(new HiveColumnHandle("col", HIVE_LONG, BIGINT.getTypeSignature(), 5, ColumnType.REGULAR, Optional.of("comment"))))),
+                Optional.empty(),
                 Optional.empty());
 
         String json = codec.toJson(expected);
