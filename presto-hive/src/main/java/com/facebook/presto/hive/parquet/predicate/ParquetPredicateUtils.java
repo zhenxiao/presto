@@ -41,6 +41,7 @@ import parquet.schema.MessageType;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +52,14 @@ import static com.facebook.presto.hive.parquet.ParquetCompressionUtils.decompres
 import static com.facebook.presto.hive.parquet.ParquetTypeUtils.getParquetEncoding;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.SmallintType.SMALLINT;
+import static com.facebook.presto.spi.type.StandardTypes.ARRAY;
+import static com.facebook.presto.spi.type.StandardTypes.MAP;
+import static com.facebook.presto.spi.type.StandardTypes.ROW;
 import static com.facebook.presto.spi.type.TinyintType.TINYINT;
 import static com.google.common.base.Verify.verify;
 import static io.airlift.slice.Slices.wrappedBuffer;
 import static java.lang.Math.toIntExact;
 import static java.util.Map.Entry;
-import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
 import static parquet.column.Encoding.BIT_PACKED;
 import static parquet.column.Encoding.PLAIN_DICTIONARY;
 import static parquet.column.Encoding.RLE;
@@ -76,26 +79,40 @@ public final class ParquetPredicateUtils
                 (type.equals(INTEGER) && (min < Integer.MIN_VALUE || max > Integer.MAX_VALUE));
     }
 
-    public static TupleDomain<ColumnDescriptor> getParquetTupleDomain(Map<List<String>, RichColumnDescriptor> descriptorsByPath, TupleDomain<HiveColumnHandle> effectivePredicate)
+    public static TupleDomain<ColumnDescriptor> getParquetTupleDomain(Map<List<String>, RichColumnDescriptor> descriptorsByPath, TupleDomain<HiveColumnHandle> effectivePredicate, Optional<TupleDomain<List<String>>> nestedTupleDomain)
     {
-        if (effectivePredicate.isNone()) {
-            return TupleDomain.none();
+        TupleDomain<ColumnDescriptor> result = TupleDomain.none();
+        if (!effectivePredicate.isNone()) {
+            ImmutableMap.Builder<ColumnDescriptor, Domain> flatPredicateBuilder = ImmutableMap.builder();
+            for (Map.Entry<HiveColumnHandle, Domain> entry : effectivePredicate.getDomains().get().entrySet()) {
+                String typeBase = entry.getKey().getTypeSignature().getBase();
+                if (typeBase.equals(ROW) || typeBase.equals(ARRAY) || typeBase.equals(MAP)) {
+                    continue;
+                }
+                List<String> path = new ArrayList<>();
+                path.add(entry.getKey().getName());
+                RichColumnDescriptor descriptor = descriptorsByPath.get(ImmutableList.of(entry.getKey().getName()));
+                if (descriptor != null) {
+                    flatPredicateBuilder.put(descriptor, entry.getValue());
+                }
+            }
+            result = TupleDomain.withColumnDomains(flatPredicateBuilder.build());
         }
 
-        ImmutableMap.Builder<ColumnDescriptor, Domain> predicate = ImmutableMap.builder();
-        for (Entry<HiveColumnHandle, Domain> entry : effectivePredicate.getDomains().get().entrySet()) {
-            HiveColumnHandle columnHandle = entry.getKey();
-            // skip looking up predicates for complex types as Parquet only stores stats for primitives
-            if (!columnHandle.getHiveType().getCategory().equals(PRIMITIVE)) {
-                continue;
-            }
-
-            RichColumnDescriptor descriptor = descriptorsByPath.get(ImmutableList.of(columnHandle.getName()));
-            if (descriptor != null) {
-                predicate.put(descriptor, entry.getValue());
+        if (nestedTupleDomain.isPresent()) {
+            Optional<Map<List<String>, Domain>> domains = nestedTupleDomain.get().getDomains();
+            if (domains.isPresent()) {
+                ImmutableMap.Builder<ColumnDescriptor, Domain> nestedPredicateBuilder = ImmutableMap.builder();
+                for (Map.Entry<List<String>, Domain> entry : domains.get().entrySet()) {
+                    RichColumnDescriptor descriptor = descriptorsByPath.get(ImmutableList.of(entry.getKey()));
+                    if (descriptor != null) {
+                        nestedPredicateBuilder.put(descriptor, entry.getValue());
+                    }
+                }
+                return result.intersect(TupleDomain.withColumnDomains(nestedPredicateBuilder.build()));
             }
         }
-        return TupleDomain.withColumnDomains(predicate.build());
+        return result;
     }
 
     public static ParquetPredicate buildParquetPredicate(MessageType requestedSchema, TupleDomain<ColumnDescriptor> parquetTupleDomain, Map<List<String>, RichColumnDescriptor> descriptorsByPath)

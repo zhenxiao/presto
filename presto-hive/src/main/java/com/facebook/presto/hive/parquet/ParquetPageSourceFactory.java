@@ -188,7 +188,7 @@ public class ParquetPageSourceFactory
 
             if (predicatePushdownEnabled) {
                 Map<List<String>, RichColumnDescriptor> descriptorsByPath = getDescriptors(fileSchema, requestedSchema);
-                TupleDomain<ColumnDescriptor> parquetTupleDomain = getParquetTupleDomain(descriptorsByPath, effectivePredicate);
+                TupleDomain<ColumnDescriptor> parquetTupleDomain = getParquetTupleDomain(descriptorsByPath, effectivePredicate, nestedTupleDomain);
                 ParquetPredicate parquetPredicate = buildParquetPredicate(requestedSchema, parquetTupleDomain, descriptorsByPath);
                 final ParquetDataSource finalDataSource = dataSource;
                 blocks = blocks.stream()
