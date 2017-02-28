@@ -28,6 +28,7 @@ import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.predicate.Utils;
 import com.facebook.presto.spi.predicate.ValueSet;
 import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.TypeSignatureParameter;
 import com.facebook.presto.sql.ExpressionUtils;
 import com.facebook.presto.sql.FunctionInvoker;
 import com.facebook.presto.sql.analyzer.ExpressionAnalyzer;
@@ -38,6 +39,7 @@ import com.facebook.presto.sql.tree.BooleanLiteral;
 import com.facebook.presto.sql.tree.Cast;
 import com.facebook.presto.sql.tree.ComparisonExpression;
 import com.facebook.presto.sql.tree.ComparisonExpressionType;
+import com.facebook.presto.sql.tree.DereferenceExpression;
 import com.facebook.presto.sql.tree.Expression;
 import com.facebook.presto.sql.tree.InListExpression;
 import com.facebook.presto.sql.tree.InPredicate;
@@ -64,6 +66,7 @@ import static com.facebook.presto.spi.function.OperatorType.SATURATED_FLOOR_CAST
 import static com.facebook.presto.sql.ExpressionUtils.and;
 import static com.facebook.presto.sql.ExpressionUtils.combineConjuncts;
 import static com.facebook.presto.sql.ExpressionUtils.combineDisjunctsWithDefault;
+import static com.facebook.presto.sql.ExpressionUtils.getExpressionParts;
 import static com.facebook.presto.sql.ExpressionUtils.or;
 import static com.facebook.presto.sql.tree.BooleanLiteral.FALSE_LITERAL;
 import static com.facebook.presto.sql.tree.BooleanLiteral.TRUE_LITERAL;
@@ -305,6 +308,56 @@ public final class DomainTranslator
             return type;
         }
 
+        private Type recursiveTypeLookup(DereferenceExpression expression)
+        {
+            List<String> fieldNames = getExpressionParts(expression);
+            if (fieldNames == null) {
+                return null;
+            }
+            checkArgument(fieldNames.size() > 0, "Invalide Dereference Expression: %s", expression);
+            Type type = types.get(new Symbol(fieldNames.get(0)));
+            checkArgument(type != null, "Types is missing info for dereference expression: %s", expression);
+            int index = 1;
+            while (index < fieldNames.size()) {
+                String field = fieldNames.get(index);
+                for (TypeSignatureParameter typeSignatureParameter : type.getTypeSignature().getParameters()) {
+                    Optional<String> name = typeSignatureParameter.getNamedTypeSignature().getName();
+                    if (name.isPresent()) {
+                        if (name.get().equalsIgnoreCase(field)) {
+                            type = metadata.getTypeManager().getType(typeSignatureParameter.getNamedTypeSignature().getTypeSignature());
+                            break;
+                        }
+                    }
+                }
+                index = index + 1;
+            }
+            checkArgument(type != null, "Types is missing info for dereference expression: %s", expression);
+            return type;
+        }
+
+        private Optional<TupleDomain<DereferenceExpression>> combineDereferenceTupleDomain(LogicalBinaryExpression.Type type, Optional<TupleDomain<DereferenceExpression>> left, Optional<TupleDomain<DereferenceExpression>> right)
+        {
+            if (left.isPresent() && right.isPresent()) {
+                switch (type) {
+                    case AND:
+                        return Optional.of(left.get().intersect(right.get()));
+                    case OR:
+                        return Optional.of(TupleDomain.columnWiseUnion(left.get(), right.get()));
+                    default:
+                        throw new AssertionError("Unknown type: " + type);
+                }
+            }
+
+            if (left.isPresent()) {
+                return left;
+            }
+
+            if (right.isPresent()) {
+                return right;
+            }
+            return Optional.empty();
+        }
+
         private static ValueSet complementIfNecessary(ValueSet valueSet, boolean complement)
         {
             return complement ? valueSet.complement() : valueSet;
@@ -337,11 +390,13 @@ public final class DomainTranslator
             TupleDomain<Symbol> rightTupleDomain = rightResult.getTupleDomain();
 
             LogicalBinaryExpression.Type type = complement ? flipLogicalBinaryType(node.getType()) : node.getType();
+            Optional<TupleDomain<DereferenceExpression>> dereferenceTupleDomain = combineDereferenceTupleDomain(type, leftResult.getDereferenceTupleDomain(), rightResult.getDereferenceTupleDomain());
             switch (type) {
                 case AND:
                     return new ExtractionResult(
                             leftTupleDomain.intersect(rightTupleDomain),
-                            combineConjuncts(leftResult.getRemainingExpression(), rightResult.getRemainingExpression()));
+                            combineConjuncts(leftResult.getRemainingExpression(), rightResult.getRemainingExpression()),
+                            dereferenceTupleDomain);
 
                 case OR:
                     TupleDomain<Symbol> columnUnionedTupleDomain = TupleDomain.columnWiseUnion(leftTupleDomain, rightTupleDomain);
@@ -371,7 +426,7 @@ public final class DomainTranslator
                         }
                     }
 
-                    return new ExtractionResult(columnUnionedTupleDomain, remainingExpression);
+                    return new ExtractionResult(columnUnionedTupleDomain, remainingExpression, dereferenceTupleDomain);
 
                 default:
                     throw new AssertionError("Unknown type: " + node.getType());
@@ -405,52 +460,59 @@ public final class DomainTranslator
             }
             NormalizedSimpleComparison normalized = optionalNormalized.get();
 
-            Expression symbolExpression = normalized.getSymbolExpression();
-            if (symbolExpression instanceof SymbolReference) {
-                Symbol symbol = Symbol.from(symbolExpression);
-                NullableValue value = normalized.getValue();
-                Type type = value.getType(); // common type for symbol and value
-                return createComparisonExtractionResult(normalized.getComparisonType(), symbol, type, value.getValue(), complement);
-            }
-            else if (symbolExpression instanceof Cast) {
-                Cast castExpression = (Cast) symbolExpression;
-                if (!isImplicitCoercion(castExpression)) {
-                    //
-                    // we cannot use non-coercion cast to literal_type on symbol side to build tuple domain
-                    //
-                    // example which illustrates the problem:
-                    //
-                    // let t be of timestamp type:
-                    //
-                    // and expression be:
-                    // cast(t as date) == date_literal
-                    //
-                    // after dropping cast we end up with:
-                    //
-                    // t == date_literal
-                    //
-                    // if we build tuple domain based coercion of date_literal to timestamp type we would
-                    // end up with tuple domain with just one time point (cast(date_literal as timestamp).
-                    // While we need range which maps to single date pointed by date_literal.
-                    //
+            if (normalized.getSymbolExpression().isPresent()) {
+                Expression symbolExpression = normalized.getSymbolExpression().get();
+                if (symbolExpression instanceof SymbolReference) {
+                    Symbol symbol = Symbol.from(symbolExpression);
+                    NullableValue value = normalized.getValue();
+                    Type type = value.getType(); // common type for symbol and value
+                    return createComparisonExtractionResult(normalized.getComparisonType(), symbol, type, value.getValue(), complement, Optional.empty(), node);
+                }
+                else if (symbolExpression instanceof Cast) {
+                    Cast castExpression = (Cast) symbolExpression;
+                    if (!isImplicitCoercion(castExpression)) {
+                        //
+                        // we cannot use non-coercion cast to literal_type on symbol side to build tuple domain
+                        //
+                        // example which illustrates the problem:
+                        //
+                        // let t be of timestamp type:
+                        //
+                        // and expression be:
+                        // cast(t as date) == date_literal
+                        //
+                        // after dropping cast we end up with:
+                        //
+                        // t == date_literal
+                        //
+                        // if we build tuple domain based coercion of date_literal to timestamp type we would
+                        // end up with tuple domain with just one time point (cast(date_literal as timestamp).
+                        // While we need range which maps to single date pointed by date_literal.
+                        //
+                        return super.visitComparisonExpression(node, complement);
+                    }
+
+                    Type castSourceType = typeOf(castExpression.getExpression(), session, metadata, types); // type of expression which is then cast to type of value
+
+                    // we use saturated floor cast value -> castSourceType to rewrite original expression to new one with one cast peeled off the symbol side
+                    Optional<Expression> coercedExpression = coerceComparisonWithRounding(castSourceType, castExpression.getExpression(), normalized.getValue(), normalized.getComparisonType());
+
+                    if (coercedExpression.isPresent()) {
+                        return process(coercedExpression.get(), complement);
+                    }
+
                     return super.visitComparisonExpression(node, complement);
                 }
-
-                Type castSourceType = typeOf(castExpression.getExpression(), session, metadata, types); // type of expression which is then cast to type of value
-
-                // we use saturated floor cast value -> castSourceType to rewrite original expression to new one with one cast peeled off the symbol side
-                Optional<Expression> coercedExpression = coerceComparisonWithRounding(
-                        castSourceType, castExpression.getExpression(), normalized.getValue(), normalized.getComparisonType());
-
-                if (coercedExpression.isPresent()) {
-                    return process(coercedExpression.get(), complement);
+            }
+            else if (normalized.getDereferenceExpression().isPresent()) {
+                DereferenceExpression dereferenceExpression = normalized.getDereferenceExpression().get();
+                Type type = recursiveTypeLookup(dereferenceExpression);
+                if (type == null) {
+                    return super.visitComparisonExpression(node, complement);
                 }
-
-                return super.visitComparisonExpression(node, complement);
+                return createComparisonExtractionResult(normalized.getComparisonType(), null, type, normalized.getValue().getValue(), complement, normalized.getDereferenceExpression(), node);
             }
-            else {
-                return super.visitComparisonExpression(node, complement);
-            }
+            return super.visitComparisonExpression(node, complement);
         }
 
         /**
@@ -473,22 +535,33 @@ public final class DomainTranslator
                 return Optional.empty();
             }
 
-            Expression symbolExpression;
+            Optional<Expression> symbolExpression = Optional.empty();
+            Optional<DereferenceExpression> dereferenceExpression = Optional.empty();
             ComparisonExpressionType comparisonType;
             NullableValue value;
 
             if (left instanceof Expression) {
-                symbolExpression = comparison.getLeft();
+                if (left instanceof DereferenceExpression) {
+                    dereferenceExpression = Optional.of((DereferenceExpression) left);
+                }
+                else {
+                    symbolExpression = Optional.of(comparison.getLeft());
+                }
                 comparisonType = comparison.getType();
                 value = new NullableValue(rightType, right);
             }
             else {
-                symbolExpression = comparison.getRight();
+                if (right instanceof DereferenceExpression) {
+                    dereferenceExpression = Optional.of((DereferenceExpression) right);
+                }
+                else {
+                    symbolExpression = Optional.of(comparison.getRight());
+                }
                 comparisonType = comparison.getType().flip();
                 value = new NullableValue(leftType, left);
             }
 
-            return Optional.of(new NormalizedSimpleComparison(symbolExpression, comparisonType, value));
+            return Optional.of(new NormalizedSimpleComparison(comparisonType, value, symbolExpression, dereferenceExpression));
         }
 
         private boolean isImplicitCoercion(Cast cast)
@@ -504,7 +577,7 @@ public final class DomainTranslator
             return ExpressionAnalyzer.getExpressionTypes(session, metadata, new SqlParser(), types, expression, emptyList() /* parameters already replaced */);
         }
 
-        private static ExtractionResult createComparisonExtractionResult(ComparisonExpressionType comparisonType, Symbol column, Type type, @Nullable Object value, boolean complement)
+        private static ExtractionResult createComparisonExtractionResult(ComparisonExpressionType comparisonType, Symbol column, Type type, @Nullable Object value, boolean complement, Optional<DereferenceExpression> dereferenceExpression, ComparisonExpression node)
         {
             if (value == null) {
                 switch (comparisonType) {
@@ -518,9 +591,7 @@ public final class DomainTranslator
 
                     case IS_DISTINCT_FROM:
                         Domain domain = complementIfNecessary(Domain.notNull(type), complement);
-                        return new ExtractionResult(
-                                TupleDomain.withColumnDomains(ImmutableMap.of(column, domain)),
-                                TRUE_LITERAL);
+                        return buildExtractionResult(column, domain, dereferenceExpression, node);
 
                     default:
                         throw new AssertionError("Unhandled type: " + comparisonType);
@@ -538,9 +609,15 @@ public final class DomainTranslator
                 throw new AssertionError("Type cannot be used in a comparison expression (should have been caught in analysis): " + type);
             }
 
-            return new ExtractionResult(
-                    TupleDomain.withColumnDomains(ImmutableMap.of(column, domain)),
-                    TRUE_LITERAL);
+            return buildExtractionResult(column, domain, dereferenceExpression, node);
+        }
+
+        private static ExtractionResult buildExtractionResult(Symbol column, Domain domain, Optional<DereferenceExpression> dereferenceExpression, ComparisonExpression node)
+        {
+            if (column == null) {
+                return new ExtractionResult(TupleDomain.all(), node, Optional.of(TupleDomain.withColumnDomains(ImmutableMap.of(dereferenceExpression.get(), domain))));
+            }
+            return new ExtractionResult(TupleDomain.withColumnDomains(ImmutableMap.of(column, domain)), TRUE_LITERAL);
         }
 
         private static Domain extractOrderableDomain(ComparisonExpressionType comparisonType, Type type, Object value, boolean complement)
@@ -777,18 +854,20 @@ public final class DomainTranslator
 
     private static class NormalizedSimpleComparison
     {
-        private final Expression symbolExpression;
         private final ComparisonExpressionType comparisonType;
         private final NullableValue value;
+        private final Optional<Expression> symbolExpression;
+        private final Optional<DereferenceExpression> dereferenceExpression;
 
-        public NormalizedSimpleComparison(Expression symbolExpression, ComparisonExpressionType comparisonType, NullableValue value)
+        public NormalizedSimpleComparison(ComparisonExpressionType comparisonType, NullableValue value, Optional<Expression> symbolExpression, Optional<DereferenceExpression> dereferenceExpression)
         {
-            this.symbolExpression = requireNonNull(symbolExpression, "nameReference is null");
             this.comparisonType = requireNonNull(comparisonType, "comparisonType is null");
             this.value = requireNonNull(value, "value is null");
+            this.symbolExpression = requireNonNull(symbolExpression, "nameReference is null");
+            this.dereferenceExpression = requireNonNull(dereferenceExpression, "dereferenceExpression is null");
         }
 
-        public Expression getSymbolExpression()
+        public Optional<Expression> getSymbolExpression()
         {
             return symbolExpression;
         }
@@ -802,17 +881,29 @@ public final class DomainTranslator
         {
             return value;
         }
+
+        public Optional<DereferenceExpression> getDereferenceExpression()
+        {
+            return dereferenceExpression;
+        }
     }
 
     public static class ExtractionResult
     {
         private final TupleDomain<Symbol> tupleDomain;
         private final Expression remainingExpression;
+        private final Optional<TupleDomain<DereferenceExpression>> dereferenceTupleDomain;
 
         public ExtractionResult(TupleDomain<Symbol> tupleDomain, Expression remainingExpression)
         {
+            this(tupleDomain, remainingExpression, Optional.empty());
+        }
+
+        public ExtractionResult(TupleDomain<Symbol> tupleDomain, Expression remainingExpression, Optional<TupleDomain<DereferenceExpression>> dereferenceTupleDomain)
+        {
             this.tupleDomain = requireNonNull(tupleDomain, "tupleDomain is null");
             this.remainingExpression = requireNonNull(remainingExpression, "remainingExpression is null");
+            this.dereferenceTupleDomain = requireNonNull(dereferenceTupleDomain, "dereferenceTupleDomain is null");
         }
 
         public TupleDomain<Symbol> getTupleDomain()
@@ -823,6 +914,27 @@ public final class DomainTranslator
         public Expression getRemainingExpression()
         {
             return remainingExpression;
+        }
+
+        public Optional<TupleDomain<DereferenceExpression>> getDereferenceTupleDomain()
+        {
+            return dereferenceTupleDomain;
+        }
+
+        public Optional<TupleDomain<List<String>>> getNestedTupleDomain()
+        {
+            if (!dereferenceTupleDomain.isPresent()) {
+                return Optional.empty();
+            }
+            Optional<Map<DereferenceExpression, Domain>> tupleDomain = dereferenceTupleDomain.get().getDomains();
+            if (!tupleDomain.isPresent()) {
+                return Optional.empty();
+            }
+            ImmutableMap.Builder<List<String>, Domain> domainBuilder = ImmutableMap.builder();
+            for (Map.Entry<DereferenceExpression, Domain> entry : tupleDomain.get().entrySet()) {
+                domainBuilder.put(getExpressionParts(entry.getKey()), entry.getValue());
+            }
+            return Optional.of(TupleDomain.withColumnDomains(domainBuilder.build()));
         }
     }
 }

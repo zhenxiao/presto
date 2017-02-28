@@ -17,6 +17,7 @@ import com.facebook.presto.sql.planner.DeterminismEvaluator;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.SymbolsExtractor;
 import com.facebook.presto.sql.tree.ComparisonExpression;
+import com.facebook.presto.sql.tree.DereferenceExpression;
 import com.facebook.presto.sql.tree.Expression;
 import com.facebook.presto.sql.tree.ExpressionRewriter;
 import com.facebook.presto.sql.tree.ExpressionTreeRewriter;
@@ -30,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -347,5 +349,24 @@ public final class ExpressionUtils
             }
         }
         return false;
+    }
+
+    public static List<String> getExpressionParts(DereferenceExpression expression)
+    {
+        Expression base = expression.getBase();
+        if (base instanceof SymbolReference) {
+            List<String> result = new ArrayList<>();
+            result.add(((SymbolReference) base).getName());
+            result.add(expression.getField().getValue());
+            return result;
+        }
+        else if (base instanceof DereferenceExpression) {
+            List<String> result = getExpressionParts((DereferenceExpression) base);
+            if (result != null) {
+                result.add(expression.getField().getValue());
+            }
+            return result;
+        }
+        return null;
     }
 }
