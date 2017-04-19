@@ -93,6 +93,7 @@ public final class SystemSessionProperties
     public static final String PREFER_PARTITIAL_AGGREGATION = "prefer_partial_aggregation";
     public static final String MAX_GROUPING_SETS = "max_grouping_sets";
     public static final String PRUNE_NESTED_FIELDS = "prune_nested_fields";
+    public static final String QUERY_SUBMIT_USER = "query_submit_user";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -424,7 +425,12 @@ public final class SystemSessionProperties
                         MAX_GROUPING_SETS,
                         "Maximum number of grouping sets in a GROUP BY",
                         featuresConfig.getMaxGroupingSets(),
-                        true));
+                        true),
+                stringSessionProperty(
+                        QUERY_SUBMIT_USER,
+                        "User who submits this query",
+                        null,
+                        false));
     }
 
     public List<PropertyMetadata<?>> getSessionProperties()
