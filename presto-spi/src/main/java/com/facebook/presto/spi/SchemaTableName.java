@@ -75,4 +75,15 @@ public class SchemaTableName
     {
         return new SchemaTablePrefix(schemaName, tableName);
     }
+
+    @JsonCreator
+    public static SchemaTableName valueOf(String schemaTableName)
+    {
+        checkNotEmpty(schemaTableName, "schemaTableName");
+        String[] parts = schemaTableName.split("\\.");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid schemaTableName " + schemaTableName);
+        }
+        return new SchemaTableName(parts[0], parts[1]);
+    }
 }

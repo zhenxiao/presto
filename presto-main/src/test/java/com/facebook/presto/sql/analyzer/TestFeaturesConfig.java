@@ -154,6 +154,10 @@ public class TestFeaturesConfig
                 .put("optimizer.use-mark-distinct", "false")
                 .put("optimizer.prefer-partial-aggregation", "false")
                 .put("analyzer.max-grouping-sets", "2047")
+                .put("optimizer.partition-filtering-enforced", "true")
+                .put("optimizer.partition-filtering-tables", "dwh.a:hdrone.b")
+                .put("optimizer.json-path-pushdown", "true")
+                .put("optimizer.limit-table-scan", "true")
                 .build();
 
         FeaturesConfig expected = new FeaturesConfig()
@@ -209,7 +213,13 @@ public class TestFeaturesConfig
                 .setPreferPartialAggregation(false)
                 .setHistogramGroupImplementation(HistogramGroupImplementation.LEGACY)
                 .setArrayAggGroupImplementation(ArrayAggGroupImplementation.LEGACY)
-                .setMaxGroupingSets(2047);
+                .setMaxGroupingSets(2047)
+                .setSpillerThreads(42)
+                .setJsonPathPushDown(true)
+                .setLimitTableScan(true)
+                .setPartitionFilteringEnforced(true)
+                .setPartitionFilteringTables("dwh.a:hdrone.b");
+
         assertFullMapping(properties, expected);
     }
 

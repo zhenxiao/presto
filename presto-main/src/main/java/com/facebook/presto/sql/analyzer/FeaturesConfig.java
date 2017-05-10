@@ -90,6 +90,9 @@ public class FeaturesConfig
     private boolean jsonPathPushDown;
     private boolean limitTableScan;
 
+    private boolean partitionFilteringEnforced;
+    private String partitionFilteringTables = "";
+
     private int re2JDfaStatesLimit = Integer.MAX_VALUE;
     private int re2JDfaRetries = 5;
     private RegexLibrary regexLibrary = JONI;
@@ -797,6 +800,30 @@ public class FeaturesConfig
     public FeaturesConfig setLimitTableScan(boolean limitTableScan)
     {
         this.limitTableScan = limitTableScan;
+        return this;
+    }
+
+    public boolean isPartitionFilteringEnforced()
+    {
+        return partitionFilteringEnforced;
+    }
+
+    @Config("optimizer.partition-filtering-enforced")
+    public FeaturesConfig setPartitionFilteringEnforced(boolean partitionFilteringEnforced)
+    {
+        this.partitionFilteringEnforced = partitionFilteringEnforced;
+        return this;
+    }
+
+    public String getPartitionFilteringTables()
+    {
+        return partitionFilteringTables;
+    }
+
+    @Config("optimizer.partition-filtering-tables")
+    public FeaturesConfig setPartitionFilteringTables(String tables)
+    {
+        this.partitionFilteringTables = tables;
         return this;
     }
 }

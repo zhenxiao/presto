@@ -96,6 +96,8 @@ public final class SystemSessionProperties
     public static final String QUERY_SUBMIT_USER = "query_submit_user";
     public static final String JSON_PATH_PUSHDOWN = "json_path_pushdown";
     public static final String LIMIT_TABLE_SCAN = "limit_table_scan";
+    public static final String PARTITION_FILTER = "enforce_partition_filter";
+    public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -264,6 +266,16 @@ public final class SystemSessionProperties
                         "Prune unused nested fields",
                         featuresConfig.isPruneNestedFields(),
                         false),
+                booleanSessionProperty(
+                  PARTITION_FILTER,
+                        "Enforce partition filtering",
+                        featuresConfig.isPartitionFilteringEnforced(),
+                        false),
+                stringSessionProperty(
+                  PARTITION_FILTER_TABLES,
+                        "tables to enforce partition filtering",
+                        featuresConfig.getPartitionFilteringTables(),
+                        true),
                 integerSessionProperty(
                         QUERY_PRIORITY,
                         "The priority of queries. Larger numbers are higher priority",
@@ -533,6 +545,16 @@ public final class SystemSessionProperties
     public static boolean isPruneRowTypeFields(Session session)
     {
         return session.getSystemProperty(PRUNE_NESTED_FIELDS, Boolean.class);
+    }
+
+    public static boolean enforcePartitionFilter(Session session)
+    {
+        return session.getSystemProperty(PARTITION_FILTER, Boolean.class);
+    }
+
+    public static String getPartitionFilterTables(Session session)
+    {
+        return session.getSystemProperty(PARTITION_FILTER_TABLES, String.class);
     }
 
     public static DataSize getQueryMaxMemory(Session session)

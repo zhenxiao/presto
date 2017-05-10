@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.analyzer;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.SystemSessionProperties;
 import com.facebook.presto.cost.CostCalculator;
 import com.facebook.presto.cost.StatsCalculator;
 import com.facebook.presto.execution.DataDefinitionTask;
@@ -99,6 +100,28 @@ public class QueryExplainer
         Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, Optional.of(this), parameters);
         return analyzer.analyze(statement);
     }
+    // Hack !!!
+    // In order to enable explain regardless of partition filtering, need to rebuild a session with partition filtering to false.
+    private Session rebuildSession(Session session)
+    {
+        if (SystemSessionProperties.enforcePartitionFilter(session)) {
+            return Session.builder(metadata.getSessionPropertyManager())
+              .setQueryId(session.getQueryId())
+              .setTransactionId(session.getTransactionId().orElse(null))
+              .setIdentity(session.getIdentity())
+              .setSource(session.getSource().orElse(null))
+              .setCatalog(session.getCatalog().orElse(null))
+              .setSchema(session.getSchema().orElse(null))
+              .setTimeZoneKey(session.getTimeZoneKey())
+              .setLocale(session.getLocale())
+              .setRemoteUserAddress(session.getRemoteUserAddress().orElse(null))
+              .setUserAgent(session.getUserAgent().orElse(null))
+              .setStartTime(session.getStartTime())
+              .setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "false")
+              .build();
+        }
+        return session;
+    }
 
     public String getPlan(Session session, Statement statement, Type planType, List<Expression> parameters)
     {
@@ -107,6 +130,7 @@ public class QueryExplainer
             return explainTask(statement, task, parameters);
         }
 
+        session = rebuildSession(session);
         switch (planType) {
             case LOGICAL:
                 Plan plan = getLogicalPlan(session, statement, parameters);
@@ -131,6 +155,7 @@ public class QueryExplainer
             return explainTask(statement, task, parameters);
         }
 
+        session = rebuildSession(session);
         switch (planType) {
             case LOGICAL:
                 Plan plan = getLogicalPlan(session, statement, parameters);

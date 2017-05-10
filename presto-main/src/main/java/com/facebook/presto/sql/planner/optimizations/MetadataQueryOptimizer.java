@@ -135,17 +135,7 @@ public class MetadataQueryOptimizer
 
             // Materialize the list of partitions and replace the TableScan node
             // with a Values node
-            TableLayout layout = null;
-            if (!tableScan.getLayout().isPresent()) {
-                List<TableLayoutResult> layouts = metadata.getLayouts(session, tableScan.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
-                if (layouts.size() == 1) {
-                    layout = Iterables.getOnlyElement(layouts).getLayout();
-                }
-            }
-            else {
-                layout = metadata.getLayout(session, tableScan.getLayout().get());
-            }
-
+            TableLayout layout = getTableLayout(metadata, session, tableScan);
             if (layout == null || !layout.getDiscretePredicates().isPresent()) {
                 return context.defaultRewrite(node);
             }
@@ -228,5 +218,20 @@ public class MetadataQueryOptimizer
         {
             return replacement;
         }
+    }
+
+    public static TableLayout getTableLayout(Metadata metadata, Session session, TableScanNode tableScan)
+    {
+        TableLayout layout = null;
+        if (!tableScan.getLayout().isPresent()) {
+            List<TableLayoutResult> layouts = metadata.getLayouts(session, tableScan.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            if (layouts.size() == 1) {
+                layout = Iterables.getOnlyElement(layouts).getLayout();
+            }
+        }
+        else {
+            layout = metadata.getLayout(session, tableScan.getLayout().get());
+        }
+        return layout;
     }
 }
