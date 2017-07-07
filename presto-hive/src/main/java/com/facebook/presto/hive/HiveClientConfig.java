@@ -87,6 +87,7 @@ public class HiveClientConfig
     private int dfsConnectMaxRetries = 5;
     private boolean verifyChecksum = true;
     private String domainSocketPath;
+    private boolean fallbackSimpleAuthAllowed;
 
     private S3FileSystemType s3FileSystemType = S3FileSystemType.PRESTO;
 
@@ -1120,5 +1121,17 @@ public class HiveClientConfig
     public boolean isHdfsObserverReadEnabled()
     {
         return this.hdfsObserverReadEnabled;
+    }
+
+    @Config("hive.ipc.client.fallback-to-simple-auth-allowed")
+    public HiveClientConfig setClientFallbackSimpleAuthAllowed(boolean fallbackAllowed)
+    {
+        this.fallbackSimpleAuthAllowed = fallbackAllowed;
+        return this;
+    }
+
+    public boolean isClientFallbackSimpleAuthAllowed()
+    {
+        return this.fallbackSimpleAuthAllowed;
     }
 }

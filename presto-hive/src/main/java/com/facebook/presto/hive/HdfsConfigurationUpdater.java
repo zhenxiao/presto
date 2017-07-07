@@ -52,6 +52,7 @@ public class HdfsConfigurationUpdater
     private final HiveCompressionCodec compressionCodec;
     private final int fileSystemMaxCacheSize;
     private final S3ConfigurationUpdater s3ConfigurationUpdater;
+    private final boolean clientFallbackSimpleAuthAllowed;
 
     @VisibleForTesting
     public HdfsConfigurationUpdater(HiveClientConfig config)
@@ -74,7 +75,7 @@ public class HdfsConfigurationUpdater
         this.resourcesConfiguration = readConfiguration(config.getResourceConfigFiles());
         this.compressionCodec = config.getHiveCompressionCodec();
         this.fileSystemMaxCacheSize = config.getFileSystemMaxCacheSize();
-
+        this.clientFallbackSimpleAuthAllowed = config.isClientFallbackSimpleAuthAllowed();
         this.s3ConfigurationUpdater = requireNonNull(s3ConfigurationUpdater, "s3ConfigurationUpdater is null");
     }
 
@@ -121,6 +122,9 @@ public class HdfsConfigurationUpdater
         config.setInt("ipc.client.connect.max.retries", dfsConnectMaxRetries);
 
         config.setInt("fs.cache.max-size", fileSystemMaxCacheSize);
+
+        // set whether ipc client can fallback to simple auth
+        config.setBoolean("ipc.client.fallback-to-simple-auth-allowed", this.clientFallbackSimpleAuthAllowed);
 
         configureCompression(config, compressionCodec);
 

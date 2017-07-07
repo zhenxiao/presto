@@ -110,7 +110,9 @@ public class TestHiveClientConfig
                 .setHdfsObserverReadEnabled(false)
                 .setFileStatusCacheExpireAfterWrite(new Duration(1, TimeUnit.MINUTES))
                 .setFileStatusCacheMaxSize(1000 * 1000)
-                .setFileStatusCacheTables(null));
+                .setFileStatusCacheTables(null)
+                .setWritesToNonManagedTablesEnabled(false)
+                .setClientFallbackSimpleAuthAllowed(false));
     }
 
     @Test
@@ -189,6 +191,7 @@ public class TestHiveClientConfig
                 .put("hive.file-status-cache-tables", "foo.bar1, foo.bar2")
                 .put("hive.file-status-cache-size", "1000")
                 .put("hive.file-status-cache-expire-time", "30m")
+                .put("hive.ipc.client.fallback-to-simple-auth-allowed", "false")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -263,7 +266,9 @@ public class TestHiveClientConfig
                 .setHdfsObserverReadEnabled(true)
                 .setFileStatusCacheTables("foo.bar1,foo.bar2")
                 .setFileStatusCacheMaxSize(1000)
-                .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES));
+                .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES))
+                .setWritesToNonManagedTablesEnabled(true)
+                .setClientFallbackSimpleAuthAllowed(false);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }
