@@ -65,6 +65,7 @@ public class HdfsConfigurationUpdater
     private final S3ConfigurationUpdater s3ConfigurationUpdater;
     private final boolean isHdfsWireEncryptionEnabled;
     private int textMaxLineLength;
+    private final boolean clientFallbackSimpleAuthAllowed;
 
     @VisibleForTesting
     public HdfsConfigurationUpdater(HiveClientConfig config)
@@ -91,6 +92,7 @@ public class HdfsConfigurationUpdater
         this.isHdfsWireEncryptionEnabled = config.isHdfsWireEncryptionEnabled();
         this.textMaxLineLength = toIntExact(config.getTextMaxLineLength().toBytes());
 
+        this.clientFallbackSimpleAuthAllowed = config.isClientFallbackSimpleAuthAllowed();
         this.s3ConfigurationUpdater = requireNonNull(s3ConfigurationUpdater, "s3ConfigurationUpdater is null");
     }
 
@@ -141,6 +143,8 @@ public class HdfsConfigurationUpdater
         config.setInt("fs.cache.max-size", fileSystemMaxCacheSize);
 
         config.setInt(LineRecordReader.MAX_LINE_LENGTH, textMaxLineLength);
+        // set whether ipc client can fallback to simple auth
+        config.setBoolean("ipc.client.fallback-to-simple-auth-allowed", this.clientFallbackSimpleAuthAllowed);
 
         configureCompression(config, compressionCodec);
 
