@@ -51,16 +51,15 @@ import org.apache.hadoop.mapred.TextInputFormat;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.annotation.Annotation;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -101,6 +100,7 @@ public class BackgroundHiveSplitLoader
     private final DirectoryLister directoryLister;
     private final int loaderConcurrency;
     private final boolean recursiveDirWalkerEnabled;
+    private final Set<String> respectSplitsInputFormats;
     private final Executor executor;
     private final ConnectorSession session;
     private final ConcurrentLazyQueue<HivePartitionMetadata> partitions;
@@ -141,7 +141,8 @@ public class BackgroundHiveSplitLoader
             int loaderConcurrency,
             boolean recursiveDirWalkerEnabled,
             Optional<Map<String, NestedField>> nestedFields,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Set<String> respectSplitsInputFormats)
     {
         this.table = table;
         this.compactEffectivePredicate = compactEffectivePredicate;
@@ -152,6 +153,7 @@ public class BackgroundHiveSplitLoader
         this.namenodeStats = namenodeStats;
         this.directoryLister = directoryLister;
         this.recursiveDirWalkerEnabled = recursiveDirWalkerEnabled;
+        this.respectSplitsInputFormats = respectSplitsInputFormats;
         this.nestedFields = nestedFields;
         this.nestedTupleDomain = nestedTupleDomain;
         this.executor = executor;
@@ -389,12 +391,9 @@ public class BackgroundHiveSplitLoader
         return lastResult;
     }
 
-    private static boolean shouldUseFileSplitsFromInputFormat(InputFormat<?, ?> inputFormat)
+    private boolean shouldUseFileSplitsFromInputFormat(InputFormat<?, ?> inputFormat)
     {
-        return Arrays.stream(inputFormat.getClass().getAnnotations())
-                .map(Annotation::annotationType)
-                .map(Class::getSimpleName)
-                .anyMatch(name -> name.equals("UseFileSplitsFromInputFormat"));
+        return respectSplitsInputFormats != null && respectSplitsInputFormats.contains(inputFormat.getClass().getCanonicalName());
     }
 
     private Iterator<InternalHiveSplit> createInternalHiveSplitIterator(Path path, FileSystem fileSystem, InternalHiveSplitFactory splitFactory)

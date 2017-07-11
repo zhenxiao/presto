@@ -211,7 +211,8 @@ public abstract class AbstractTestHiveClientS3
                 config.getMaxPartitionBatchSize(),
                 config.getMaxInitialSplits(),
                 config.getSplitLoaderConcurrency(),
-                config.getRecursiveDirWalkerEnabled());
+                config.getRecursiveDirWalkerEnabled(),
+                config.getRespectSplitsInputFormats());
         pageSinkProvider = new HivePageSinkProvider(
                 getDefaultHiveFileWriterFactories(config),
                 hdfsEnvironment,

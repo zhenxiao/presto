@@ -262,7 +262,8 @@ public class TestBackgroundHiveSplitLoader
                 2,
                 false,
                 Optional.empty(),
-                Optional.empty());
+                Optional.empty(),
+                ImmutableSet.of());
     }
 
     private static BackgroundHiveSplitLoader backgroundHiveSplitLoaderOfflinePartitions()
@@ -283,7 +284,8 @@ public class TestBackgroundHiveSplitLoader
                 2,
                 false,
                 Optional.empty(),
-                Optional.empty());
+                Optional.empty(),
+                ImmutableSet.of());
     }
 
     private static Iterable<HivePartitionMetadata> createPartitionMetadataWithOfflinePartitions()

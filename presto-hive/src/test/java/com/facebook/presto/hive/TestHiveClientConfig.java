@@ -19,6 +19,7 @@ import com.facebook.presto.hive.s3.S3FileSystemType;
 import com.facebook.presto.orc.OrcWriteValidation.OrcWriteValidationMode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
 import io.airlift.configuration.testing.ConfigAssertions;
 import io.airlift.units.DataSize;
@@ -57,6 +58,7 @@ public class TestHiveClientConfig
                 .setMaxInitialSplits(200)
                 .setMaxInitialSplitSize(new DataSize(32, Unit.MEGABYTE))
                 .setSplitLoaderConcurrency(4)
+                .setRespectSplitsInputFormats((String) null)
                 .setDomainCompactionThreshold(100)
                 .setWriterSortBufferSize(new DataSize(64, Unit.MEGABYTE))
                 .setForceLocalScheduling(false)
@@ -138,6 +140,7 @@ public class TestHiveClientConfig
                 .put("hive.max-initial-splits", "10")
                 .put("hive.max-initial-split-size", "16MB")
                 .put("hive.split-loader-concurrency", "1")
+                .put("hive.respect-input-format-splits", "false")
                 .put("hive.domain-compaction-threshold", "42")
                 .put("hive.writer-sort-buffer-size", "13MB")
                 .put("hive.recursive-directories", "true")
@@ -213,6 +216,7 @@ public class TestHiveClientConfig
                 .setResourceConfigFiles(ImmutableList.of("/foo.xml", "/bar.xml"))
                 .setHiveStorageFormat(HiveStorageFormat.SEQUENCEFILE)
                 .setHiveCompressionCodec(HiveCompressionCodec.NONE)
+                .setRespectSplitsInputFormats(ImmutableSet.of("inputformat1", "inputformat2"))
                 .setRespectTableFormat(false)
                 .setImmutablePartitions(true)
                 .setMaxPartitionsPerWriter(222)

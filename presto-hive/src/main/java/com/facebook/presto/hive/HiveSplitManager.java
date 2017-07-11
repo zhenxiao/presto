@@ -46,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -91,6 +92,7 @@ public class HiveSplitManager
     private final int splitLoaderConcurrency;
     private final boolean recursiveDfsWalkerEnabled;
     private final CounterStat highMemorySplitSourceCounter;
+    private final Set<String> respectSplitsInputFormats;
 
     @Inject
     public HiveSplitManager(
@@ -116,7 +118,8 @@ public class HiveSplitManager
                 hiveClientConfig.getMaxPartitionBatchSize(),
                 hiveClientConfig.getMaxInitialSplits(),
                 hiveClientConfig.getSplitLoaderConcurrency(),
-                hiveClientConfig.getRecursiveDirWalkerEnabled());
+                hiveClientConfig.getRecursiveDirWalkerEnabled(),
+                hiveClientConfig.getRespectSplitsInputFormats());
     }
 
     public HiveSplitManager(
@@ -133,7 +136,8 @@ public class HiveSplitManager
             int maxPartitionBatchSize,
             int maxInitialSplits,
             int splitLoaderConcurrency,
-            boolean recursiveDfsWalkerEnabled)
+            boolean recursiveDfsWalkerEnabled,
+            Set<String> respectSplitsInputFormats)
     {
         this.metastoreProvider = requireNonNull(metastoreProvider, "metastore is null");
         this.namenodeStats = requireNonNull(namenodeStats, "namenodeStats is null");
@@ -150,6 +154,7 @@ public class HiveSplitManager
         this.maxInitialSplits = maxInitialSplits;
         this.splitLoaderConcurrency = splitLoaderConcurrency;
         this.recursiveDfsWalkerEnabled = recursiveDfsWalkerEnabled;
+        this.respectSplitsInputFormats = respectSplitsInputFormats;
     }
 
     @Override
@@ -206,7 +211,8 @@ public class HiveSplitManager
                 splitLoaderConcurrency,
                 recursiveDfsWalkerEnabled,
                 nestedFields,
-                layout.getNestedTupleDomain());
+                layout.getNestedTupleDomain(),
+                respectSplitsInputFormats);
 
         HiveSplitSource splitSource;
         switch (splitSchedulingStrategy) {

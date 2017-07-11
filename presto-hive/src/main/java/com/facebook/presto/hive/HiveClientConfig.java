@@ -17,6 +17,7 @@ import com.facebook.presto.hive.s3.S3FileSystemType;
 import com.facebook.presto.orc.OrcWriteValidation.OrcWriteValidationMode;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
 import io.airlift.configuration.Config;
 import io.airlift.configuration.ConfigDescription;
@@ -33,7 +34,9 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -64,6 +67,7 @@ public class HiveClientConfig
     private DataSize writerSortBufferSize = new DataSize(64, MEGABYTE);
     private boolean forceLocalScheduling;
     private boolean recursiveDirWalkerEnabled;
+    private Set<String> respectSplitsInputFormats;
 
     private int maxConcurrentFileRenames = 20;
 
@@ -237,6 +241,25 @@ public class HiveClientConfig
     public boolean getRecursiveDirWalkerEnabled()
     {
         return recursiveDirWalkerEnabled;
+    }
+
+    public Set<String> getRespectSplitsInputFormats()
+    {
+        return respectSplitsInputFormats;
+    }
+
+    @Config("hive.respect-splits.input-formats")
+    @ConfigDescription("List of inputformats which Presto should simply honor InputFormat.getSplits() to determine the splits, instead of built-in file tree walking")
+    public HiveClientConfig setRespectSplitsInputFormats(String inputFormats)
+    {
+        this.respectSplitsInputFormats = (inputFormats == null) ? null : new HashSet<>(SPLITTER.splitToList(inputFormats));
+        return this;
+    }
+
+    public HiveClientConfig setRespectSplitsInputFormats(Set<String> inputFormats)
+    {
+        this.respectSplitsInputFormats = (inputFormats == null) ? null : ImmutableSet.copyOf(inputFormats);
+        return this;
     }
 
     public DateTimeZone getDateTimeZone()
