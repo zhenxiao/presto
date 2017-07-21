@@ -58,6 +58,7 @@ public class DbResourceGroupConfigurationManagerFactory
                     .strictConfig()
                     .doNotInitializeLogging()
                     .setRequiredConfigurationProperties(config)
+                    .quiet()
                     .initialize();
             return injector.getInstance(DbResourceGroupConfigurationManager.class);
         }
