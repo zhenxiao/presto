@@ -23,6 +23,7 @@ import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.SymbolAllocator;
 import com.facebook.presto.sql.planner.plan.AggregationNode;
 import com.facebook.presto.sql.planner.plan.FilterNode;
+import com.facebook.presto.sql.planner.plan.JoinNode;
 import com.facebook.presto.sql.planner.plan.PlanNode;
 import com.facebook.presto.sql.planner.plan.ProjectNode;
 import com.facebook.presto.sql.planner.plan.SimplePlanRewriter;
@@ -109,6 +110,28 @@ public class PruneNestedFields
                     node.getStep(),
                     node.getHashSymbol(),
                     node.getGroupIdSymbol());
+        }
+
+        @Override
+        public PlanNode visitJoin(JoinNode node, RewriteContext<Map<String, NestedField>> context)
+        {
+            Map<String, NestedField> fields = context.get();
+            if (node.getFilter().isPresent()) {
+                processNestedFields(node.getFilter().get(), fields);
+            }
+            PlanNode left = context.rewrite(node.getLeft(), fields);
+            PlanNode right = context.rewrite(node.getRight(), fields);
+            return new JoinNode(
+                    node.getId(),
+                    node.getType(),
+                    left,
+                    right,
+                    node.getCriteria(),
+                    node.getOutputSymbols(),
+                    node.getFilter(),
+                    node.getLeftHashSymbol(),
+                    node.getRightHashSymbol(),
+                    node.getDistributionType());
         }
 
         @Override
