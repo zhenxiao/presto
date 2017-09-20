@@ -521,4 +521,58 @@ public final class UserDefinedFunctions
     {
         return Slices.utf8Slice(StringUtils.replaceChars(str.toStringUtf8(), from.toStringUtf8(), to.toStringUtf8()));
     }
+
+    private static int[] parseVersionString(String version)
+    {
+        String[] stringParts = version.split("\\.");
+        int[] intParts = new int[stringParts.length];
+        for (int i = 0; i < stringParts.length; i++) {
+            intParts[i] = Integer.parseInt(stringParts[i]);
+        }
+        return intParts;
+    }
+
+    @SqlNullable
+    @Description("Compares two version strings for which is higher, returning 1, 0, or -1.")
+    @ScalarFunction("version_compare")
+    @SqlType(StandardTypes.INTEGER)
+    public static Long versionCompare(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice v1, @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice v2)
+    {
+        if (v1 == null || v2 == null) {
+            return null;
+        }
+
+        String v1str = v1.toStringUtf8();
+        String v2str = v2.toStringUtf8();
+        String versionRegex = "^\\d+(\\.\\d+)*$";
+        if (!v1str.matches(versionRegex) || !v2str.matches(versionRegex)) {
+            return null;
+        }
+
+        int[] v1parts;
+        int[] v2parts;
+        try {
+            v1parts = parseVersionString(v1str);
+            v2parts = parseVersionString(v2str);
+        }
+        catch (NumberFormatException e) {
+            return null;
+        }
+
+        for (int i = 0; i < v1parts.length && i < v2parts.length; i++) {
+            if (v1parts[i] > v2parts[i]) {
+                return 1L;
+            }
+            if (v1parts[i] < v2parts[i]) {
+                return -1L;
+            }
+        }
+        if (v1parts.length > v2parts.length && v1parts[v1parts.length - 1] > 0) {
+            return 1L;
+        }
+        if (v2parts.length > v1parts.length && v2parts[v2parts.length - 1] > 0) {
+            return -1L;
+        }
+        return 0L;
+    }
 }

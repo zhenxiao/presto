@@ -147,6 +147,19 @@ public class TestUDFQueries
         assertQuery("SELECT TRANSLATE('abcba', 'bc', 'yz')", "select 'ayzya'");
         assertQuery("SELECT TRANSLATE('straße', 'ß', 'ss')", "select 'strase'");
     }
+
+    @Test
+    public void testVersionCompare() throws Exception
+    {
+        assertQuery("SELECT version_compare('3.12.0', '3.9.2')", "SELECT 1");
+        assertQuery("SELECT version_compare('1.2.0', '1.2')", "SELECT 0");
+        assertQuery("SELECT version_compare('9.1', '10.5.0')", "SELECT -1");
+        assertQuery("SELECT version_compare('3.4.1', 'abcde')", "SELECT NULL");
+        assertQuery("SELECT version_compare(NULL, '4.2')", "SELECT NULL");
+        assertQuery("SELECT version_compare('4.1', '4.1.0')", "SELECT 0");
+        assertQuery("SELECT version_compare('4.1', '4.1.1')", "SELECT -1");
+    }
+
     private static final TimeZoneKey TIME_ZONE_KEY = getTimeZoneKey("Asia/Kathmandu");
     private static LocalQueryRunner createLocalQueryRunner()
     {
