@@ -97,12 +97,14 @@ public class EnforcePartitionFilter
         private final Session session;
         private final Metadata metadata;
         private final Set<SchemaTableName> partitionFilteringTables;
+        private final Set<String> enforcedSchemas;
 
         private Optimizer(Session session, Metadata metadata, Set<SchemaTableName> tables, PlanNodeIdAllocator idAllocator)
         {
             this.session = session;
             this.metadata = metadata;
             this.partitionFilteringTables = tables;
+            this.enforcedSchemas = partitionFilteringTables.stream().filter(schemaTableName -> "*".equals(schemaTableName.getTableName())).map(SchemaTableName::getSchemaName).collect(Collectors.toSet());
         }
 
         @Override
@@ -118,7 +120,7 @@ public class EnforcePartitionFilter
             }
 
             SchemaTableName schemaTableName = metadata.getTableMetadata(session, tableScan.getTable()).getTable();
-            if (!partitionFilteringTables.contains(schemaTableName)) {
+            if (!enforcedSchemas.contains(schemaTableName.getSchemaName()) && !partitionFilteringTables.contains(schemaTableName)) {
                 return context.defaultRewrite(tableScan);
             }
 

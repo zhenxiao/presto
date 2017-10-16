@@ -2429,6 +2429,8 @@ public class TestHiveIntegrationSmokeTest
         Session partitionFilterSession = Session.builder(commonSession).setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "true").build();
         Session noPartitionFilterSession = Session.builder(commonSession).setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "false").build();
 
+        Session wildcardSession = Session.builder(getSession()).setSystemProperty(SystemSessionProperties.PARTITION_FILTER_TABLES, HiveQueryRunner.TPCH_SCHEMA + ".*").setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "true").build();
+
         @Language("SQL") String createPartitionTable = "" +
                 "CREATE TABLE partitioned_table " +
                 "WITH (" +
@@ -2453,12 +2455,14 @@ public class TestHiveIntegrationSmokeTest
         // When partition filter is not enforced, query will succeed.
         // Not able to use assertQuery here. assertQuery runs query in H2QueryRunner as well, which we are not able to create table there.
         computeActual(noPartitionFilterSession, "select * from partitioned_table");
-        assertQueryFails(partitionFilterSession, "select * from partitioned_table", "Your query is missing " +
-                "partition filter. Please add a filter on the partition column \"order_status\" in the WHERE clause of your " +
-                "query. For example: WHERE partition_column > '2017-06-01'.");
-        assertQueryFails(partitionFilterSession, "select * from partitioned_table_multi_partition_key", "Your query " +
-                "is missing partition filter. Please add filters on all partition columns \"order_status\", " +
-                "\"ship_priority\" in the WHERE clause of your query. For example: WHERE partition_column > '2017-06-01'.");
+        for (Session session : ImmutableList.of(partitionFilterSession, wildcardSession)) {
+            assertQueryFails(session, "select * from partitioned_table", "Your query is missing " +
+                    "partition filter. Please add a filter on the partition column \"order_status\" in the WHERE clause of your " +
+                    "query. For example: WHERE partition_column > '2017-06-01'.");
+            assertQueryFails(session, "select * from partitioned_table_multi_partition_key", "Your query " +
+                    "is missing partition filter. Please add filters on all partition columns \"order_status\", " +
+                    "\"ship_priority\" in the WHERE clause of your query. For example: WHERE partition_column > '2017-06-01'.");
+        }
 
         // Query in session with empty strict mode tables will succeeded
         Session noPartitionFilterTablesSession = Session.builder(partitionFilterSession).setSystemProperty(SystemSessionProperties.PARTITION_FILTER_TABLES, "a.b:b.c:c.d:e.w").build();
