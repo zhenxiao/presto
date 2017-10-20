@@ -45,6 +45,8 @@ public class AuthenticationFilter
 {
     private final List<Authenticator> authenticators;
 
+    private static final List<String> BLACK_LIST_URIS = ImmutableList.of("/v1/statement");
+
     @Inject
     public AuthenticationFilter(List<Authenticator> authenticators)
     {
@@ -65,7 +67,7 @@ public class AuthenticationFilter
         HttpServletResponse response = (HttpServletResponse) servletResponse;
 
         // skip authentication if non-secure or not configured
-        if (!request.isSecure() || authenticators.isEmpty()) {
+        if ((!request.isSecure() && !isBlackListedHttpRequest(request) )|| authenticators.isEmpty()) {
             nextFilter.doFilter(request, response);
             return;
         }
@@ -103,6 +105,11 @@ public class AuthenticationFilter
             messages.add("Unauthorized");
         }
         response.sendError(SC_UNAUTHORIZED, Joiner.on(" | ").join(messages));
+    }
+
+    private boolean isBlackListedHttpRequest(HttpServletRequest request)
+    {
+        return BLACK_LIST_URIS.stream().anyMatch(request.getRequestURI()::startsWith);
     }
 
     private static ServletRequest withPrincipal(HttpServletRequest request, Principal principal)
