@@ -22,6 +22,7 @@ import com.facebook.presto.spi.security.SystemAccessControl;
 import com.facebook.presto.spi.security.SystemAccessControlFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import org.apache.hadoop.security.authentication.util.KerberosName;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -83,6 +84,8 @@ public class FileBasedSystemAccessControl
                 }
                 path.toFile().canRead();
 
+                KerberosName.setRules("DEFAULT");
+
                 FileBasedSystemAccessControlRules rules = jsonCodec(FileBasedSystemAccessControlRules.class)
                         .fromJson(Files.readAllBytes(path));
 
@@ -115,19 +118,29 @@ public class FileBasedSystemAccessControl
             denySetUser(principal, userName);
         }
 
-        String principalName = principal.getName();
+        try {
+            String principalName = new KerberosName(principal.getName()).getShortName();
 
-        for (PrincipalUserMatchRule rule : principalUserMatchRules.get()) {
-            Optional<Boolean> allowed = rule.match(principalName, userName);
-            if (allowed.isPresent()) {
-                if (allowed.get()) {
-                    return;
-                }
-                denySetUser(principal, userName);
+            if (principalName.equals(userName))
+            {
+                return;
             }
-        }
 
-        denySetUser(principal, userName);
+            for (PrincipalUserMatchRule rule : principalUserMatchRules.get()) {
+                Optional<Boolean> allowed = rule.match(principalName, userName);
+                if (allowed.isPresent()) {
+                    if (allowed.get()) {
+                        return;
+                    }
+                    denySetUser(principal, userName);
+                }
+            }
+
+            denySetUser(principal, userName);
+        }
+        catch (IOException e) {
+            denySetUser(principal, userName);
+        }
     }
 
     @Override
