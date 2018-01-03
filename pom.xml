@@ -134,6 +134,7 @@
         <module>presto-elasticsearch</module>
         <module>presto-elasticsearch2</module>
         <module>presto-udf</module>
+        <module>presto-schemaless</module>
     </modules>
 
     <dependencyManagement>
@@ -375,6 +376,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-jdbc</artifactId>
+		<version>${project.version}</version>
+	    </dependency>
+
+	    <dependency>
+	        <groupId>com.facebook.presto</groupId>
+	        <artifactId>presto-schemaless</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
