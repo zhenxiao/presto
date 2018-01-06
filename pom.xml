@@ -120,6 +120,7 @@
         <module>presto-memory-context</module>
         <module>presto-elasticsearch</module>
         <module>presto-elasticsearch2</module>
+        <module>presto-event-listener</module>
     </modules>
 
     <dependencyManagement>
@@ -337,6 +338,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-elasticsearch2</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-event-listener</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
