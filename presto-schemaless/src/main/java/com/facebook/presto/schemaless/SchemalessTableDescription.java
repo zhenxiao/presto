@@ -22,7 +22,6 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 
 /**
  * Json description to parse a Schemaless table.
- * TODO add other fields, columns etc as needed
  */
 public class SchemalessTableDescription
 {

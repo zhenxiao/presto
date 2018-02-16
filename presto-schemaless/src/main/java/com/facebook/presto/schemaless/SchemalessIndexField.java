@@ -28,7 +28,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Json description to parse a single field from a Schemlaess Index table
- * TODO  May need to re-adjust based on whats needed in Metadata. Also remove requireNonNull constrains for optional fields
+ * TODO  Remove requireNonNull constrains for optional fields
  */
 public class SchemalessIndexField
 {

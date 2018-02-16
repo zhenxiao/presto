@@ -19,6 +19,7 @@
         <dep.jackson.version>2.8.1</dep.jackson.version>
         <dep.heatpipe.version>3.00.013</dep.heatpipe.version>
         <dep.schemaless.client.version>1.5.1</dep.schemaless.client.version>
+        <dep.mockito.version>1.10.19</dep.mockito.version>
     </properties>
     <dependencies>
         <dependency>
@@ -51,7 +52,7 @@
 
         <dependency>
             <groupId>io.airlift</groupId>
-            <artifactId>json</artifactId>
+            <artifactId>json</artifactId>		
         </dependency>
 
         <dependency>
@@ -196,6 +197,23 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.facebook.presto</groupId>
+            <artifactId>presto-main</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>${dep.mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -499,6 +517,21 @@
                             </conflictingDependencies>
                             <packages>
                                 <package>org.slf4j</package>
+                            </packages>
+                        </exception>
+                        <exception>
+                            <conflictingDependencies>
+                                <dependency>
+                                    <groupId>org.hamcrest</groupId>
+                                    <artifactId>hamcrest-core</artifactId>
+                                </dependency>
+                                <dependency>
+                                    <groupId>org.mockito</groupId>
+                                    <artifactId>mockito-all</artifactId>
+                                </dependency>
+                            </conflictingDependencies>
+                            <packages>
+                                <package>org.hamcrest</package>
                             </packages>
                         </exception>
                     </exceptions>

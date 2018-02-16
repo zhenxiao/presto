@@ -27,7 +27,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Schemaless specific connector column handle. Describes each column in a Schemaless table.
- * TODO modify fields as needed. Remove requirenonull constraints for optional fields
+ * TODO Remove requirenonull constraints for optional fields later
  */
 public class SchemalessColumnHandle
         implements ColumnHandle
@@ -49,7 +49,7 @@ public class SchemalessColumnHandle
             @JsonProperty("name") String name,
             @JsonProperty("column_key") String columnKey,
             @JsonProperty("sql_type") String sqlType,
-            @JsonProperty("type") String fieldType,
+            @JsonProperty("field_type") String fieldType,
             @JsonProperty("column_keys") List<String> columnKeys,
             @JsonProperty("expr") String expr,
             @JsonProperty("presto_type") Type prestoType)
