@@ -15,31 +15,54 @@ package com.facebook.presto.schemaless;
 
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.SchemaTableName;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Represents a schemaless specific {@link ConnectorSplit}.
- * TODO Implement in next iteration
  */
 public class SchemalessSplit
         implements ConnectorSplit
 {
+    private final SchemaTableName schemaTableName;
+    private final List<HostAddress> addresses;
+
+    @JsonCreator
+    public SchemalessSplit(
+            @JsonProperty("schemaTableName") SchemaTableName schemaTableName,
+            @JsonProperty("addresses") List<HostAddress> addresses)
+    {
+        this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
+        this.addresses = ImmutableList.copyOf(requireNonNull(addresses, "addresses is null"));
+    }
+
+    @JsonProperty
+    public SchemaTableName getSchemaTableName()
+    {
+        return schemaTableName;
+    }
+
     @Override
     public boolean isRemotelyAccessible()
     {
-        return false;
+        return true;
     }
 
     @Override
+    @JsonProperty
     public List<HostAddress> getAddresses()
     {
-        return null;
+        return addresses;
     }
-
     @Override
     public Object getInfo()
     {
-        return null;
+        return this;
     }
 }

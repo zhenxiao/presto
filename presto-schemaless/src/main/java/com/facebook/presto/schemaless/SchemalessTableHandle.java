@@ -26,7 +26,6 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Schemaless specific {@link ConnectorTableHandle}.
- * TODO: Add more fields as needed.
  */
 public class SchemalessTableHandle
         implements ConnectorTableHandle

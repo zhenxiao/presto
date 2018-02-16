@@ -42,7 +42,6 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Manages the schemaless connector specific metadata information.
- * TODO Methods return null currently. Add implementation in next iteration.
  */
 public class SchemalessMetadata
         implements ConnectorMetadata

@@ -78,7 +78,7 @@ public class SchemalessClientManager
      */
     public List<String> listSchemaNames()
     {
-        return tableDescriptionsMap.keySet().stream().map(SchemaTableName::getSchemaName).collect(collectingAndThen(Collectors.toList(), ImmutableList::copyOf));
+        return tableDescriptionsMap.keySet().stream().map(SchemaTableName::getSchemaName).collect(collectingAndThen(Collectors.toSet(), ImmutableList::copyOf));
     }
 
     /**
@@ -103,7 +103,7 @@ public class SchemalessClientManager
     private void buildTableDefinition(SchemaTableName schemaTableName, SchemalessTableDescription tableDescription)
             throws RetryableException, NonretryableException
     {
-        SchemalessClient client = clients.get(tableDescription.getInstanceName());
+        SchemalessClient client = getClient(tableDescription.getInstanceName());
         Map<String, IndexDefinition> definitionMap = client.getIndexDefinitions(config.getDefaultTimeOutInMs(), config.getDefaultClientIDPrefix(), null);
         for (IndexDefinition indexDefinition : definitionMap.values()) {
             if (indexDefinition.alias.toUpperCase().equals(schemaTableName.getTableName().toUpperCase())) {
@@ -113,7 +113,7 @@ public class SchemalessClientManager
         }
     }
 
-    private SchemalessIndexDefinition buildSchemalessIndexDefinition(IndexDefinition indexDefinition)
+    public static SchemalessIndexDefinition buildSchemalessIndexDefinition(IndexDefinition indexDefinition)
     {
         return new SchemalessIndexDefinition(
                 indexDefinition.kind,
@@ -132,7 +132,7 @@ public class SchemalessClientManager
                 indexDefinition.compositeIndexes);
     }
 
-    private List<SchemalessIndexField> buildSchemalessIndexFields(List<IndexField> indexFields)
+    static List<SchemalessIndexField> buildSchemalessIndexFields(List<IndexField> indexFields)
     {
         ImmutableList.Builder<SchemalessIndexField> result = ImmutableList.builder();
         for (IndexField indexField : indexFields) {
@@ -149,9 +149,9 @@ public class SchemalessClientManager
         return result.build();
     }
 
-    private Type getPrestoType(String fieldType)
+    static Type getPrestoType(String fieldType)
     {
-        //TODO handle GUId (what type is it stored as - binary or string?), Integer, IsNotNoneAndNotEmpty, String:255 ?, Integer:default(-1),
+        //TODO handle GUId (Should type be binary or string?), Integer, IsNotNoneAndNotEmpty, String:255 ?, Integer:default(-1),
         Type prestoType;
         int indexOfSemicolon = fieldType.indexOf(':');
         String columnType = (indexOfSemicolon >= 0) ? fieldType.toLowerCase().substring(0, indexOfSemicolon) : fieldType.toLowerCase();
@@ -210,9 +210,14 @@ public class SchemalessClientManager
         return clients;
     }
 
+    public SchemalessClient getClient(String instanceName)
+    {
+        return clients.get(instanceName);
+    }
+
     /**
      * Create clients per instance of Schemaless. Example: All datastores/index tables in Mezzanine will use one Schemaless client.
-     * TODO In future we may need to change this to one client connection per datastore/index table based on usage.
+     * TODO May need to change this to one client connection per datastore/index table based on usage in future.
      *
      * @throws IOException
      */

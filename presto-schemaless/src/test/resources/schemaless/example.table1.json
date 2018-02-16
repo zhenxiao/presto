@@ -1,0 +1,1 @@
+{ "indexTableName": "table1", "dataStoreName": "example", "hostAddress": "localhost", "port": "12345", "instanceName": "instance1" }

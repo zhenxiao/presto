@@ -19,12 +19,15 @@ import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.RecordSet;
 import com.facebook.presto.spi.connector.ConnectorRecordSetProvider;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
+import static com.facebook.presto.schemaless.Types.checkType;
+import static java.util.Objects.requireNonNull;
+
 /**
  * Factory for Schemaless specific {@link RecordSet} instances.
- * TODO implement in next iteration
  */
 public class SchemalessRecordSetProvider
         implements ConnectorRecordSetProvider
@@ -32,6 +35,14 @@ public class SchemalessRecordSetProvider
     @Override
     public RecordSet getRecordSet(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorSplit split, List<? extends ColumnHandle> columns)
     {
-        return null;
+        requireNonNull(split, "split is null");
+        SchemalessSplit schemalessSplit = checkType(split, SchemalessSplit.class, "split");
+
+        ImmutableList.Builder<SchemalessColumnHandle> handles = ImmutableList.builder();
+        for (ColumnHandle handle : columns) {
+            handles.add(checkType(handle, SchemalessColumnHandle.class, "handle"));
+        }
+
+        return new SchemalessRecordSet(schemalessSplit, handles.build());
     }
 }
