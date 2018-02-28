@@ -95,6 +95,7 @@ public class FeaturesConfig
     private String partitionFilteringTables = "";
 
     private boolean rewriteGeoSpatialQuery;
+    private boolean dereferenceExpressionPushDown;
 
     private int re2JDfaStatesLimit = Integer.MAX_VALUE;
     private int re2JDfaRetries = 5;
@@ -851,6 +852,18 @@ public class FeaturesConfig
     public FeaturesConfig setAggregationPushDown(boolean aggregationPushDown)
     {
         this.aggregationPushDown = aggregationPushDown;
+        return this;
+    }
+
+    public boolean isDereferenceExpressionPushDown()
+    {
+        return dereferenceExpressionPushDown;
+    }
+
+    @Config("optimizer.dereference-expression-pushdown")
+    public FeaturesConfig setDereferenceExpressionPushDown(boolean dereferenceExpressionPushDown)
+    {
+        this.dereferenceExpressionPushDown = dereferenceExpressionPushDown;
         return this;
     }
 }

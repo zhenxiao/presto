@@ -100,6 +100,7 @@ public final class SystemSessionProperties
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
     public static final String REWRITE_GEOSPATIAL_QUERY = "rewrite_geospatial_query";
     public static final String AGGREGATION_PUSHDOWN = "aggregation_pushdown";
+    public static final String DEREFERENCE_EXPRESSION_PUSHDOWN = "dereference_expression_pushdown";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -466,6 +467,11 @@ public final class SystemSessionProperties
                         REWRITE_GEOSPATIAL_QUERY,
                         "rewrite geospatial query",
                         featuresConfig.isRewriteGeoSpatialQuery(),
+                        false),
+                booleanSessionProperty(
+                        DEREFERENCE_EXPRESSION_PUSHDOWN,
+                        "pushdown dereference expression",
+                        featuresConfig.isDereferenceExpressionPushDown(),
                         false));
     }
 
@@ -786,5 +792,10 @@ public final class SystemSessionProperties
                     format("%s must be a power of 2: %s", property, intValue));
         }
         return intValue;
+    }
+
+    public static boolean isDereferenceExpressionPushDown(Session session)
+    {
+        return session.getSystemProperty(DEREFERENCE_EXPRESSION_PUSHDOWN, Boolean.class);
     }
 }
