@@ -67,7 +67,7 @@ public class AuthenticationFilter
         HttpServletResponse response = (HttpServletResponse) servletResponse;
 
         // skip authentication if non-secure or not configured
-        if ((!request.isSecure() && !isBlackListedHttpRequest(request) )|| authenticators.isEmpty()) {
+        if ((!request.isSecure() && !isBlackListedHttpRequest(request)) || authenticators.isEmpty()) {
             nextFilter.doFilter(request, response);
             return;
         }

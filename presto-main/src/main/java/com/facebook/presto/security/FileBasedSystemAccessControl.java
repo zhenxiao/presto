@@ -121,8 +121,7 @@ public class FileBasedSystemAccessControl
         try {
             String principalName = new KerberosName(principal.getName()).getShortName();
 
-            if (principalName.equals(userName))
-            {
+            if (principalName.equals(userName)) {
                 return;
             }
 
