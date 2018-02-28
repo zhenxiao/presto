@@ -21,6 +21,7 @@ public final class PrestoHeaders
     public static final String PRESTO_SCHEMA = "X-Presto-Schema";
     public static final String PRESTO_DELEGATION_TOKEN = "X-Presto-delegation-token";
     public static final String PRESTO_PATH = "X-Presto-Path";
+    public static final String PRESTO_DELEGATION_TOKEN = "X-Presto-delegation-token";
     public static final String PRESTO_TIME_ZONE = "X-Presto-Time-Zone";
     public static final String PRESTO_LANGUAGE = "X-Presto-Language";
     public static final String PRESTO_TRACE_TOKEN = "X-Presto-Trace-Token";

@@ -92,6 +92,7 @@ public class TestQueryRunner
                         "catalog",
                         "schema",
                         "path",
+                        null,
                         "America/Los_Angeles",
                         Locale.ENGLISH,
                         ImmutableMap.of(),

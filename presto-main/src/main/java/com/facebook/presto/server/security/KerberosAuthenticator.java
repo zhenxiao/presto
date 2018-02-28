@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_DELEGATION_TOKEN;
 import static com.google.common.net.HttpHeaders.AUTHORIZATION;
 import static javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag.REQUIRED;
 import static org.ietf.jgss.GSSCredential.ACCEPT_ONLY;
@@ -57,9 +58,10 @@ public class KerberosAuthenticator
     private final GSSManager gssManager = GSSManager.getInstance();
     private final LoginContext loginContext;
     private final GSSCredential serverCredential;
+    private final DelegationTokenAuthenticator delegationTokenAuthenticator;
 
     @Inject
-    public KerberosAuthenticator(KerberosConfig config)
+    public KerberosAuthenticator(KerberosConfig config, DelegationTokenAuthenticator delegationTokenAuthenticator)
     {
         System.setProperty("java.security.krb5.conf", config.getKerberosConfig().getAbsolutePath());
 
@@ -67,6 +69,7 @@ public class KerberosAuthenticator
             String hostname = Optional.ofNullable(config.getPrincipalHostname())
                     .orElseGet(() -> getLocalHost().getCanonicalHostName())
                     .toLowerCase(Locale.US);
+            this.delegationTokenAuthenticator = delegationTokenAuthenticator;
             String servicePrincipal = config.getServiceName() + "/" + hostname;
             loginContext = new LoginContext("", null, null, new Configuration()
             {
@@ -121,6 +124,11 @@ public class KerberosAuthenticator
     public Principal authenticate(HttpServletRequest request)
             throws AuthenticationException
     {
+        String delegationToken = request.getHeader(PRESTO_DELEGATION_TOKEN);
+        if (delegationToken != null) {
+            return delegationTokenAuthenticator.authenticateWithDelegationToken(delegationToken);
+        }
+
         String header = request.getHeader(AUTHORIZATION);
 
         String requestSpnegoToken = null;

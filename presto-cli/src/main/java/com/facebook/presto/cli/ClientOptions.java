@@ -83,6 +83,9 @@ public class ClientOptions
     @Option(name = "--access-token", title = "access token", description = "Access token")
     public String accessToken;
 
+    @Option(name = "--delegation-token", title = "delegation token", description = "HDFS delegation token")
+    public String delegationToken;
+
     @Option(name = "--user", title = "user", description = "Username")
     public String user = System.getProperty("user.name");
 
@@ -160,6 +163,7 @@ public class ClientOptions
                 catalog,
                 schema,
                 null,
+                delegationToken,
                 TimeZone.getDefault().getID(),
                 Locale.getDefault(),
                 toResourceEstimates(resourceEstimates),

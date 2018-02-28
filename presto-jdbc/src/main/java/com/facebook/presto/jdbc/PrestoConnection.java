@@ -672,6 +672,7 @@ public class PrestoConnection
                 catalog.get(),
                 schema.get(),
                 path.get(),
+                null,
                 timeZoneId.get(),
                 locale.get(),
                 ImmutableMap.of(),

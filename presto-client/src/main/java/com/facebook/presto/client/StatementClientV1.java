@@ -53,6 +53,7 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLIENT_CAPABILITIE
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLIENT_INFO;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLIENT_TAGS;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_DEALLOCATED_PREPARE;
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_DELEGATION_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_LANGUAGE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PATH;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PREPARED_STATEMENT;
@@ -145,6 +146,10 @@ class StatementClientV1
 
         Request.Builder builder = prepareRequest(url)
                 .post(RequestBody.create(MEDIA_TYPE_TEXT, query));
+
+        if (session.getDelegation() != null) {
+            builder.addHeader(PRESTO_DELEGATION_TOKEN, session.getDelegation());
+        }
 
         if (session.getSource() != null) {
             builder.addHeader(PRESTO_SOURCE, session.getSource());
