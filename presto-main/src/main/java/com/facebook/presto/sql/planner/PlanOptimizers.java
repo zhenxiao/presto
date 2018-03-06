@@ -36,7 +36,6 @@ import com.facebook.presto.sql.planner.iterative.rule.EvaluateZeroSample;
 import com.facebook.presto.sql.planner.iterative.rule.GatherAndMergeWindows;
 import com.facebook.presto.sql.planner.iterative.rule.ImplementBernoulliSampleAsFilter;
 import com.facebook.presto.sql.planner.iterative.rule.ImplementFilteredAggregations;
-import com.facebook.presto.sql.planner.iterative.rule.InlineDereferenceExpressions;
 import com.facebook.presto.sql.planner.iterative.rule.InlineProjections;
 import com.facebook.presto.sql.planner.iterative.rule.MergeFilters;
 import com.facebook.presto.sql.planner.iterative.rule.MergeLimitWithDistinct;
@@ -355,7 +354,14 @@ public class PlanOptimizers
                         statsCalculator,
                         estimatedExchangesCostCalculator,
                         ImmutableSet.of(new EliminateCrossJoins())), // This can pull up Filter and Project nodes from between Joins, so we need to push them down again
+
+                new PushDownDereferenceExpression(metadata, sqlParser),
+                // After PushDownDereferenceExpression, parent of TableScan will be a ProjectNode
+                // However, following AddExchanges requires FilterNode before TableScan in order to set originalConstraint in TableScan
+                // EnforcePartitionFilter depends on originalConstraint
+                // Hence Add PredicatePushDown here
                 new PredicatePushDown(metadata, sqlParser),
+
                 simplifyOptimizer, // Should be always run after PredicatePushDown
                 new IterativeOptimizer(
                         stats,
@@ -380,10 +386,6 @@ public class PlanOptimizers
                 ImmutableSet.of(
                         new CreatePartialTopN(),
                         new PushTopNThroughUnion())));
-
-        // add push down dereference expression
-        builder.add(new PushDownDereferenceExpression(metadata, sqlParser));
-        builder.add(new IterativeOptimizer(stats, statsCalculator, estimatedExchangesCostCalculator, ImmutableSet.of(new InlineDereferenceExpressions())));
 
         if (!forceSingleNode) {
             builder.add((new IterativeOptimizer(
