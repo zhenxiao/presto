@@ -344,15 +344,17 @@ public class BackgroundHiveSplitLoader
         // To support custom input formats, we want to call getSplits()
         // on the input format to obtain file splits.
         if (shouldUseFileSplitsFromInputFormat(inputFormat) || getHeaderCount(schema) > 0) {
-            if (tableBucketInfo.isPresent()) {
-                throw new PrestoException(NOT_SUPPORTED, "Presto cannot read bucketed partition in an input format with UseFileSplitsFromInputFormat annotation: " + inputFormat.getClass().getSimpleName());
-            }
-            JobConf jobConf = toJobConf(configuration);
-            handleFileHeader(schema, jobConf);
-            FileInputFormat.setInputPaths(jobConf, path);
-            InputSplit[] splits = inputFormat.getSplits(jobConf, 0);
+            return hdfsEnvironment.getHdfsAuthentication().doAs(session.getUser(), () -> {
+                if (tableBucketInfo.isPresent()) {
+                    throw new PrestoException(NOT_SUPPORTED, "Presto cannot read bucketed partition in an input format with UseFileSplitsFromInputFormat annotation: " + inputFormat.getClass().getSimpleName());
+                }
+                JobConf jobConf = toJobConf(configuration);
+                handleFileHeader(schema, jobConf);
+                FileInputFormat.setInputPaths(jobConf, path);
+                InputSplit[] splits = inputFormat.getSplits(jobConf, 0);
 
-            return addSplitsToSource(splits, splitFactory);
+                return addSplitsToSource(splits, splitFactory);
+            });
         }
 
         // Bucketed partitions are fully loaded immediately since all files must be loaded to determine the file to bucket mapping
