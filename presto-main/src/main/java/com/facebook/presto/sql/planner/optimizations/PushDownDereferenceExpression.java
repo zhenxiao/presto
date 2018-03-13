@@ -40,6 +40,7 @@ import com.facebook.presto.sql.tree.ExpressionRewriter;
 import com.facebook.presto.sql.tree.ExpressionTreeRewriter;
 import com.facebook.presto.sql.tree.NodeRef;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -333,13 +334,38 @@ public class PushDownDereferenceExpression
             return builder.build();
         }
 
+        private boolean prefixExist(Expression expression, final Set<Expression> allDereferences)
+        {
+            int[] referenceCount = {0};
+            new DefaultExpressionTraversalVisitor<Void, int[]>()
+            {
+                @Override
+                protected Void visitDereferenceExpression(DereferenceExpression node, int[] referenceCount)
+                {
+                    if (allDereferences.contains(node)) {
+                        referenceCount[0] += 1;
+                    }
+                    process(node.getBase(), referenceCount);
+                    return null;
+                }
+            }.process(expression, referenceCount);
+            return referenceCount[0] > 1;
+        }
+
         private Map<Expression, DereferenceInfo> extractDereferenceInfos(PlanNode node)
         {
-            return ExpressionExtractor.extractExpressionsNonRecursive(node).stream()
+            List<Expression> uniqueDereferenceExpressions = ExpressionExtractor.extractExpressionsNonRecursive(node).stream()
                     .flatMap(expression -> extractDereference(expression).stream())
                     .filter(expression -> BASE_EXTRACTOR.process(expression) != null)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            Set<Expression> set = ImmutableSet.copyOf(uniqueDereferenceExpressions);
+
+            return uniqueDereferenceExpressions.stream()
+                    .filter(expression -> !prefixExist(expression, set))
                     .map(this::getDereferenceInfo)
-                    .collect(Collectors.toMap(DereferenceInfo::getDereference, Function.identity(), (exp1, exp2) -> exp1));
+                    .collect(Collectors.toMap(DereferenceInfo::getDereference, Function.identity()));
         }
     }
 }
