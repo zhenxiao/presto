@@ -686,7 +686,7 @@ public final class VerticaDateTimeFunctions
     @ScalarFunction("timestampadd")
     @LiteralParameters("x")
     @SqlType(StandardTypes.TIMESTAMP)
-    public static long addToTimestamp(ConnectorSession session, @SqlType("varchar(x)") Slice unit, @SqlType(StandardTypes.BIGINT) long value,  @SqlType(StandardTypes.TIMESTAMP) long timestamp)
+    public static long addToTimestamp(ConnectorSession session, @SqlType("varchar(x)") Slice unit, @SqlType(StandardTypes.BIGINT) long value, @SqlType(StandardTypes.TIMESTAMP) long timestamp)
     {
         return DateTimeFunctions.addFieldValueTimestamp(session, unit, value, timestamp);
     }
