@@ -23,6 +23,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_METASTORE_ERROR;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -66,13 +67,31 @@ public class StaticHiveCluster
     @Override
     public HiveMetastoreClient createMetastoreClient()
     {
+        return createMetastoreClient(Optional.empty());
+    }
+
+    @Override
+    public HiveMetastoreClient createMetastoreClientWithToken(String token)
+    {
+        return createMetastoreClient(Optional.of(token));
+    }
+
+    private HiveMetastoreClient createMetastoreClient(Optional<String> token)
+    {
         List<HostAndPort> metastores = new ArrayList<>(addresses);
         Collections.shuffle(metastores.subList(1, metastores.size()));
 
         TException lastException = null;
         for (HostAndPort metastore : metastores) {
             try {
-                HiveMetastoreClient client = clientFactory.create(metastore);
+                HiveMetastoreClient client;
+                if (token.isPresent()) {
+                    client = clientFactory.create(metastore, token.get());
+                }
+                else {
+                    client = clientFactory.create(metastore);
+                }
+
                 if (!isNullOrEmpty(metastoreUsername)) {
                     client.setUGI(metastoreUsername);
                 }
@@ -82,7 +101,6 @@ public class StaticHiveCluster
                 lastException = e;
             }
         }
-
         throw new PrestoException(HIVE_METASTORE_ERROR, "Failed connecting to Hive metastore: " + addresses, lastException);
     }
 

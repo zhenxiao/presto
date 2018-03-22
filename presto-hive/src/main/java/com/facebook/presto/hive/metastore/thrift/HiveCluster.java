@@ -28,4 +28,6 @@ public interface HiveCluster
      * Create a connected {@link HiveMetastoreClient} to this HiveCluster
      */
     HiveMetastoreClient createMetastoreClient();
+
+    HiveMetastoreClient createMetastoreClientWithToken(String token);
 }

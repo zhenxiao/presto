@@ -766,7 +766,7 @@ public class SemiTransactionalHiveMetastore
                 case EMPTY:
                     break;
                 case SHARED_OPERATION_BUFFERED:
-                    commitShared();
+                    hdfsEnvironment.doAs(getImpersonationUser(), () -> commitShared());
                     break;
                 case EXCLUSIVE_OPERATION_BUFFERED:
                     requireNonNull(bufferedExclusiveOperation, "bufferedExclusiveOperation is null");
@@ -802,6 +802,11 @@ public class SemiTransactionalHiveMetastore
         finally {
             state = State.FINISHED;
         }
+    }
+
+    private String getImpersonationUser()
+    {
+        return tableActions.values().iterator().next().context.getIdentity().getUser();
     }
 
     @GuardedBy("this")
