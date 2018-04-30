@@ -33,7 +33,8 @@ public class UberEventListenerFactory
         String topic = requireNonNull(map.get("event-listener.topic"), "event-listener.topic is null");
         String engine = requireNonNull(map.get("event-listener.engine"), "event-listener.engine is null");
         String cluster = requireNonNull(map.get("event-listener.cluster"), "event-listener.cluster is null");
+        boolean syncProduce = map.get("event-listener.sync-produce") != null && Boolean.parseBoolean(map.get("event-listener.sync-produce"));
 
-        return new UberEventListener(topic, engine, cluster);
+        return new UberEventListener(topic, engine, cluster, syncProduce);
     }
 }

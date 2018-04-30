@@ -38,20 +38,21 @@ public class UberEventListener
     private final String cluster;
     private final HeatpipeProducer producer;
 
-    public UberEventListener(String topic, String engine, String cluster)
+    public UberEventListener(String topic, String engine, String cluster, boolean syncProduce)
     {
         this.engine = engine;
         this.cluster = cluster;
-        this.producer = createHeatpipeProducer(topic);
-    }
 
-    private HeatpipeProducer createHeatpipeProducer(String topic)
-    {
         Properties prop = new Properties();
         prop.setProperty("heatpipe.app_id", "PrestoEventListener");
-        prop.setProperty("kafka.syncProduction", "true");
-        Heatpipe4JConfig config = new PropertiesHeatpipeConfiguration(prop);
+        prop.setProperty("kafka.syncProduction", Boolean.toString(syncProduce));
+        Heatpipe4JConfig heatpipe4JConfig = new PropertiesHeatpipeConfiguration(prop);
 
+        this.producer = createHeatpipeProducer(topic, heatpipe4JConfig);
+    }
+
+    private HeatpipeProducer createHeatpipeProducer(String topic, Heatpipe4JConfig config)
+    {
         try {
             HeatpipeFactory heatpipeFactory = new HeatpipeFactory(config);
             HeatpipeProducerFactory heatpipeProducerFactory = new HeatpipeProducerFactory(config);
