@@ -109,6 +109,8 @@ public final class TaskTestUtils
                     Optional.empty(),
                     TupleDomain.all(),
                     null,
+                    Optional.empty(),
+                    Optional.empty(),
                     Optional.empty()),
             ImmutableMap.of(SYMBOL, VARCHAR),
             SOURCE_DISTRIBUTION,

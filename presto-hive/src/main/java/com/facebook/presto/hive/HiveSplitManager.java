@@ -158,7 +158,7 @@ public class HiveSplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields, Optional<Map<String, String>> jsonPaths, Optional<Long> limit)
     {
         HiveTableLayoutHandle layout = (HiveTableLayoutHandle) layoutHandle;
         SchemaTableName tableName = layout.getSchemaTableName();

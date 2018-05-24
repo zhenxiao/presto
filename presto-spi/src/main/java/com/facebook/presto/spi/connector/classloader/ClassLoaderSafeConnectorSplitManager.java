@@ -39,10 +39,10 @@ public final class ClassLoaderSafeConnectorSplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields, Optional<Map<String, String>> jsonPaths, Optional<Long> limit)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            return delegate.getSplits(transactionHandle, session, layout, splitSchedulingStrategy, nestedFields);
+            return delegate.getSplits(transactionHandle, session, layout, splitSchedulingStrategy, nestedFields, jsonPaths, limit);
         }
     }
 }

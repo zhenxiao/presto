@@ -56,7 +56,7 @@ public class AtopSplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields, Optional<Map<String, String>> jsonPaths, Optional<Long> limit)
     {
         AtopTableLayoutHandle handle = (AtopTableLayoutHandle) layoutHandle;
 

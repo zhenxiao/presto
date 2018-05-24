@@ -399,7 +399,9 @@ public class PruneUnreferencedOutputs
                     node.getLayout(),
                     node.getCurrentConstraint(),
                     node.getOriginalConstraint(),
-                    node.getNestedFields());
+                    node.getNestedFields(),
+                    node.getJsonPaths(),
+                    node.getLimit());
         }
 
         @Override

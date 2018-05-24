@@ -164,7 +164,7 @@ public class TestCassandraConnector
 
         List<ConnectorTableLayoutResult> layouts = metadata.getTableLayouts(SESSION, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
         ConnectorTableLayoutHandle layout = getOnlyElement(layouts).getTableLayout().getHandle();
-        List<ConnectorSplit> splits = getAllSplits(splitManager.getSplits(transaction, SESSION, layout, UNGROUPED_SCHEDULING, Optional.empty()));
+        List<ConnectorSplit> splits = getAllSplits(splitManager.getSplits(transaction, SESSION, layout, UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty()));
 
         long rowNumber = 0;
         for (ConnectorSplit split : splits) {

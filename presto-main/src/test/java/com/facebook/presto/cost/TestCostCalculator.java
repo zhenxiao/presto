@@ -344,6 +344,8 @@ public class TestCostCalculator
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
     }
 

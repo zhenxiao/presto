@@ -1,0 +1,9 @@
+{
+    "tableName": "table2",
+    "schemaName": "example",
+    "hostAddress": "localhost",
+    "port": "9335",
+    "clusterName": "elasticsearch",
+    "index": "route",
+    "type": "docs"
+}

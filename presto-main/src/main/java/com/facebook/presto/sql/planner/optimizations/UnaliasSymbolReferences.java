@@ -241,7 +241,9 @@ public class UnaliasSymbolReferences
                     node.getLayout(),
                     node.getCurrentConstraint(),
                     originalConstraint,
-                    node.getNestedFields());
+                    node.getNestedFields(),
+                    node.getJsonPaths(),
+                    node.getLimit());
         }
 
         @Override

@@ -57,7 +57,7 @@ public class SplitManager
         splitManagers.remove(connectorId);
     }
 
-    public SplitSource getSplits(Session session, TableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields)
+    public SplitSource getSplits(Session session, TableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields, Optional<Map<String, String>> jsonPaths, Optional<Long> limit)
     {
         ConnectorId connectorId = layout.getConnectorId();
         ConnectorSplitManager splitManager = getConnectorSplitManager(connectorId);
@@ -69,7 +69,9 @@ public class SplitManager
                 connectorSession,
                 layout.getConnectorHandle(),
                 splitSchedulingStrategy,
-                nestedFields);
+                nestedFields,
+                jsonPaths,
+                limit);
 
         SplitSource splitSource = new ConnectorAwareSplitSource(connectorId, layout.getTransactionHandle(), source);
         if (minScheduleSplitBatchSize > 1) {

@@ -590,7 +590,9 @@ public class AddExchanges
                                 Optional.of(layout.getLayout().getHandle()),
                                 newDomain.intersect(layout.getLayout().getPredicate()),
                                 Optional.ofNullable(node.getOriginalConstraint()).orElse(predicate),
-                                node.getNestedFields());
+                                node.getNestedFields(),
+                                node.getJsonPaths(),
+                                node.getLimit());
 
                         PlanWithProperties result = new PlanWithProperties(tableScan, deriveProperties(tableScan, ImmutableList.of()));
 

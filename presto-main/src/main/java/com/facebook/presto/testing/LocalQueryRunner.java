@@ -724,6 +724,8 @@ public class LocalQueryRunner
                     session,
                     layout,
                     pipelineExecutionStrategy == GROUPED_EXECUTION ? GROUPED_SCHEDULING : UNGROUPED_SCHEDULING,
+                    Optional.empty(),
+                    Optional.empty(),
                     Optional.empty());
 
             ImmutableSet.Builder<ScheduledSplit> scheduledSplits = ImmutableSet.builder();

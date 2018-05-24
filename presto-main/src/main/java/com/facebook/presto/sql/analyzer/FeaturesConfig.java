@@ -87,6 +87,8 @@ public class FeaturesConfig
 
     private boolean dictionaryAggregation;
     private boolean pruneNestedFields;
+    private boolean jsonPathPushDown;
+    private boolean limitTableScan;
 
     private int re2JDfaStatesLimit = Integer.MAX_VALUE;
     private int re2JDfaRetries = 5;
@@ -771,6 +773,30 @@ public class FeaturesConfig
     public FeaturesConfig setPruneNestedFields(boolean pruneNestedFields)
     {
         this.pruneNestedFields = pruneNestedFields;
+        return this;
+    }
+
+    public boolean isJsonPathPushDown()
+    {
+        return jsonPathPushDown;
+    }
+
+    @Config("optimizer.json-path-pushdown")
+    public FeaturesConfig setJsonPathPushDown(boolean jsonPathPushDown)
+    {
+        this.jsonPathPushDown = jsonPathPushDown;
+        return this;
+    }
+
+    public boolean isLimitTableScan()
+    {
+        return limitTableScan;
+    }
+
+    @Config("optimizer.limit-table-scan")
+    public FeaturesConfig setLimitTableScan(boolean limitTableScan)
+    {
+        this.limitTableScan = limitTableScan;
         return this;
     }
 }

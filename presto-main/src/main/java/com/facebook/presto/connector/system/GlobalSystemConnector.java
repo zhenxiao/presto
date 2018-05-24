@@ -131,7 +131,7 @@ public class GlobalSystemConnector
     @Override
     public ConnectorSplitManager getSplitManager()
     {
-        return (transactionHandle, session, layout, splitSchedulingStrategy, nestedFields) -> {
+        return (transactionHandle, session, layout, splitSchedulingStrategy, nestedFields, jsonFunctions, limit) -> {
             throw new UnsupportedOperationException();
         };
     }

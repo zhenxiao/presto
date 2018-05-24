@@ -61,6 +61,8 @@ public class TableScanNode
     private final Expression originalConstraint;
 
     private Optional<Map<String, NestedField>> nestedFields;
+    private Optional<Map<String, String>> jsonPaths;
+    private Optional<Long> limit;
 
     @JsonCreator
     public TableScanNode(
@@ -71,7 +73,9 @@ public class TableScanNode
             @JsonProperty("layout") Optional<TableLayoutHandle> tableLayout,
             @JsonProperty("currentConstraint") TupleDomain<ColumnHandle> currentConstraint,
             @JsonProperty("originalConstraint") @Nullable Expression originalConstraint,
-            @JsonProperty("nestedFields") @Nullable Optional<Map<String, NestedField>> nestedFields)
+            @JsonProperty("nestedFields") @Nullable Optional<Map<String, NestedField>> nestedFields,
+            @JsonProperty("jsonPaths") @Nullable Optional<Map<String, String>> jsonPaths,
+            @JsonProperty("limit") @Nullable Optional<Long> limit)
     {
         super(id);
         requireNonNull(table, "table is null");
@@ -89,6 +93,8 @@ public class TableScanNode
         this.tableLayout = tableLayout;
         this.currentConstraint = currentConstraint;
         this.nestedFields = nestedFields;
+        this.jsonPaths = jsonPaths;
+        this.limit = limit;
     }
 
     @JsonProperty("table")
@@ -135,6 +141,18 @@ public class TableScanNode
         return nestedFields;
     }
 
+    @JsonProperty
+    public Optional<Map<String, String>> getJsonPaths()
+    {
+        return jsonPaths;
+    }
+
+    @JsonProperty
+    public Optional<Long> getLimit()
+    {
+        return limit;
+    }
+
     public void setNestedFields(Optional<Map<String, NestedField>> nestedFields)
     {
         this.nestedFields = nestedFields;
@@ -163,6 +181,8 @@ public class TableScanNode
                 .add("currentConstraint", currentConstraint)
                 .add("originalConstraint", originalConstraint)
                 .add("nestedFields", nestedFields)
+                .add("jsonPaths", jsonPaths)
+                .add("limit", limit)
                 .toString();
     }
 

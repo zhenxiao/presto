@@ -94,6 +94,8 @@ public final class SystemSessionProperties
     public static final String MAX_GROUPING_SETS = "max_grouping_sets";
     public static final String PRUNE_NESTED_FIELDS = "prune_nested_fields";
     public static final String QUERY_SUBMIT_USER = "query_submit_user";
+    public static final String JSON_PATH_PUSHDOWN = "json_path_pushdown";
+    public static final String LIMIT_TABLE_SCAN = "limit_table_scan";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -417,9 +419,19 @@ public final class SystemSessionProperties
                         featuresConfig.isUseMarkDistinct(),
                         false),
                 booleanSessionProperty(
+                        JSON_PATH_PUSHDOWN,
+                        "pushdown json path",
+                        featuresConfig.isJsonPathPushDown(),
+                        false),
+                booleanSessionProperty(
                         PREFER_PARTITIAL_AGGREGATION,
                         "Prefer splitting aggregations into partial and final stages",
                         featuresConfig.isPreferPartialAggregation(),
+                        false),
+                booleanSessionProperty(
+                        LIMIT_TABLE_SCAN,
+                        "limit table scan",
+                        featuresConfig.isLimitTableScan(),
                         false),
                 integerSessionProperty(
                         MAX_GROUPING_SETS,
@@ -704,6 +716,16 @@ public final class SystemSessionProperties
     public static boolean preferPartialAggregation(Session session)
     {
         return session.getSystemProperty(PREFER_PARTITIAL_AGGREGATION, Boolean.class);
+    }
+
+    public static boolean isJsonPathPushDown(Session session)
+    {
+        return session.getSystemProperty(JSON_PATH_PUSHDOWN, Boolean.class);
+    }
+
+    public static boolean isLimitTableScan(Session session)
+    {
+        return session.getSystemProperty(LIMIT_TABLE_SCAN, Boolean.class);
     }
 
     public static int getMaxGroupingSets(Session session)

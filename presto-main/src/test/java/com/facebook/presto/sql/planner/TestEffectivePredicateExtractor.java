@@ -137,6 +137,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         expressionNormalizer = new ExpressionIdentityNormalizer();
@@ -332,6 +334,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         Expression effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(effectivePredicate, BooleanLiteral.TRUE_LITERAL);
@@ -344,21 +348,11 @@ public class TestEffectivePredicateExtractor
                 Optional.of(TESTING_TABLE_LAYOUT),
                 TupleDomain.none(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(effectivePredicate, FALSE_LITERAL);
-
-        node = new TableScanNode(
-                newId(),
-                DUAL_TABLE_HANDLE,
-                ImmutableList.copyOf(assignments.keySet()),
-                assignments,
-                Optional.of(TESTING_TABLE_LAYOUT),
-                TupleDomain.withColumnDomains(ImmutableMap.of(scanAssignments.get(A), Domain.singleValue(BIGINT, 1L))),
-                null,
-                Optional.empty());
-        effectivePredicate = effectivePredicateExtractor.extract(node);
-        assertEquals(normalizeConjuncts(effectivePredicate), normalizeConjuncts(equals(bigintLiteral(1L), AE)));
 
         node = new TableScanNode(
                 newId(),
@@ -370,6 +364,8 @@ public class TestEffectivePredicateExtractor
                         scanAssignments.get(A), Domain.singleValue(BIGINT, 1L),
                         scanAssignments.get(B), Domain.singleValue(BIGINT, 2L))),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(normalizeConjuncts(effectivePredicate), normalizeConjuncts(equals(bigintLiteral(2L), BE), equals(bigintLiteral(1L), AE)));
@@ -382,6 +378,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(effectivePredicate, BooleanLiteral.TRUE_LITERAL);
@@ -423,6 +421,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -434,6 +434,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         FilterNode left = filter(leftScan,
@@ -489,6 +491,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -500,6 +504,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         FilterNode left = filter(leftScan,
@@ -551,6 +557,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -562,6 +570,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         FilterNode left = filter(leftScan,
@@ -610,6 +620,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -621,6 +633,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         FilterNode left = filter(leftScan,
@@ -672,6 +686,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -683,6 +699,8 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         FilterNode left = filter(leftScan, FALSE_LITERAL);

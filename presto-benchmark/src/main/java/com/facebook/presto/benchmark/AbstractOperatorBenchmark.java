@@ -196,7 +196,7 @@ public abstract class AbstractOperatorBenchmark
 
     private Split getLocalQuerySplit(Session session, TableLayoutHandle handle)
     {
-        SplitSource splitSource = localQueryRunner.getSplitManager().getSplits(session, handle, UNGROUPED_SCHEDULING, Optional.empty());
+        SplitSource splitSource = localQueryRunner.getSplitManager().getSplits(session, handle, UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty());
         List<Split> splits = new ArrayList<>();
         while (!splitSource.isFinished()) {
             splits.addAll(getNextBatch(splitSource));

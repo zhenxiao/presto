@@ -88,7 +88,9 @@ public class PruneNestedFields
                     node.getLayout(),
                     node.getCurrentConstraint(),
                     node.getOriginalConstraint(),
-                    Optional.of(builder.build()));
+                    Optional.of(builder.build()),
+                    node.getJsonPaths(),
+                    node.getLimit());
         }
 
         @Override

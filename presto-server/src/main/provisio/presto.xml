@@ -175,4 +175,14 @@
             <unpack />
         </artifact>
     </artifactSet>
+    <artifactSet to="plugin/presto-elasticsearch">
+        <artifact id="${project.groupId}:presto-elasticsearch:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+    <artifactSet to="plugin/presto-elasticsearch2">
+        <artifact id="${project.groupId}:presto-elasticsearch2:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
 </runtime>

@@ -381,6 +381,8 @@ public class PlanBuilder
                 tableLayout,
                 tupleDomain,
                 originalConstraint,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
     }
 

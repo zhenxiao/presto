@@ -147,7 +147,9 @@ public class DistributedExecutionPlanner
                     session,
                     node.getLayout().get(),
                     pipelineExecutionStrategy == GROUPED_EXECUTION ? GROUPED_SCHEDULING : UNGROUPED_SCHEDULING,
-                    node.getNestedFields());
+                    node.getNestedFields(),
+                    node.getJsonPaths(),
+                    node.getLimit());
 
             splitSources.add(splitSource);
 

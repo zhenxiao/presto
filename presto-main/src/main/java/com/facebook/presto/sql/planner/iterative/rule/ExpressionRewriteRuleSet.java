@@ -238,7 +238,9 @@ public class ExpressionRewriteRuleSet
                         tableScanNode.getLayout(),
                         tableScanNode.getCurrentConstraint(),
                         rewrittenOriginalContraint,
-                        tableScanNode.getNestedFields()));
+                        tableScanNode.getNestedFields(),
+                        tableScanNode.getJsonPaths(),
+                        tableScanNode.getLimit()));
             }
             return Result.empty();
         }
