@@ -96,8 +96,8 @@
         <module>presto-parser</module>
         <module>presto-main</module>
         <module>presto-ml</module>
-        <module>presto-geospatial</module>
-        <module>presto-geospatial-toolkit</module>
+        <!--<module>presto-geospatial</module>-->
+        <!--<module>presto-geospatial-toolkit</module>-->
         <module>presto-benchmark</module>
         <module>presto-tests</module>
         <module>presto-product-tests</module>
@@ -121,6 +121,7 @@
         <module>presto-elasticsearch</module>
         <module>presto-elasticsearch2</module>
         <module>presto-event-listener</module>
+        <module>presto-geo</module>
     </modules>
 
     <dependencyManagement>

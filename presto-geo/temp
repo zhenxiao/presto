@@ -1,0 +1,17 @@
+diff --git a/presto-geo/src/main/java/com/facebook/presto/geo/GeoFunctions.java b/presto-geo/src/main/java/com/facebook/presto/geo/GeoFunctions.java
+index de02e67..622e6da 100644
+--- a/presto-geo/src/main/java/com/facebook/presto/geo/GeoFunctions.java
++++ b/presto-geo/src/main/java/com/facebook/presto/geo/GeoFunctions.java
+@@ -605,9 +605,10 @@ public final class GeoFunctions
+         if (geoIndex == null) {
+             geoIndex = new HashMap<>();
+             for (int i = 0; i < geoShapeSize; ++i) {
+-                int shapeIdSize = slice.getInt(SIZE_OF_INT + SIZE_OF_INT + SIZE_OF_INT * 2 * i);
++                int shapeIdIndex = SIZE_OF_INT + SIZE_OF_INT + SIZE_OF_INT * 2 * i;
++                int shapeIdSize = slice.getInt(shapeIdIndex);
+                 String id = Slices.wrappedBuffer(slice.getBytes(offset, shapeIdSize)).toStringUtf8();
+-                int shapeSize = slice.getInt(shapeIdSize + SIZE_OF_INT);
++                int shapeSize = slice.getInt(shapeIdIndex + SIZE_OF_INT);
+                 OGCGeometry geometry = OGCGeometry.fromText(Slices.wrappedBuffer(slice.getBytes(offset + shapeIdSize,
+                   shapeSize)).toStringAscii());
+               geoIndex.put(id, geometry);
