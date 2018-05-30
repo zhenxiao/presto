@@ -15,6 +15,7 @@ package com.facebook.presto.hive;
 
 import com.facebook.presto.hive.HdfsEnvironment.HdfsContext;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 
 import javax.inject.Inject;
 
@@ -64,6 +65,8 @@ public class HiveHdfsConfiguration
     public Configuration getConfiguration(HdfsContext context, URI uri)
     {
         // use the same configuration for everything
-        return hadoopConfiguration.get();
+        Configuration configuration = hadoopConfiguration.get();
+        configuration.setBoolean(HdfsClientConfigKeys.DFS_CLIENT_OBSERVER_READS_ENABLED, context.isHdfsObserverReadEnabled());
+        return configuration;
     }
 }

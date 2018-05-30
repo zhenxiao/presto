@@ -92,6 +92,7 @@ public class HdfsEnvironment
         private final Optional<String> queryId;
         private final Optional<String> schemaName;
         private final Optional<String> tableName;
+        private final boolean hdfsObserverReadEnabled;
 
         public HdfsContext(Identity identity)
         {
@@ -100,6 +101,7 @@ public class HdfsEnvironment
             this.queryId = Optional.empty();
             this.schemaName = Optional.empty();
             this.tableName = Optional.empty();
+            this.hdfsObserverReadEnabled = false;
         }
 
         public HdfsContext(ConnectorSession session, String schemaName)
@@ -111,6 +113,7 @@ public class HdfsEnvironment
             this.queryId = Optional.of(session.getQueryId());
             this.schemaName = Optional.of(schemaName);
             this.tableName = Optional.empty();
+            this.hdfsObserverReadEnabled = HiveSessionProperties.isHdfsObserverReadEnabled(session);
         }
 
         public HdfsContext(ConnectorSession session, String schemaName, String tableName)
@@ -123,6 +126,7 @@ public class HdfsEnvironment
             this.queryId = Optional.of(session.getQueryId());
             this.schemaName = Optional.of(schemaName);
             this.tableName = Optional.of(tableName);
+            this.hdfsObserverReadEnabled = HiveSessionProperties.isHdfsObserverReadEnabled(session);
         }
 
         public Identity getIdentity()
@@ -150,6 +154,11 @@ public class HdfsEnvironment
             return tableName;
         }
 
+        public boolean isHdfsObserverReadEnabled()
+        {
+            return hdfsObserverReadEnabled;
+        }
+
         @Override
         public String toString()
         {
@@ -160,6 +169,7 @@ public class HdfsEnvironment
                     .add("queryId", queryId.orElse(null))
                     .add("schemaName", schemaName.orElse(null))
                     .add("tableName", tableName.orElse(null))
+                    .add("hdfsObserverReadEnabled", hdfsObserverReadEnabled)
                     .toString();
         }
     }

@@ -137,6 +137,7 @@ public class HiveClientConfig
     private boolean createsOfNonManagedTablesEnabled = true;
 
     private boolean tableStatisticsEnabled = true;
+    private boolean hdfsObserverReadEnabled;
 
     public int getMaxInitialSplits()
     {
@@ -1066,5 +1067,18 @@ public class HiveClientConfig
     public boolean isTableStatisticsEnabled()
     {
         return tableStatisticsEnabled;
+    }
+
+    @Config("hive.hdfs-observer-read-enabled")
+    @ConfigDescription("Whether to read from Hdfs ObserverNameNode")
+    public HiveClientConfig setHdfsObserverReadEnabled(boolean hdfsObserverReadEnabled)
+    {
+        this.hdfsObserverReadEnabled = hdfsObserverReadEnabled;
+        return this;
+    }
+
+    public boolean isHdfsObserverReadEnabled()
+    {
+        return this.hdfsObserverReadEnabled;
     }
 }
