@@ -54,6 +54,7 @@
         <dep.tempto.version>1.49</dep.tempto.version>
         <dep.testng.version>6.10</dep.testng.version>
         <dep.assertj-core.version>3.8.0</dep.assertj-core.version>
+        <dep.pinot.version>0.1.070</dep.pinot.version>
 
         <!-- use a fractional hour timezone offset for tests -->
         <air.test.timezone>Asia/Katmandu</air.test.timezone>
@@ -120,6 +121,7 @@
         <module>presto-memory-context</module>
         <module>presto-elasticsearch</module>
         <module>presto-elasticsearch2</module>
+        <module>presto-pinot</module>
         <module>presto-event-listener</module>
         <module>presto-geo</module>
     </modules>
@@ -341,6 +343,80 @@
                 <artifactId>presto-elasticsearch2</artifactId>
                 <version>${project.version}</version>
             </dependency>
+
+            <!-- Pinot Dependency Starts -->
+            <dependency>
+                <groupId>com.linkedin.pinot</groupId>
+                <artifactId>pinot-api</artifactId>
+                <version>${dep.pinot.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>com.linkedin.pinot</groupId>
+                <artifactId>pinot-common</artifactId>
+                <version>${dep.pinot.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>commons-beanutils</groupId>
+                        <artifactId>commons-beanutils-core</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.kafka</groupId>
+                        <artifactId>kafka_2.10</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-library</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>com.linkedin.pinot</groupId>
+                <artifactId>pinot-transport</artifactId>
+                <version>${dep.pinot.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>com.linkedin.pinot</groupId>
+                <artifactId>pinot-core</artifactId>
+                <version>${dep.pinot.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>1.1.24</version>
+            </dependency>
+
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.4</version>
+            </dependency>
+            <!-- Pinot Dependency Ends -->
 
             <dependency>
                 <groupId>com.facebook.presto</groupId>

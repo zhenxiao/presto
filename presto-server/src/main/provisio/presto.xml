@@ -186,6 +186,12 @@
         </artifact>
     </artifactSet>
 
+    <artifactSet to="plugin/pinot">
+        <artifact id="${project.groupId}:presto-pinot:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
     <artifactSet to="plugin/event-listener">
         <artifact id="${project.groupId}:presto-event-listener:zip:${project.version}">
             <unpack />
