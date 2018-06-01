@@ -84,14 +84,13 @@ public class FileBasedSystemAccessControl
                 }
                 path.toFile().canRead();
 
-                KerberosName.setRules("DEFAULT");
-
                 FileBasedSystemAccessControlRules rules = jsonCodec(FileBasedSystemAccessControlRules.class)
                         .fromJson(Files.readAllBytes(path));
 
                 ImmutableList.Builder<CatalogAccessControlRule> catalogRulesBuilder = ImmutableList.builder();
                 catalogRulesBuilder.addAll(rules.getCatalogRules());
 
+                KerberosName.setRules(rules.getKerberosRules());
                 // Hack to allow Presto Admin to access the "system" catalog for retrieving server status.
                 // todo Change userRegex from ".*" to one particular user that Presto Admin will be restricted to run as
                 catalogRulesBuilder.add(new CatalogAccessControlRule(

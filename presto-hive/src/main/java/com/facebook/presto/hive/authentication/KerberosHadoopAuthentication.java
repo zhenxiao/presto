@@ -15,7 +15,6 @@ package com.facebook.presto.hive.authentication;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.authentication.util.KerberosName;
 
 import javax.security.auth.Subject;
 
@@ -32,10 +31,9 @@ public class KerberosHadoopAuthentication
         Configuration configuration = new Configuration(false);
         configuration.set("hadoop.security.authentication", "kerberos");
         UserGroupInformation.setConfiguration(configuration);
-
         // KerberosName#rules static field must be initialized
         // It is used in KerberosName#getShortName which is used in User constructor invoked by UserGroupInformation#getUGIFromSubject
-        KerberosName.setRules("DEFAULT");
+        //KerberosName.setRules("DEFAULT");
     }
 
     private final KerberosAuthentication kerberosAuthentication;

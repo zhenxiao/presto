@@ -24,14 +24,17 @@ public class FileBasedSystemAccessControlRules
 {
     private final List<CatalogAccessControlRule> catalogRules;
     private final Optional<List<PrincipalUserMatchRule>> principalUserMatchRules;
+    private final String kerberosRules;
 
     @JsonCreator
     public FileBasedSystemAccessControlRules(
             @JsonProperty("catalogs") Optional<List<CatalogAccessControlRule>> catalogRules,
-            @JsonProperty("principals") Optional<List<PrincipalUserMatchRule>> principalUserMatchRules)
+            @JsonProperty("principals") Optional<List<PrincipalUserMatchRule>> principalUserMatchRules,
+            @JsonProperty("kerberosRules") Optional<String> kerberosRules)
     {
         this.catalogRules = catalogRules.map(ImmutableList::copyOf).orElse(ImmutableList.of());
         this.principalUserMatchRules = principalUserMatchRules.map(ImmutableList::copyOf);
+        this.kerberosRules = kerberosRules.orElse("DEFAULT");
     }
 
     public List<CatalogAccessControlRule> getCatalogRules()
@@ -42,5 +45,10 @@ public class FileBasedSystemAccessControlRules
     public Optional<List<PrincipalUserMatchRule>> getPrincipalUserMatchRules()
     {
         return principalUserMatchRules;
+    }
+
+    public String getKerberosRules()
+    {
+        return kerberosRules;
     }
 }
