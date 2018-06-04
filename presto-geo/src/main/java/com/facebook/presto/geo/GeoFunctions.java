@@ -56,6 +56,7 @@ import io.airlift.slice.Slices;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -949,7 +950,7 @@ public final class GeoFunctions
     @SqlNullable
     @Description("Returns all keys whose corresponding geometry contains geo shape")
     @ScalarFunction("geo_intersects_all_with_shape")
-    @SqlType("array(row(varchar,varbinary))")
+    @SqlType("array(row(field0 varchar,field1 varbinary))")
     public static Block geoIntersectsAllShape(@SqlType(StandardTypes.VARCHAR) Slice shape, @SqlType(StandardTypes.VARCHAR) Slice geoShapesBlock)
     {
         return processGeoOperationWithShape(fromText(shape.toStringUtf8()), geoShapesBlock, OperatorIntersects.local());
@@ -958,7 +959,7 @@ public final class GeoFunctions
     @SqlNullable
     @Description("Returns all keys whose corresponding geometry contains geo shape")
     @ScalarFunction("geo_intersects_all_with_shape")
-    @SqlType("array(row(varchar,varbinary))")
+    @SqlType("array(row(field0 varchar,field1 varbinary))")
     public static Block geoIntersectsAllShapeBinary(@SqlType(StandardTypes.VARBINARY) Slice shape, @SqlType(StandardTypes.VARCHAR) Slice geoShapesBlock)
     {
         return processGeoOperationWithShape(geometryFromBinary(shape), geoShapesBlock, OperatorIntersects.local());
@@ -967,7 +968,7 @@ public final class GeoFunctions
     @SqlNullable
     @Description("Returns all keys whose corresponding geometry contains geo shape")
     @ScalarFunction("geo_contains_all_with_shape")
-    @SqlType("array(row(varchar,varbinary))")
+    @SqlType("array(row(field0 varchar,field1 varbinary))")
     public static Block geoContainsAllShape(@SqlType(StandardTypes.VARCHAR) Slice shape, @SqlType(StandardTypes.VARCHAR) Slice geoShapesBlock)
     {
         return processGeoOperationWithShape(fromText(shape.toStringUtf8()), geoShapesBlock, OperatorContains.local());
@@ -976,7 +977,7 @@ public final class GeoFunctions
     @SqlNullable
     @Description("Returns all keys whose corresponding geometry contains geo shape")
     @ScalarFunction("geo_contains_all_with_shape")
-    @SqlType("array(row(varchar,varbinary))")
+    @SqlType("array(row(field0 varchar,field1 varbinary))")
     public static Block geoContainsAllShapeBinary(@SqlType(StandardTypes.VARBINARY) Slice shape, @SqlType(StandardTypes.VARCHAR) Slice geoShapesBlock)
     {
         return processGeoOperationWithShape(geometryFromBinary(shape), geoShapesBlock, OperatorContains.local());
@@ -985,7 +986,7 @@ public final class GeoFunctions
     private static Block processGeoOperationWithShape(OGCGeometry shape, Slice geoShapesBlock, OperatorSimpleRelation relationOperator)
     {
         List<GeoItem> geoItems = queryGeoItem(shape, getGeoIndex(geoShapesBlock), relationOperator, false);
-        RowType rowType = RowType.anonymous(ImmutableList.of(VarcharType.VARCHAR, VarbinaryType.VARBINARY));
+        RowType rowType = RowType.from(ImmutableList.of(new RowType.Field(Optional.of("field0"), VarcharType.VARCHAR), new RowType.Field(Optional.of("field1"), VarbinaryType.VARBINARY)));
         if (!geoItems.isEmpty()) {
             BlockBuilder outputBuilder = rowType.createBlockBuilder(null, geoItems.size());
             for (GeoItem geoItem : geoItems) {

@@ -61,7 +61,7 @@ public class FeaturesConfig
     private boolean distributedJoinsEnabled = true;
     private boolean colocatedJoinsEnabled;
     private boolean groupedExecutionForAggregationEnabled;
-    private boolean spatialJoinsEnabled = true;
+    private boolean spatialJoinsEnabled;
     private boolean fastInequalityJoins = true;
     private boolean reorderJoins = true;
     private boolean redistributeWrites = true;
@@ -92,6 +92,8 @@ public class FeaturesConfig
 
     private boolean partitionFilteringEnforced;
     private String partitionFilteringTables = "";
+
+    private boolean rewriteGeoSpatialQuery;
 
     private int re2JDfaStatesLimit = Integer.MAX_VALUE;
     private int re2JDfaRetries = 5;
@@ -824,6 +826,18 @@ public class FeaturesConfig
     public FeaturesConfig setPartitionFilteringTables(String tables)
     {
         this.partitionFilteringTables = tables;
+        return this;
+    }
+
+    public boolean isRewriteGeoSpatialQuery()
+    {
+        return rewriteGeoSpatialQuery;
+    }
+
+    @Config("experimental.rewrite-geospatial-query")
+    public FeaturesConfig setRewriteGeoSpatialQuery(boolean rewriteGeoSpatialQuery)
+    {
+        this.rewriteGeoSpatialQuery = rewriteGeoSpatialQuery;
         return this;
     }
 }

@@ -94,6 +94,7 @@ import com.facebook.presto.sql.planner.optimizations.BeginTableWrite;
 import com.facebook.presto.sql.planner.optimizations.CheckSubqueryNodesAreRewritten;
 import com.facebook.presto.sql.planner.optimizations.DetermineSemiJoinDistributionType;
 import com.facebook.presto.sql.planner.optimizations.EnforcePartitionFilter;
+import com.facebook.presto.sql.planner.optimizations.GeoSpatialQueryRewriter;
 import com.facebook.presto.sql.planner.optimizations.HashGenerationOptimizer;
 import com.facebook.presto.sql.planner.optimizations.ImplementIntersectAndExceptAsUnion;
 import com.facebook.presto.sql.planner.optimizations.IndexJoinOptimizer;
@@ -359,6 +360,11 @@ public class PlanOptimizers
                         estimatedExchangesCostCalculator,
                         new PickTableLayout(metadata).rules()),
                 projectionPushDown);
+
+        if (featuresConfig.isRewriteGeoSpatialQuery()) {
+            builder.add(new GeoSpatialQueryRewriter(metadata));
+            builder.add(simplifyOptimizer);
+        }
 
         builder.add(new OptimizeMixedDistinctAggregations(metadata));
         builder.add(new IterativeOptimizer(

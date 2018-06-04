@@ -98,6 +98,7 @@ public final class SystemSessionProperties
     public static final String LIMIT_TABLE_SCAN = "limit_table_scan";
     public static final String PARTITION_FILTER = "enforce_partition_filter";
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
+    public static final String REWRITE_GEOSPATIAL_QUERY = "rewrite_geospatial_query";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -454,6 +455,11 @@ public final class SystemSessionProperties
                         QUERY_SUBMIT_USER,
                         "User who submits this query",
                         null,
+                        false),
+                booleanSessionProperty(
+                        REWRITE_GEOSPATIAL_QUERY,
+                        "rewrite geospatial query",
+                        featuresConfig.isRewriteGeoSpatialQuery(),
                         false));
     }
 
@@ -550,6 +556,11 @@ public final class SystemSessionProperties
     public static boolean enforcePartitionFilter(Session session)
     {
         return session.getSystemProperty(PARTITION_FILTER, Boolean.class);
+    }
+
+    public static boolean rewriteGeoSpatialQuery(Session session)
+    {
+        return session.getSystemProperty(REWRITE_GEOSPATIAL_QUERY, Boolean.class);
     }
 
     public static String getPartitionFilterTables(Session session)

@@ -92,11 +92,11 @@
         </artifact>
     </artifactSet>
 
-    <artifactSet to="plugin/geospatial">
-        <artifact id="${project.groupId}:presto-geospatial:zip:${project.version}">
-            <unpack />
-        </artifact>
-    </artifactSet>
+    <!--<artifactSet to="plugin/geospatial">-->
+        <!--<artifact id="${project.groupId}:presto-geospatial:zip:${project.version}">-->
+            <!--<unpack />-->
+        <!--</artifact>-->
+    <!--</artifactSet>-->
 
     <artifactSet to="plugin/mysql">
         <artifact id="${project.groupId}:presto-mysql:zip:${project.version}">
@@ -194,6 +194,12 @@
 
     <artifactSet to="plugin/event-listener">
         <artifact id="${project.groupId}:presto-event-listener:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
+    <artifactSet to="plugin/presto-geo">
+        <artifact id="${project.groupId}:presto-geo:zip:${project.version}">
             <unpack />
         </artifact>
     </artifactSet>
