@@ -187,7 +187,7 @@ public abstract class AbstractTestHiveFileSystem
                 transactionHandle -> ((HiveMetadata) transactionManager.get(transactionHandle)).getMetastore(),
                 new NamenodeStats(),
                 hdfsEnvironment,
-                new HadoopDirectoryLister(),
+                new CachedDirectoryLister(new HiveClientConfig()),
                 new BoundedExecutor(executor, config.getMaxSplitIteratorThreads()),
                 new HiveCoercionPolicy(TYPE_MANAGER),
                 new CounterStat(),

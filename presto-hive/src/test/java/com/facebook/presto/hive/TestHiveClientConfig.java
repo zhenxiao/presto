@@ -121,7 +121,10 @@ public class TestHiveClientConfig
                 .setTemporaryStagingDirectoryPath("/tmp/presto-${USER}")
                 .setPreloadSplitsForGroupedExecution(false)
                 .setClientFallbackSimpleAuthAllowed(false)
-                .setViewFsTempDirMapping(""));
+                .setViewFsTempDirMapping("")
+                .setFileStatusCacheExpireAfterWrite(new Duration(1, TimeUnit.MINUTES))
+                .setFileStatusCacheMaxSize(1000 * 1000)
+                .setFileStatusCacheTables(""));
     }
 
     @Test
@@ -211,6 +214,9 @@ public class TestHiveClientConfig
                 .put("hive.preload-splits-for-grouped-execution", "true")
                 .put("hive.ipc.client.fallback-to-simple-auth-allowed", "true")
                 .put("hive.hdfs.viewfs.tmpdirs", "/tmp/foo#/foo,/tmp/bar#/bar")
+                .put("hive.file-status-cache-tables", "foo.bar1, foo.bar2")
+                .put("hive.file-status-cache-size", "1000")
+                .put("hive.file-status-cache-expire-time", "30m")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -296,7 +302,10 @@ public class TestHiveClientConfig
                 .setTemporaryStagingDirectoryPath("updated")
                 .setPreloadSplitsForGroupedExecution(true)
                 .setClientFallbackSimpleAuthAllowed(true)
-                .setViewFsTempDirMapping("/tmp/foo#/foo,/tmp/bar#/bar");
+                .setViewFsTempDirMapping("/tmp/foo#/foo,/tmp/bar#/bar")
+                .setFileStatusCacheTables("foo.bar1,foo.bar2")
+                .setFileStatusCacheMaxSize(1000)
+                .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES));
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }
