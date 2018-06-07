@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.hive;
 
-import com.facebook.presto.hive.metastore.Table;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
@@ -23,6 +22,6 @@ import java.io.IOException;
 
 public interface DirectoryLister
 {
-    RemoteIterator<LocatedFileStatus> list(FileSystem fs, Table table, Path path)
+    RemoteIterator<LocatedFileStatus> list(FileSystem fs, Path path)
             throws IOException;
 }

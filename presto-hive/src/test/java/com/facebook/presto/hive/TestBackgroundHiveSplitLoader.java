@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.airlift.stats.CounterStat;
 import io.airlift.units.DataSize;
-import io.airlift.units.Duration;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -45,17 +44,11 @@ import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.util.Progressable;
 import org.testng.annotations.Test;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 
 import static com.facebook.presto.hive.BackgroundHiveSplitLoader.BucketSplitInfo.createBucketSplitInfo;
 import static com.facebook.presto.hive.HiveColumnHandle.pathColumnHandle;
@@ -87,7 +80,7 @@ public class TestBackgroundHiveSplitLoader
     private static final Path RETURNED_PATH = new Path(SAMPLE_PATH);
     private static final Path FILTERED_PATH = new Path(SAMPLE_PATH_FILTERED);
 
-    private static final ExecutorService EXECUTOR = newCachedThreadPool(daemonThreadsNamed("test-%s"));
+    private static final Executor EXECUTOR = newCachedThreadPool(daemonThreadsNamed("test-%s"));
 
     private static final TupleDomain<HiveColumnHandle> RETURNED_PATH_DOMAIN = withColumnDomains(
             ImmutableMap.of(
@@ -206,52 +199,6 @@ public class TestBackgroundHiveSplitLoader
         assertThrows(RuntimeException.class, () -> hiveSplitSource.isFinished());
     }
 
-    @Test
-    public void testCachedDirectoryLister()
-            throws Exception
-    {
-        HiveClientConfig hiveClientConfig = new HiveClientConfig()
-                .setFileStatusCacheMaxSize(1000)
-                .setFileStatusCacheExpireAfterWrite(new Duration(5, TimeUnit.MINUTES))
-                .setFileStatusCacheTables("test_dbname.test_table")
-                .setMaxSplitSize(new DataSize(1.0, GIGABYTE));
-
-        CachedDirectoryLister cachedDirectoryLister = new CachedDirectoryLister(hiveClientConfig);
-        assertEquals(cachedDirectoryLister.getRequestCount(), 0);
-
-        int totalCount = 1000;
-        CountDownLatch firstVisit = new CountDownLatch(1);
-        List<Future<List<HiveSplit>>> futures = new ArrayList<>();
-
-        futures.add(EXECUTOR.submit(() -> {
-            BackgroundHiveSplitLoader backgroundHiveSplitLoader = backgroundHiveSplitLoader(TEST_FILES, cachedDirectoryLister);
-            HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.none());
-            backgroundHiveSplitLoader.start(hiveSplitSource);
-            try {
-                return drainSplits(hiveSplitSource);
-            }
-            finally {
-                firstVisit.countDown();
-            }
-        }));
-
-        for (int i = 0; i < totalCount - 1; i++) {
-            futures.add(EXECUTOR.submit(() -> {
-                firstVisit.await();
-                BackgroundHiveSplitLoader backgroundHiveSplitLoader = backgroundHiveSplitLoader(TEST_FILES, cachedDirectoryLister);
-                HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.none());
-                backgroundHiveSplitLoader.start(hiveSplitSource);
-                return drainSplits(hiveSplitSource);
-            }));
-        }
-
-        for (Future<List<HiveSplit>> future : futures) {
-            assertEquals(future.get().size(), 2);
-        }
-        assertEquals(cachedDirectoryLister.getRequestCount(), totalCount);
-        assertEquals(cachedDirectoryLister.getHitCount(), totalCount - 1);
-    }
-
     private static List<String> drain(HiveSplitSource source)
             throws Exception
     {
@@ -308,38 +255,9 @@ public class TestBackgroundHiveSplitLoader
                 compactEffectivePredicate,
                 createBucketSplitInfo(bucketHandle, hiveBucketFilter),
                 connectorSession,
-                new TestingHdfsEnvironment(files),
+                new TestingHdfsEnvironment(),
                 new NamenodeStats(),
-                new HadoopDirectoryLister(),
-                EXECUTOR,
-                2,
-                false,
-                Optional.empty(),
-                Optional.empty(),
-                ImmutableSet.of());
-    }
-
-    private static BackgroundHiveSplitLoader backgroundHiveSplitLoader(List<LocatedFileStatus> files, DirectoryLister directoryLister)
-    {
-        List<HivePartitionMetadata> hivePartitionMetadatas =
-                ImmutableList.of(
-                        new HivePartitionMetadata(
-                                new HivePartition(new SchemaTableName("testSchema", "table_name")),
-                                Optional.empty(),
-                                ImmutableMap.of()));
-
-        ConnectorSession connectorSession = new TestingConnectorSession(
-                new HiveSessionProperties(new HiveClientConfig().setMaxSplitSize(new DataSize(1.0, GIGABYTE)), new OrcFileWriterConfig()).getSessionProperties());
-
-        return new BackgroundHiveSplitLoader(
-                SIMPLE_TABLE,
-                hivePartitionMetadatas,
-                TupleDomain.none(),
-                Optional.empty(),
-                connectorSession,
-                new TestingHdfsEnvironment(files),
-                new NamenodeStats(),
-                directoryLister,
+                new TestingDirectoryLister(files),
                 EXECUTOR,
                 2,
                 false,
@@ -359,9 +277,9 @@ public class TestBackgroundHiveSplitLoader
                 TupleDomain.all(),
                 createBucketSplitInfo(Optional.empty(), Optional.empty()),
                 connectorSession,
-                new TestingHdfsEnvironment(TEST_FILES),
+                new TestingHdfsEnvironment(),
                 new NamenodeStats(),
-                new CachedDirectoryLister(new HiveClientConfig()),
+                new TestingDirectoryLister(TEST_FILES),
                 directExecutor(),
                 2,
                 false,
@@ -475,37 +393,59 @@ public class TestBackgroundHiveSplitLoader
                 new BlockLocation[] {});
     }
 
-    private static class TestingHdfsEnvironment
-            extends HdfsEnvironment
+    private static class TestingDirectoryLister
+            implements DirectoryLister
     {
         private final List<LocatedFileStatus> files;
 
-        public TestingHdfsEnvironment(List<LocatedFileStatus> files)
+        public TestingDirectoryLister(List<LocatedFileStatus> files)
+        {
+            this.files = files;
+        }
+
+        @Override
+        public RemoteIterator<LocatedFileStatus> list(FileSystem fs, Path path)
+        {
+            return new RemoteIterator<LocatedFileStatus>()
+            {
+                private final Iterator<LocatedFileStatus> iterator = files.iterator();
+
+                @Override
+                public boolean hasNext()
+                {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public LocatedFileStatus next()
+                {
+                    return iterator.next();
+                }
+            };
+        }
+    }
+
+    private static class TestingHdfsEnvironment
+            extends HdfsEnvironment
+    {
+        public TestingHdfsEnvironment()
         {
             super(
                     new HiveHdfsConfiguration(new HdfsConfigurationUpdater(new HiveClientConfig())),
                     new HiveClientConfig(),
                     new NoHdfsAuthentication());
-            this.files = files;
         }
 
         @Override
         public FileSystem getFileSystem(String user, Path path, Configuration configuration)
         {
-            return new TestingHdfsFileSystem(files);
+            return new TestingHdfsFileSystem();
         }
     }
 
     private static class TestingHdfsFileSystem
             extends FileSystem
     {
-        private final List<LocatedFileStatus> files;
-
-        public TestingHdfsFileSystem(List<LocatedFileStatus> files)
-        {
-            this.files = files;
-        }
-
         @Override
         public boolean delete(Path f, boolean recursive)
         {
@@ -528,30 +468,6 @@ public class TestBackgroundHiveSplitLoader
         public FileStatus[] listStatus(Path f)
         {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public RemoteIterator<LocatedFileStatus> listLocatedStatus(Path f)
-                throws FileNotFoundException, IOException
-        {
-            return new RemoteIterator<LocatedFileStatus>()
-            {
-                private final Iterator<LocatedFileStatus> iterator = files.iterator();
-
-                @Override
-                public boolean hasNext()
-                        throws IOException
-                {
-                    return iterator.hasNext();
-                }
-
-                @Override
-                public LocatedFileStatus next()
-                        throws IOException
-                {
-                    return iterator.next();
-                }
-            };
         }
 
         @Override
