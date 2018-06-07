@@ -310,13 +310,14 @@ public class TestBackgroundHiveSplitLoader
                 connectorSession,
                 new TestingHdfsEnvironment(files),
                 new NamenodeStats(),
-                new HadoopDirectoryLister(),
+                new CachedDirectoryLister(new HiveClientConfig()),
                 EXECUTOR,
                 2,
                 false,
                 Optional.empty(),
                 Optional.empty(),
-                ImmutableSet.of());
+                ImmutableSet.of(),
+                Optional.empty());
     }
 
     private static BackgroundHiveSplitLoader backgroundHiveSplitLoader(List<LocatedFileStatus> files, DirectoryLister directoryLister)

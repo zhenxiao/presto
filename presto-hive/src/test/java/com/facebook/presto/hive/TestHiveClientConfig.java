@@ -107,7 +107,10 @@ public class TestHiveClientConfig
                 .setTableStatisticsEnabled(true)
                 .setWritesToNonManagedTablesEnabled(false)
                 .setCreatesOfNonManagedTablesEnabled(true)
-                .setHdfsObserverReadEnabled(false));
+                .setHdfsObserverReadEnabled(false)
+                .setFileStatusCacheExpireAfterWrite(new Duration(1, TimeUnit.MINUTES))
+                .setFileStatusCacheMaxSize(1000 * 1000)
+                .setFileStatusCacheTables(null));
     }
 
     @Test
@@ -183,6 +186,9 @@ public class TestHiveClientConfig
                 .put("hive.non-managed-table-writes-enabled", "true")
                 .put("hive.non-managed-table-creates-enabled", "false")
                 .put("hive.hdfs-observer-read-enabled", "true")
+                .put("hive.file-status-cache-tables", "foo.bar1, foo.bar2")
+                .put("hive.file-status-cache-size", "1000")
+                .put("hive.file-status-cache-expire-time", "30m")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -254,7 +260,10 @@ public class TestHiveClientConfig
                 .setTableStatisticsEnabled(false)
                 .setWritesToNonManagedTablesEnabled(true)
                 .setCreatesOfNonManagedTablesEnabled(false)
-                .setHdfsObserverReadEnabled(true);
+                .setHdfsObserverReadEnabled(true)
+                .setFileStatusCacheTables("foo.bar1,foo.bar2")
+                .setFileStatusCacheMaxSize(1000)
+                .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES));
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }

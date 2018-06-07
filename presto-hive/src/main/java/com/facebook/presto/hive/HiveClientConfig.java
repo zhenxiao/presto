@@ -929,16 +929,15 @@ public class HiveClientConfig
         return this;
     }
 
-    public List<String> getCachedTables()
+    public List<String> getFileStatusCacheTables()
     {
         return fileStatusCacheTables;
     }
 
     @Config("hive.file-status-cache-tables")
-    @ConfigDescription("Tables that will be cached in namenode cache")
     public HiveClientConfig setFileStatusCacheTables(String fileStatusCacheTables)
     {
-        this.fileStatusCacheTables = SPLITTER.splitToList(fileStatusCacheTables);
+        this.fileStatusCacheTables = fileStatusCacheTables == null ? null : SPLITTER.splitToList(fileStatusCacheTables);
         return this;
     }
 
