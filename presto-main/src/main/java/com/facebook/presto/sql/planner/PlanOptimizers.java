@@ -90,6 +90,7 @@ import com.facebook.presto.sql.planner.iterative.rule.TransformUncorrelatedInPre
 import com.facebook.presto.sql.planner.iterative.rule.TransformUncorrelatedLateralToJoin;
 import com.facebook.presto.sql.planner.optimizations.AddExchanges;
 import com.facebook.presto.sql.planner.optimizations.AddLocalExchanges;
+import com.facebook.presto.sql.planner.optimizations.AggregationPushDown;
 import com.facebook.presto.sql.planner.optimizations.BeginTableWrite;
 import com.facebook.presto.sql.planner.optimizations.CheckSubqueryNodesAreRewritten;
 import com.facebook.presto.sql.planner.optimizations.DetermineSemiJoinDistributionType;
@@ -366,6 +367,9 @@ public class PlanOptimizers
             builder.add(simplifyOptimizer);
         }
 
+        if (featuresConfig.isAggregationPushDown()) {
+            builder.add(new AggregationPushDown());
+        }
         builder.add(new OptimizeMixedDistinctAggregations(metadata));
         builder.add(new IterativeOptimizer(
                 stats,

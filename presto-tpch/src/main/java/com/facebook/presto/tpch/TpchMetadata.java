@@ -174,7 +174,8 @@ public class TpchMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         TpchTableHandle tableHandle = (TpchTableHandle) table;
 
@@ -249,7 +250,7 @@ public class TpchMetadata
         TpchTableLayoutHandle layout = (TpchTableLayoutHandle) handle;
 
         // tables in this connector have a single layout
-        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty())
+        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty())
                 .get(0)
                 .getTableLayout();
     }

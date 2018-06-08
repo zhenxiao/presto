@@ -68,10 +68,11 @@ public class ClassLoaderSafeConnectorMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            return delegate.getTableLayouts(session, table, constraint, desiredColumns, nestedTupleDomain);
+            return delegate.getTableLayouts(session, table, constraint, desiredColumns, nestedTupleDomain, aggregations);
         }
     }
 

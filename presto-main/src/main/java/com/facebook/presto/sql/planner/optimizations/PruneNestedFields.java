@@ -90,7 +90,8 @@ public class PruneNestedFields
                     node.getOriginalConstraint(),
                     Optional.of(builder.build()),
                     node.getJsonPaths(),
-                    node.getLimit());
+                    node.getLimit(),
+                    node.getAggregations());
         }
 
         @Override

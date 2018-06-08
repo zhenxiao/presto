@@ -78,7 +78,8 @@ public class JsonPathPushdown
                     node.getOriginalConstraint(),
                     node.getNestedFields(),
                     Optional.of(functions),
-                    node.getLimit());
+                    node.getLimit(),
+                    node.getAggregations());
         }
 
         private static void process(Expression expression, Map<String, String> functions)

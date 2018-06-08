@@ -205,7 +205,8 @@ public class PickTableLayout
                 node.getTable(),
                 new Constraint<>(simplifiedConstraint, bindings -> true),
                 Optional.of(ImmutableSet.copyOf(node.getAssignments().values())),
-                decomposedPredicate.getNestedTupleDomain());
+                decomposedPredicate.getNestedTupleDomain(),
+                node.getAggregations());
         if (layouts.isEmpty()) {
             return new ValuesNode(context.getIdAllocator().getNextId(), node.getOutputSymbols(), ImmutableList.of());
         }
@@ -225,7 +226,8 @@ public class PickTableLayout
                 Optional.ofNullable(node.getOriginalConstraint()).orElse(predicate),
                 node.getNestedFields(),
                 node.getJsonPaths(),
-                node.getLimit());
+                node.getLimit(),
+                node.getAggregations());
 
         Map<ColumnHandle, Symbol> assignments = ImmutableBiMap.copyOf(node.getAssignments()).inverse();
         Expression resultingPredicate = combineConjuncts(

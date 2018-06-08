@@ -240,7 +240,8 @@ public class ExpressionRewriteRuleSet
                         rewrittenOriginalContraint,
                         tableScanNode.getNestedFields(),
                         tableScanNode.getJsonPaths(),
-                        tableScanNode.getLimit()));
+                        tableScanNode.getLimit(),
+                        tableScanNode.getAggregations()));
             }
             return Result.empty();
         }

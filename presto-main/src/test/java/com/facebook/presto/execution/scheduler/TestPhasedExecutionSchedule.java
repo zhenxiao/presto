@@ -186,6 +186,7 @@ public class TestPhasedExecutionSchedule
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         RemoteSourceNode remote = new RemoteSourceNode(new PlanNodeId("build_id"), buildFragment.getId(), ImmutableList.of());
@@ -240,6 +241,7 @@ public class TestPhasedExecutionSchedule
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());

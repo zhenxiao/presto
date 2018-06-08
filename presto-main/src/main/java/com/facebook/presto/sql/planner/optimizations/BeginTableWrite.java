@@ -172,6 +172,7 @@ public class BeginTableWrite
                         handle,
                         new Constraint<>(scan.getCurrentConstraint(), bindings -> true),
                         Optional.of(ImmutableSet.copyOf(scan.getAssignments().values())),
+                        Optional.empty(),
                         Optional.empty());
                 verify(layouts.size() == 1, "Expected exactly one layout for delete");
                 TableLayoutHandle layout = Iterables.getOnlyElement(layouts).getLayout().getHandle();
@@ -186,7 +187,8 @@ public class BeginTableWrite
                         scan.getOriginalConstraint(),
                         scan.getNestedFields(),
                         scan.getJsonPaths(),
-                        scan.getLimit());
+                        scan.getLimit(),
+                        scan.getAggregations());
             }
 
             if (node instanceof FilterNode) {

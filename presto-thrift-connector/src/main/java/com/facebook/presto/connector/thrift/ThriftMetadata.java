@@ -116,7 +116,8 @@ public class ThriftMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         ThriftTableHandle tableHandle = (ThriftTableHandle) table;
         ThriftTableLayoutHandle layoutHandle = new ThriftTableLayoutHandle(

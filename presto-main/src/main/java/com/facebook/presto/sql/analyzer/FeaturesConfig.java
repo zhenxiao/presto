@@ -89,6 +89,7 @@ public class FeaturesConfig
     private boolean pruneNestedFields;
     private boolean jsonPathPushDown;
     private boolean limitTableScan;
+    private boolean aggregationPushDown;
 
     private boolean partitionFilteringEnforced;
     private String partitionFilteringTables = "";
@@ -838,6 +839,18 @@ public class FeaturesConfig
     public FeaturesConfig setRewriteGeoSpatialQuery(boolean rewriteGeoSpatialQuery)
     {
         this.rewriteGeoSpatialQuery = rewriteGeoSpatialQuery;
+        return this;
+    }
+
+    public boolean isAggregationPushDown()
+    {
+        return aggregationPushDown;
+    }
+
+    @Config("optimizer.aggregation-pushdown")
+    public FeaturesConfig setAggregationPushDown(boolean aggregationPushDown)
+    {
+        this.aggregationPushDown = aggregationPushDown;
         return this;
     }
 }

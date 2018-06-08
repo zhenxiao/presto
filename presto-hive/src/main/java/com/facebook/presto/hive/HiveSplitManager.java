@@ -212,7 +212,8 @@ public class HiveSplitManager
                 recursiveDfsWalkerEnabled,
                 nestedFields,
                 layout.getNestedTupleDomain(),
-                respectSplitsInputFormats);
+                respectSplitsInputFormats,
+                layout.getAggregations());
 
         HiveSplitSource splitSource;
         switch (splitSchedulingStrategy) {

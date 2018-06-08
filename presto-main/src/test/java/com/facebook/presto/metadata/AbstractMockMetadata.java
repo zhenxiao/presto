@@ -105,7 +105,7 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public List<TableLayoutResult> getLayouts(Session session, TableHandle tableHandle, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns, Optional<TupleDomain<List<String>>> nestedTupleDomain)
+    public List<TableLayoutResult> getLayouts(Session session, TableHandle tableHandle, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns, Optional<TupleDomain<List<String>>> nestedTupleDomain, Optional<Map<String, List<String>>> aggregations)
     {
         throw new UnsupportedOperationException();
     }

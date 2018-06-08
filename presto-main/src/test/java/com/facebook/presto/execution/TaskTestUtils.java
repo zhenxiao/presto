@@ -111,6 +111,7 @@ public final class TaskTestUtils
                     null,
                     Optional.empty(),
                     Optional.empty(),
+                    Optional.empty(),
                     Optional.empty()),
             ImmutableMap.of(SYMBOL, VARCHAR),
             SOURCE_DISTRIBUTION,

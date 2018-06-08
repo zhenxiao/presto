@@ -1281,7 +1281,7 @@ public class HiveMetadata
         else {
             TupleDomain<ColumnHandle> promisedPredicate = layoutHandle.getPromisedPredicate();
             Predicate<Map<ColumnHandle, NullableValue>> predicate = convertToPredicate(promisedPredicate);
-            List<ConnectorTableLayoutResult> tableLayoutResults = getTableLayouts(session, tableHandle, new Constraint<>(promisedPredicate, predicate), Optional.empty(), layoutHandle.getNestedTupleDomain());
+            List<ConnectorTableLayoutResult> tableLayoutResults = getTableLayouts(session, tableHandle, new Constraint<>(promisedPredicate, predicate), Optional.empty(), layoutHandle.getNestedTupleDomain(), layoutHandle.getAggregations());
             return ((HiveTableLayoutHandle) Iterables.getOnlyElement(tableLayoutResults).getTableLayout().getHandle()).getPartitions().get();
         }
     }
@@ -1299,7 +1299,7 @@ public class HiveMetadata
     }
 
     @Override
-    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle tableHandle, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns, Optional<TupleDomain<List<String>>> nestedTupleDomain)
+    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle tableHandle, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns, Optional<TupleDomain<List<String>>> nestedTupleDomain, Optional<Map<String, List<String>>> aggregations)
     {
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
         HivePartitionResult hivePartitionResult = partitionManager.getPartitions(metastore, tableHandle, constraint);
@@ -1315,7 +1315,8 @@ public class HiveMetadata
                                 hivePartitionResult.getEnforcedConstraint(),
                                 hivePartitionResult.getBucketHandle(),
                                 hivePartitionResult.getBucketFilter(),
-                                nestedTupleDomain)),
+                                nestedTupleDomain,
+                                aggregations)),
                 hivePartitionResult.getUnenforcedConstraint()));
     }
 

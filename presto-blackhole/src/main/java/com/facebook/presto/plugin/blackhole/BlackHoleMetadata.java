@@ -248,7 +248,8 @@ public class BlackHoleMetadata
             ConnectorTableHandle handle,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         BlackHoleTableHandle blackHoleHandle = (BlackHoleTableHandle) handle;
         BlackHoleTableLayoutHandle layoutHandle = new BlackHoleTableLayoutHandle(

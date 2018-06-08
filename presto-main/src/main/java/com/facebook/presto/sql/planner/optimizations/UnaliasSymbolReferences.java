@@ -243,7 +243,8 @@ public class UnaliasSymbolReferences
                     originalConstraint,
                     node.getNestedFields(),
                     node.getJsonPaths(),
-                    node.getLimit());
+                    node.getLimit(),
+                    node.getAggregations());
         }
 
         @Override

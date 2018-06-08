@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -40,6 +41,7 @@ public final class HiveTableLayoutHandle
     private final Optional<HiveBucketHandle> bucketHandle;
     private final Optional<HiveBucketFilter> bucketFilter;
     private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
+    private final Optional<Map<String, List<String>>> aggregations;
 
     @JsonCreator
     public HiveTableLayoutHandle(
@@ -49,7 +51,8 @@ public final class HiveTableLayoutHandle
             @JsonProperty("promisedPredicate") TupleDomain<ColumnHandle> promisedPredicate,
             @JsonProperty("bucketHandle") Optional<HiveBucketHandle> bucketHandle,
             @JsonProperty("bucketFilter") Optional<HiveBucketFilter> bucketFilter,
-            @JsonProperty("nestedTupleDomain") Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            @JsonProperty("nestedTupleDomain") Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            @JsonProperty("aggregations") Optional<Map<String, List<String>>> aggregations)
     {
         this.schemaTableName = requireNonNull(schemaTableName, "table is null");
         this.partitionColumns = ImmutableList.copyOf(requireNonNull(partitionColumns, "partitionColumns is null"));
@@ -59,6 +62,7 @@ public final class HiveTableLayoutHandle
         this.bucketHandle = requireNonNull(bucketHandle, "bucketHandle is null");
         this.bucketFilter = requireNonNull(bucketFilter, "bucketFilter is null");
         this.nestedTupleDomain = requireNonNull(nestedTupleDomain, "nestedTupleDomain is null");
+        this.aggregations = requireNonNull(aggregations, "aggregations is null");
     }
 
     public HiveTableLayoutHandle(
@@ -69,7 +73,8 @@ public final class HiveTableLayoutHandle
             TupleDomain<ColumnHandle> promisedPredicate,
             Optional<HiveBucketHandle> bucketHandle,
             Optional<HiveBucketFilter> bucketFilter,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         this.schemaTableName = requireNonNull(schemaTableName, "table is null");
         this.partitionColumns = ImmutableList.copyOf(requireNonNull(partitionColumns, "partitionColumns is null"));
@@ -79,6 +84,7 @@ public final class HiveTableLayoutHandle
         this.bucketHandle = requireNonNull(bucketHandle, "bucketHandle is null");
         this.bucketFilter = requireNonNull(bucketFilter, "bucketFilter is null");
         this.nestedTupleDomain = requireNonNull(nestedTupleDomain, "nestedTupleDomain is null");
+        this.aggregations = requireNonNull(aggregations, "aggregations is null");
     }
 
     @JsonProperty
@@ -134,6 +140,12 @@ public final class HiveTableLayoutHandle
         return nestedTupleDomain;
     }
 
+    @JsonProperty
+    public Optional<Map<String, List<String>>> getAggregations()
+    {
+        return aggregations;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -147,13 +159,14 @@ public final class HiveTableLayoutHandle
         return Objects.equals(schemaTableName, that.schemaTableName) &&
                 Objects.equals(partitionColumns, that.partitionColumns) &&
                 Objects.equals(partitions, that.partitions) &&
+                Objects.equals(aggregations, that.aggregations) &&
                 Objects.equals(nestedTupleDomain, that.nestedTupleDomain);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaTableName, partitionColumns, partitions, nestedTupleDomain);
+        return Objects.hash(schemaTableName, partitionColumns, partitions, nestedTupleDomain, aggregations);
     }
 
     @Override

@@ -61,6 +61,7 @@ public class InternalHiveSplit
     private final Optional<BucketConversion> bucketConversion;
     private final Optional<Map<String, NestedField>> nestedFields;
     private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
+    private final Optional<Map<String, List<String>>> aggregations;
 
     private long start;
     private int currentBlockIndex;
@@ -80,7 +81,8 @@ public class InternalHiveSplit
             Map<Integer, HiveTypeName> columnCoercions,
             Optional<BucketConversion> bucketConversion,
             Optional<Map<String, NestedField>> nestedFields,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         checkArgument(start >= 0, "start must be positive");
         checkArgument(end >= 0, "length must be positive");
@@ -110,6 +112,7 @@ public class InternalHiveSplit
         this.bucketConversion = bucketConversion;
         this.nestedFields = nestedFields;
         this.nestedTupleDomain = nestedTupleDomain;
+        this.aggregations = aggregations;
     }
 
     public String getPath()
@@ -180,6 +183,11 @@ public class InternalHiveSplit
     public Optional<TupleDomain<List<String>>> getNestedTupleDomain()
     {
         return nestedTupleDomain;
+    }
+
+    public Optional<Map<String, List<String>>> getAggregations()
+    {
+        return aggregations;
     }
 
     public InternalHiveBlock currentBlock()

@@ -99,6 +99,7 @@ public final class SystemSessionProperties
     public static final String PARTITION_FILTER = "enforce_partition_filter";
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
     public static final String REWRITE_GEOSPATIAL_QUERY = "rewrite_geospatial_query";
+    public static final String AGGREGATION_PUSHDOWN = "aggregation_pushdown";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -457,6 +458,11 @@ public final class SystemSessionProperties
                         null,
                         false),
                 booleanSessionProperty(
+                        AGGREGATION_PUSHDOWN,
+                        "aggregation pushdown",
+                        featuresConfig.isAggregationPushDown(),
+                        false),
+                booleanSessionProperty(
                         REWRITE_GEOSPATIAL_QUERY,
                         "rewrite geospatial query",
                         featuresConfig.isRewriteGeoSpatialQuery(),
@@ -561,6 +567,11 @@ public final class SystemSessionProperties
     public static boolean rewriteGeoSpatialQuery(Session session)
     {
         return session.getSystemProperty(REWRITE_GEOSPATIAL_QUERY, Boolean.class);
+    }
+
+    public static boolean isAggregationPushDown(Session session)
+    {
+        return session.getSystemProperty(AGGREGATION_PUSHDOWN, Boolean.class);
     }
 
     public static String getPartitionFilterTables(Session session)

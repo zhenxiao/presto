@@ -102,7 +102,8 @@ public class TpcdsMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         TpcdsTableHandle tableHandle = (TpcdsTableHandle) table;
         ConnectorTableLayout layout = new ConnectorTableLayout(
@@ -122,7 +123,7 @@ public class TpcdsMetadata
     {
         TpcdsTableLayoutHandle layout = (TpcdsTableLayoutHandle) handle;
 
-        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty())
+        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty())
                 .get(0)
                 .getTableLayout();
     }

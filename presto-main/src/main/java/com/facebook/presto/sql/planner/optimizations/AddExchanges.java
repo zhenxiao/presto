@@ -564,7 +564,8 @@ public class AddExchanges
                     Optional.of(node.getOutputSymbols().stream()
                             .map(node.getAssignments()::get)
                             .collect(toImmutableSet())),
-                    decomposedPredicate.getNestedTupleDomain());
+                    decomposedPredicate.getNestedTupleDomain(),
+                    node.getAggregations());
 
             if (layouts.isEmpty()) {
                 return emptyRelation(node.getOutputSymbols());
@@ -592,7 +593,8 @@ public class AddExchanges
                                 Optional.ofNullable(node.getOriginalConstraint()).orElse(predicate),
                                 node.getNestedFields(),
                                 node.getJsonPaths(),
-                                node.getLimit());
+                                node.getLimit(),
+                                node.getAggregations());
 
                         PlanWithProperties result = new PlanWithProperties(tableScan, deriveProperties(tableScan, ImmutableList.of()));
 

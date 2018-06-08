@@ -157,7 +157,7 @@ class RelationPlanner
         }
 
         List<Symbol> outputSymbols = outputSymbolsBuilder.build();
-        PlanNode root = new TableScanNode(idAllocator.getNextId(), handle, outputSymbols, columns.build(), Optional.empty(), TupleDomain.all(), null, Optional.empty(), Optional.empty(), Optional.empty());
+        PlanNode root = new TableScanNode(idAllocator.getNextId(), handle, outputSymbols, columns.build(), Optional.empty(), TupleDomain.all(), null, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         return new RelationPlan(root, scope, outputSymbols);
     }
 

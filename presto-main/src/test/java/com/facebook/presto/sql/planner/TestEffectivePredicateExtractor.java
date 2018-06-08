@@ -139,6 +139,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         expressionNormalizer = new ExpressionIdentityNormalizer();
@@ -336,6 +337,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         Expression effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(effectivePredicate, BooleanLiteral.TRUE_LITERAL);
@@ -348,6 +350,7 @@ public class TestEffectivePredicateExtractor
                 Optional.of(TESTING_TABLE_LAYOUT),
                 TupleDomain.none(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
@@ -366,6 +369,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(normalizeConjuncts(effectivePredicate), normalizeConjuncts(equals(bigintLiteral(2L), BE), equals(bigintLiteral(1L), AE)));
@@ -378,6 +382,7 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
@@ -423,6 +428,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -434,6 +440,7 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
@@ -493,6 +500,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -504,6 +512,7 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
@@ -559,6 +568,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -570,6 +580,7 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
@@ -622,6 +633,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -633,6 +645,7 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
@@ -688,6 +701,7 @@ public class TestEffectivePredicateExtractor
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         Map<Symbol, ColumnHandle> rightAssignments = Maps.filterKeys(scanAssignments, Predicates.in(ImmutableList.of(D, E, F)));
@@ -699,6 +713,7 @@ public class TestEffectivePredicateExtractor
                 Optional.empty(),
                 TupleDomain.all(),
                 null,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());

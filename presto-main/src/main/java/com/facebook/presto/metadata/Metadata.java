@@ -68,7 +68,7 @@ public interface Metadata
 
     Optional<SystemTable> getSystemTable(Session session, QualifiedObjectName tableName);
 
-    List<TableLayoutResult> getLayouts(Session session, TableHandle tableHandle, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns, Optional<TupleDomain<List<String>>> nestedTupleDomain);
+    List<TableLayoutResult> getLayouts(Session session, TableHandle tableHandle, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns, Optional<TupleDomain<List<String>>> nestedTupleDomain, Optional<Map<String, List<String>>> aggregations);
 
     TableLayout getLayout(Session session, TableLayoutHandle handle);
 

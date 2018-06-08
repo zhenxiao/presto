@@ -346,6 +346,7 @@ public class TestCostCalculator
                 null,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
     }
 

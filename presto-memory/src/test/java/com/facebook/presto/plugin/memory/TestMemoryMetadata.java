@@ -147,7 +147,7 @@ public class TestMemoryMetadata
         assertTrue(tableNames.size() == 1, "Expected exactly one table");
 
         ConnectorTableHandle tableHandle = metadata.getTableHandle(SESSION, tableName);
-        List<ConnectorTableLayoutResult> tableLayouts = metadata.getTableLayouts(SESSION, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+        List<ConnectorTableLayoutResult> tableLayouts = metadata.getTableLayouts(SESSION, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
         assertTrue(tableLayouts.size() == 1, "Expected exactly one layout.");
         ConnectorTableLayout tableLayout = tableLayouts.get(0).getTableLayout();
         ConnectorTableLayoutHandle tableLayoutHandle = tableLayout.getHandle();

@@ -53,6 +53,7 @@ public class HiveSplit
     private final Optional<BucketConversion> bucketConversion;
     private final Optional<Map<String, NestedField>> nestedFields;
     private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
+    private final Optional<Map<String, List<String>>> aggregations;
 
     @JsonCreator
     public HiveSplit(
@@ -72,7 +73,8 @@ public class HiveSplit
             @JsonProperty("columnCoercions") Map<Integer, HiveType> columnCoercions,
             @JsonProperty("bucketConversion") Optional<BucketConversion> bucketConversion,
             @JsonProperty("nestedFields") Optional<Map<String, NestedField>> nestedFields,
-            @JsonProperty("nestedTupleDomain") Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            @JsonProperty("nestedTupleDomain") Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            @JsonProperty("aggregations") Optional<Map<String, List<String>>> aggregations)
     {
         checkArgument(start >= 0, "start must be positive");
         checkArgument(length >= 0, "length must be positive");
@@ -106,6 +108,7 @@ public class HiveSplit
         this.bucketConversion = bucketConversion;
         this.nestedFields = nestedFields;
         this.nestedTupleDomain = nestedTupleDomain;
+        this.aggregations = aggregations;
     }
 
     @JsonProperty
@@ -211,6 +214,12 @@ public class HiveSplit
         return nestedTupleDomain;
     }
 
+    @JsonProperty
+    public Optional<Map<String, List<String>>> getAggregations()
+    {
+        return aggregations;
+    }
+
     @Override
     public boolean isRemotelyAccessible()
     {
@@ -232,6 +241,7 @@ public class HiveSplit
                 .put("partitionName", partitionName)
                 .put("nestedFields", nestedFields)
                 .put("nestedTupleDomain", nestedTupleDomain)
+                .put("aggregations", aggregations)
                 .build();
     }
 
@@ -246,6 +256,7 @@ public class HiveSplit
                 .addValue(effectivePredicate)
                 .addValue(nestedFields)
                 .addValue(nestedTupleDomain)
+                .addValue(aggregations)
                 .toString();
     }
 

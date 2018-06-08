@@ -59,6 +59,7 @@ public class TableScanNode
     // To make this work, the originalConstraint should be set exactly once after the first predicate push down and never adjusted after that.
     // In this way, we are always guaranteed to have a readable predicate that provides some kind of upper bound on the constraints.
     private final Expression originalConstraint;
+    private final Optional<Map<String, List<String>>> aggregations;
 
     private Optional<Map<String, NestedField>> nestedFields;
     private Optional<Map<String, String>> jsonPaths;
@@ -75,7 +76,8 @@ public class TableScanNode
             @JsonProperty("originalConstraint") @Nullable Expression originalConstraint,
             @JsonProperty("nestedFields") @Nullable Optional<Map<String, NestedField>> nestedFields,
             @JsonProperty("jsonPaths") @Nullable Optional<Map<String, String>> jsonPaths,
-            @JsonProperty("limit") @Nullable Optional<Long> limit)
+            @JsonProperty("limit") @Nullable Optional<Long> limit,
+            @JsonProperty("aggregations") @Nullable Optional<Map<String, List<String>>> aggregations)
     {
         super(id);
         requireNonNull(table, "table is null");
@@ -95,6 +97,7 @@ public class TableScanNode
         this.nestedFields = nestedFields;
         this.jsonPaths = jsonPaths;
         this.limit = limit;
+        this.aggregations = aggregations;
     }
 
     @JsonProperty("table")
@@ -151,6 +154,12 @@ public class TableScanNode
     public Optional<Long> getLimit()
     {
         return limit;
+    }
+
+    @JsonProperty
+    public Optional<Map<String, List<String>>> getAggregations()
+    {
+        return aggregations;
     }
 
     public void setNestedFields(Optional<Map<String, NestedField>> nestedFields)

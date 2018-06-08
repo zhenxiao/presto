@@ -133,7 +133,8 @@ public class LimitTableScan
                     node.getOriginalConstraint(),
                     node.getNestedFields(),
                     node.getJsonPaths(),
-                    Optional.of(limit.getCount()));
+                    Optional.of(limit.getCount()),
+                    node.getAggregations());
         }
 
         @Override

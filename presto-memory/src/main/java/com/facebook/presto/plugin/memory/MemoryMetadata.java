@@ -316,7 +316,8 @@ public class MemoryMetadata
             ConnectorTableHandle handle,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         requireNonNull(handle, "handle is null");
         checkArgument(handle instanceof MemoryTableHandle);

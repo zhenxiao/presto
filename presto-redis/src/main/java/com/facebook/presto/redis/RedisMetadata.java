@@ -134,7 +134,8 @@ public class RedisMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations)
     {
         RedisTableHandle tableHandle = convertTableHandle(table);
 
@@ -149,7 +150,7 @@ public class RedisMetadata
         RedisTableLayoutHandle layout = convertLayout(handle);
 
         // tables in this connector have a single layout
-        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty())
+        return getTableLayouts(session, layout.getTable(), Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty())
                 .get(0)
                 .getTableLayout();
     }

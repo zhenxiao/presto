@@ -401,7 +401,8 @@ public class PruneUnreferencedOutputs
                     node.getOriginalConstraint(),
                     node.getNestedFields(),
                     node.getJsonPaths(),
-                    node.getLimit());
+                    node.getLimit(),
+                    node.getAggregations());
         }
 
         @Override

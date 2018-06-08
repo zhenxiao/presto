@@ -507,6 +507,7 @@ public abstract class AbstractTestHiveClient
                 TupleDomain.all(),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         dsColumn = new HiveColumnHandle("ds", HIVE_STRING, parseTypeSignature(StandardTypes.VARCHAR), -1, PARTITION_KEY, Optional.empty());
@@ -549,7 +550,7 @@ public abstract class AbstractTestHiveClient
         partitionCount = partitions.size();
         tupleDomain = TupleDomain.fromFixedValues(ImmutableMap.of(dsColumn, NullableValue.of(createUnboundedVarcharType(), utf8Slice("2012-12-29"))));
         tableLayout = new ConnectorTableLayout(
-                new HiveTableLayoutHandle(tablePartitionFormat, partitionColumns, partitions, tupleDomain, tupleDomain, Optional.empty(), Optional.empty(), Optional.empty()),
+                new HiveTableLayoutHandle(tablePartitionFormat, partitionColumns, partitions, tupleDomain, tupleDomain, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()),
                 Optional.empty(),
                 TupleDomain.withColumnDomains(ImmutableMap.of(
                         dsColumn, Domain.create(ValueSet.ofRanges(Range.equal(createUnboundedVarcharType(), utf8Slice("2012-12-29"))), false),
@@ -576,7 +577,7 @@ public abstract class AbstractTestHiveClient
                                 dummyColumn, Domain.create(ValueSet.ofRanges(Range.equal(INTEGER, 4L)), false)))))),
                 ImmutableList.of());
         List<HivePartition> unpartitionedPartitions = ImmutableList.of(new HivePartition(tableUnpartitioned));
-        unpartitionedTableLayout = new ConnectorTableLayout(new HiveTableLayoutHandle(tableUnpartitioned, ImmutableList.of(), unpartitionedPartitions, TupleDomain.all(), TupleDomain.all(), Optional.empty(), Optional.empty(), Optional.empty()));
+        unpartitionedTableLayout = new ConnectorTableLayout(new HiveTableLayoutHandle(tableUnpartitioned, ImmutableList.of(), unpartitionedPartitions, TupleDomain.all(), TupleDomain.all(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
         timeZone = DateTimeZone.forTimeZone(TimeZone.getTimeZone(timeZoneId));
     }
 
@@ -837,7 +838,7 @@ public abstract class AbstractTestHiveClient
         try (Transaction transaction = newTransaction()) {
             ConnectorMetadata metadata = transaction.getMetadata();
             ConnectorTableHandle tableHandle = getTableHandle(metadata, tablePartitionFormat);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
             assertExpectedTableLayout(getOnlyElement(tableLayoutResults).getTableLayout(), tableLayout);
         }
     }
@@ -848,7 +849,7 @@ public abstract class AbstractTestHiveClient
         try (Transaction transaction = newTransaction()) {
             ConnectorMetadata metadata = transaction.getMetadata();
             ConnectorTableHandle tableHandle = getTableHandle(metadata, tablePartitionFormat);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, new Constraint<>(TupleDomain.withColumnDomains(ImmutableMap.of(intColumn, Domain.singleValue(BIGINT, 5L))), bindings -> true), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, new Constraint<>(TupleDomain.withColumnDomains(ImmutableMap.of(intColumn, Domain.singleValue(BIGINT, 5L))), bindings -> true), Optional.empty(), Optional.empty(), Optional.empty());
             assertExpectedTableLayout(getOnlyElement(tableLayoutResults).getTableLayout(), tableLayout);
         }
     }
@@ -858,7 +859,7 @@ public abstract class AbstractTestHiveClient
     {
         try (Transaction transaction = newTransaction()) {
             ConnectorMetadata metadata = transaction.getMetadata();
-            metadata.getTableLayouts(newSession(), invalidTableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            metadata.getTableLayouts(newSession(), invalidTableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
         }
     }
 
@@ -868,7 +869,7 @@ public abstract class AbstractTestHiveClient
         try (Transaction transaction = newTransaction()) {
             ConnectorMetadata metadata = transaction.getMetadata();
             ConnectorTableHandle tableHandle = getTableHandle(metadata, tablePartitionFormat);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
             assertExpectedTableLayout(getOnlyElement(tableLayoutResults).getTableLayout(), tableLayout);
         }
     }
@@ -1047,7 +1048,7 @@ public abstract class AbstractTestHiveClient
         try (Transaction transaction = newTransaction()) {
             ConnectorMetadata metadata = transaction.getMetadata();
             ConnectorTableHandle tableHandle = getTableHandle(metadata, tableUnpartitioned);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(newSession(), tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
             assertEquals(getAllPartitions(getOnlyElement(tableLayoutResults).getTableLayout().getHandle()).size(), 1);
             assertExpectedTableLayout(getOnlyElement(tableLayoutResults).getTableLayout(), unpartitionedTableLayout);
         }
@@ -1058,7 +1059,7 @@ public abstract class AbstractTestHiveClient
     {
         try (Transaction transaction = newTransaction()) {
             ConnectorMetadata metadata = transaction.getMetadata();
-            metadata.getTableLayouts(newSession(), invalidTableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            metadata.getTableLayouts(newSession(), invalidTableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
         }
     }
 
@@ -1219,7 +1220,7 @@ public abstract class AbstractTestHiveClient
             ConnectorSession session = newSession();
 
             ConnectorTableHandle tableHandle = getTableHandle(metadata, tablePartitionFormat);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
             ConnectorSplitSource splitSource = splitManager.getSplits(transaction.getTransactionHandle(), session, getOnlyElement(tableLayoutResults).getTableLayout().getHandle(), UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty());
 
             assertEquals(getSplitCount(splitSource), partitionCount);
@@ -1234,7 +1235,7 @@ public abstract class AbstractTestHiveClient
             ConnectorSession session = newSession();
 
             ConnectorTableHandle tableHandle = getTableHandle(metadata, tableUnpartitioned);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
             ConnectorSplitSource splitSource = splitManager.getSplits(transaction.getTransactionHandle(), session, getOnlyElement(tableLayoutResults).getTableLayout().getHandle(), UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty());
 
             assertEquals(getSplitCount(splitSource), 1);
@@ -1279,7 +1280,7 @@ public abstract class AbstractTestHiveClient
 
             Domain domain = Domain.singleValue(createUnboundedVarcharType(), utf8Slice("2012-12-30"));
             TupleDomain<ColumnHandle> tupleDomain = TupleDomain.withColumnDomains(ImmutableMap.of(dsColumn, domain));
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, new Constraint<>(tupleDomain, bindings -> true), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, new Constraint<>(tupleDomain, bindings -> true), Optional.empty(), Optional.empty(), Optional.empty());
             try {
                 getSplitCount(splitManager.getSplits(transaction.getTransactionHandle(), session, getOnlyElement(tableLayoutResults).getTableLayout().getHandle(), UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty()));
                 fail("Expected PartitionOfflineException");
@@ -1304,7 +1305,7 @@ public abstract class AbstractTestHiveClient
             ColumnHandle dsColumn = metadata.getColumnHandles(session, tableHandle).get("ds");
             assertNotNull(dsColumn);
 
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, Constraint.alwaysTrue(), Optional.empty(), Optional.empty(), Optional.empty());
             try {
                 getSplitCount(splitManager.getSplits(transaction.getTransactionHandle(), session, getOnlyElement(tableLayoutResults).getTableLayout().getHandle(), UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty()));
                 fail("Expected HiveNotReadableException");
@@ -1774,7 +1775,7 @@ public abstract class AbstractTestHiveClient
             ConnectorTableHandle table = getTableHandle(metadata, tablePartitionSchemaChangeNonCanonical);
             ColumnHandle column = metadata.getColumnHandles(session, table).get("t_boolean");
             assertNotNull(column);
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, table, new Constraint<>(TupleDomain.fromFixedValues(ImmutableMap.of(column, NullableValue.of(BOOLEAN, false))), bindings -> true), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, table, new Constraint<>(TupleDomain.fromFixedValues(ImmutableMap.of(column, NullableValue.of(BOOLEAN, false))), bindings -> true), Optional.empty(), Optional.empty(), Optional.empty());
             ConnectorTableLayoutHandle layoutHandle = getOnlyElement(tableLayoutResults).getTableLayout().getHandle();
             assertEquals(getAllPartitions(layoutHandle).size(), 1);
             assertEquals(getPartitionId(getAllPartitions(layoutHandle).get(0)), "t_boolean=0");
@@ -3230,7 +3231,7 @@ public abstract class AbstractTestHiveClient
             session = newSession();
             TupleDomain<ColumnHandle> tupleDomain = TupleDomain.fromFixedValues(ImmutableMap.of(dsColumnHandle, NullableValue.of(createUnboundedVarcharType(), utf8Slice("2015-07-03"))));
             Constraint<ColumnHandle> constraint = new Constraint<>(tupleDomain, convertToPredicate(tupleDomain));
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, constraint, Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, constraint, Optional.empty(), Optional.empty(), Optional.empty());
             ConnectorTableLayoutHandle tableLayoutHandle = getOnlyElement(tableLayoutResults).getTableLayout().getHandle();
             metadata.metadataDelete(session, tableHandle, tableLayoutHandle);
 
@@ -3265,7 +3266,7 @@ public abstract class AbstractTestHiveClient
             TupleDomain<ColumnHandle> tupleDomain2 = TupleDomain.withColumnDomains(
                     ImmutableMap.of(dsColumnHandle, Domain.create(ValueSet.ofRanges(Range.range(createUnboundedVarcharType(), utf8Slice("2015-07-01"), true, utf8Slice("2015-07-02"), true)), false)));
             Constraint<ColumnHandle> constraint2 = new Constraint<>(tupleDomain2, convertToPredicate(tupleDomain2));
-            List<ConnectorTableLayoutResult> tableLayoutResults2 = metadata.getTableLayouts(session, tableHandle, constraint2, Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults2 = metadata.getTableLayouts(session, tableHandle, constraint2, Optional.empty(), Optional.empty(), Optional.empty());
             ConnectorTableLayoutHandle tableLayoutHandle2 = getOnlyElement(tableLayoutResults2).getTableLayout().getHandle();
             metadata.metadataDelete(session, tableHandle, tableLayoutHandle2);
 
@@ -3590,6 +3591,7 @@ public abstract class AbstractTestHiveClient
                 tableHandle,
                 new Constraint<>(tupleDomain, bindings -> true),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         ConnectorTableLayoutHandle layoutHandle = getOnlyElement(tableLayoutResults).getTableLayout().getHandle();
         List<ConnectorSplit> splits = getAllSplits(splitManager.getSplits(transaction.getTransactionHandle(), session, layoutHandle, UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty()));
@@ -3632,7 +3634,7 @@ public abstract class AbstractTestHiveClient
         try (Transaction transaction = newTransaction()) {
             ConnectorSession session = newSession();
             ConnectorMetadata metadata = transaction.getMetadata();
-            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, new Constraint<>(tupleDomain, bindings -> true), Optional.empty(), Optional.empty());
+            List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, new Constraint<>(tupleDomain, bindings -> true), Optional.empty(), Optional.empty(), Optional.empty());
             ConnectorTableLayoutHandle layoutHandle = getOnlyElement(tableLayoutResults).getTableLayout().getHandle();
             return getAllSplits(splitManager.getSplits(transaction.getTransactionHandle(), session, layoutHandle, UNGROUPED_SCHEDULING, Optional.empty(), Optional.empty(), Optional.empty()));
         }
@@ -4046,7 +4048,7 @@ public abstract class AbstractTestHiveClient
                 TupleDomain<ColumnHandle> tupleDomain = TupleDomain.withColumnDomains(ImmutableMap.of(
                         dsColumnHandle, domainToDrop));
                 Constraint<ColumnHandle> constraint = new Constraint<>(tupleDomain, convertToPredicate(tupleDomain));
-                List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, constraint, Optional.empty(), Optional.empty());
+                List<ConnectorTableLayoutResult> tableLayoutResults = metadata.getTableLayouts(session, tableHandle, constraint, Optional.empty(), Optional.empty(), Optional.empty());
                 ConnectorTableLayoutHandle tableLayoutHandle = getOnlyElement(tableLayoutResults).getTableLayout().getHandle();
                 metadata.metadataDelete(session, tableHandle, tableLayoutHandle);
                 rollbackIfEquals(tag, ROLLBACK_AFTER_DELETE);
@@ -4328,7 +4330,7 @@ public abstract class AbstractTestHiveClient
 
             ConnectorTableHandle table = getTableHandle(metadata, tableWithFooter);
             try {
-                metadata.getTableLayouts(session, table, new Constraint<>(TupleDomain.all(), bindings -> true), Optional.empty(), Optional.empty());
+                metadata.getTableLayouts(session, table, new Constraint<>(TupleDomain.all(), bindings -> true), Optional.empty(), Optional.empty(), Optional.empty());
                 fail("expected exception");
             }
             catch (PrestoException e) {

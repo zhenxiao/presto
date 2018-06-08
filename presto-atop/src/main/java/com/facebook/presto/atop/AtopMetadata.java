@@ -91,7 +91,7 @@ public class AtopMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain)
+            Optional<TupleDomain<List<String>>> nestedTupleDomain, Optional<Map<String, List<String>>> aggregations)
     {
         AtopTableHandle tableHandle = (AtopTableHandle) table;
         Optional<Map<ColumnHandle, Domain>> domains = constraint.getSummary().getDomains();

@@ -377,7 +377,8 @@ class HiveSplitSource
                         transformValues(internalSplit.getColumnCoercions(), HiveTypeName::toHiveType),
                         internalSplit.getBucketConversion(),
                         internalSplit.getNestedFields(),
-                        internalSplit.getNestedTupleDomain()));
+                        internalSplit.getNestedTupleDomain(),
+                        internalSplit.getAggregations()));
                 internalSplit.increaseStart(splitBytes);
 
                 if (internalSplit.isDone()) {

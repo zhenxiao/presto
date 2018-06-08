@@ -96,7 +96,8 @@ public interface ConnectorMetadata
             ConnectorTableHandle table,
             Constraint<ColumnHandle> constraint,
             Optional<Set<ColumnHandle>> desiredColumns,
-            Optional<TupleDomain<List<String>>> nestedTupleDomain);
+            Optional<TupleDomain<List<String>>> nestedTupleDomain,
+            Optional<Map<String, List<String>>> aggregations);
 
     ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle);
 
@@ -240,7 +241,7 @@ public interface ConnectorMetadata
      */
     default Optional<ConnectorNewTableLayout> getInsertLayout(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
-        List<ConnectorTableLayout> layouts = getTableLayouts(session, tableHandle, new Constraint<>(TupleDomain.all(), map -> true), Optional.empty(), Optional.empty())
+        List<ConnectorTableLayout> layouts = getTableLayouts(session, tableHandle, new Constraint<>(TupleDomain.all(), map -> true), Optional.empty(), Optional.empty(), Optional.empty())
                 .stream()
                 .map(ConnectorTableLayoutResult::getTableLayout)
                 .filter(layout -> layout.getTablePartitioning().isPresent())

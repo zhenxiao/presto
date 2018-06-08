@@ -158,6 +158,7 @@ public class TestFeaturesConfig
                 .put("optimizer.partition-filtering-tables", "dwh.a:hdrone.b")
                 .put("optimizer.json-path-pushdown", "true")
                 .put("optimizer.limit-table-scan", "true")
+                .put("optimizer.aggregation-pushdown", "true")
                 .build();
 
         FeaturesConfig expected = new FeaturesConfig()
@@ -217,6 +218,7 @@ public class TestFeaturesConfig
                 .setSpillerThreads(42)
                 .setJsonPathPushDown(true)
                 .setLimitTableScan(true)
+                .setAggregationPushDown(true)
                 .setPartitionFilteringEnforced(true)
                 .setPartitionFilteringTables("dwh.a:hdrone.b");
 

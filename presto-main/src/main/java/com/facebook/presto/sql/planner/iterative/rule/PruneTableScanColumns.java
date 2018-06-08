@@ -47,6 +47,7 @@ public class PruneTableScanColumns
                         tableScanNode.getOriginalConstraint(),
                         Optional.empty(),
                         Optional.empty(),
+                        Optional.empty(),
                         Optional.empty()));
     }
 }

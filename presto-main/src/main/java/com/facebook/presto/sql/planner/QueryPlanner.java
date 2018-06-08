@@ -215,7 +215,7 @@ class QueryPlanner
         fields.add(rowIdField);
 
         // create table scan
-        PlanNode tableScan = new TableScanNode(idAllocator.getNextId(), handle, outputSymbols.build(), columns.build(), Optional.empty(), TupleDomain.all(), null, Optional.empty(), Optional.empty(), Optional.empty());
+        PlanNode tableScan = new TableScanNode(idAllocator.getNextId(), handle, outputSymbols.build(), columns.build(), Optional.empty(), TupleDomain.all(), null, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         Scope scope = Scope.builder().withRelationType(RelationId.anonymous(), new RelationType(fields.build())).build();
         RelationPlan relationPlan = new RelationPlan(tableScan, scope, outputSymbols.build());
 
