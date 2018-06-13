@@ -76,7 +76,7 @@ public class PruneNestedFields
             for (Map.Entry<String, NestedField> entry : fields.entrySet()) {
                 Symbol columnName = new Symbol(entry.getKey());
                 if (assignments.containsKey(columnName)) {
-                    NestedField field = new NestedField(columnName.getName(), entry.getValue().getFields());
+                    NestedField field = new NestedField(columnName.getName().toLowerCase(), entry.getValue().getFields());
                     builder.put(columnName.getName(), field);
                 }
             }
@@ -196,7 +196,7 @@ public class PruneNestedFields
             {
                 Expression base = node.getBase();
                 if (base instanceof DereferenceExpression || base instanceof Identifier || base instanceof SymbolReference) {
-                    NestedField field = new NestedField(node.getField().getValue(), createFields(context.getChild()));
+                    NestedField field = new NestedField(node.getField().getValue().toLowerCase(), createFields(context.getChild()));
                     NestedFieldContext nestedContext = new NestedFieldContext(context.getFields(), field);
                     process(base, nestedContext);
                     return null;
@@ -209,7 +209,7 @@ public class PruneNestedFields
             protected Void visitIdentifier(Identifier node, NestedFieldContext context)
             {
                 String parentName = node.getValue();
-                NestedField parent = new NestedField(parentName, createFields(context.getChild()));
+                NestedField parent = new NestedField(parentName.toLowerCase(), createFields(context.getChild()));
                 if (context.getFields().containsKey(parentName)) {
                     parent = NestedField.mergeFields(context.getFields().get(parentName), parent);
                 }
@@ -221,7 +221,7 @@ public class PruneNestedFields
             protected Void visitSymbolReference(SymbolReference node, NestedFieldContext context)
             {
                 String parentName = node.getName();
-                NestedField parent = new NestedField(parentName, createFields(context.getChild()));
+                NestedField parent = new NestedField(parentName.toLowerCase(), createFields(context.getChild()));
                 if (context.getFields().containsKey(parentName)) {
                     parent = NestedField.mergeFields(context.getFields().get(parentName), parent);
                 }

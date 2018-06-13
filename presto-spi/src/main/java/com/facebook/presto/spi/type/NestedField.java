@@ -44,11 +44,11 @@ public class NestedField
 
     private void addField(NestedField field)
     {
-        if (fields.containsKey(field.getName())) {
-            mergeFields(fields.get(field.getName()), field);
+        if (fields.containsKey(field.getName().toLowerCase())) {
+            mergeFields(fields.get(field.getName().toLowerCase()), field);
         }
         else {
-            fields.put(field.getName(), field);
+            fields.put(field.getName().toLowerCase(), field);
         }
     }
 
@@ -63,11 +63,11 @@ public class NestedField
         }
 
         for (NestedField field : right.getFields().values()) {
-            if (left.getFields().containsKey(field.getName())) {
-                left.getFields().put(field.getName(), mergeFields(left.getFields().get(field.getName()), field));
+            if (left.getFields().containsKey(field.getName().toLowerCase())) {
+                left.getFields().put(field.getName().toLowerCase(), mergeFields(left.getFields().get(field.getName().toLowerCase()), field));
             }
             else {
-                left.getFields().put(field.getName(), field);
+                left.getFields().put(field.getName().toLowerCase(), field);
             }
         }
         return left;
