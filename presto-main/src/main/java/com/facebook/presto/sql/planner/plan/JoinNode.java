@@ -38,7 +38,6 @@ import static com.facebook.presto.sql.planner.plan.JoinNode.Type.FULL;
 import static com.facebook.presto.sql.planner.plan.JoinNode.Type.INNER;
 import static com.facebook.presto.sql.planner.plan.JoinNode.Type.LEFT;
 import static com.facebook.presto.sql.planner.plan.JoinNode.Type.RIGHT;
-import static com.facebook.presto.util.SpatialJoinUtils.isSpatialJoinFilter;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
@@ -304,11 +303,7 @@ public class JoinNode
 
     public boolean isSpatialJoin()
     {
-        if (spatialJoin.isPresent()) {
-            return spatialJoin.get();
-        }
-        spatialJoin = Optional.of((type == INNER || type == LEFT) && criteria.isEmpty() && filter.isPresent() && isSpatialJoinFilter(left, right, filter.get()));
-        return spatialJoin.get();
+        return false;
     }
 
     public static class EquiJoinClause
