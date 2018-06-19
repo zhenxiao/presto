@@ -983,6 +983,7 @@ public class ExpressionInterpreter
         {
             List<Object> values = node.getValues().stream()
                     .map(value -> process(value, context))
+                    .filter(Objects::nonNull)
                     .collect(toImmutableList());
             Object function = process(node.getFunction(), context);
 
