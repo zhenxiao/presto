@@ -223,6 +223,7 @@ public class QueryMonitor
                                     plan,
                                     queryInfo.getOutputStage().flatMap(stage -> stageInfoCodec.toJsonWithLengthLimit(stage, maxJsonLimit))),
                             new QueryStatistics(
+                                    queryStats.getTotalTasks(),
                                     ofMillis(queryStats.getTotalCpuTime().toMillis()),
                                     ofMillis(queryStats.getTotalScheduledTime().toMillis()),
                                     ofMillis(queryStats.getQueuedTime().toMillis()),

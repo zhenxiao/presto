@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 
 public class QueryStatistics
 {
+    private final int totalTasks;
     private final Duration cpuTime;
     private final Duration wallTime;
     private final Duration queuedTime;
@@ -50,6 +51,7 @@ public class QueryStatistics
     private final List<String> operatorSummaries;
 
     public QueryStatistics(
+            int totalTasks,
             Duration cpuTime,
             Duration wallTime,
             Duration queuedTime,
@@ -71,6 +73,7 @@ public class QueryStatistics
             List<StageCpuDistribution> cpuTimeDistribution,
             List<String> operatorSummaries)
     {
+        this.totalTasks = totalTasks;
         this.cpuTime = requireNonNull(cpuTime, "cpuTime is null");
         this.wallTime = requireNonNull(wallTime, "wallTime is null");
         this.queuedTime = requireNonNull(queuedTime, "queuedTime is null");
@@ -191,5 +194,10 @@ public class QueryStatistics
     public List<String> getOperatorSummaries()
     {
         return operatorSummaries;
+    }
+
+    public int getTotalTasks()
+    {
+        return totalTasks;
     }
 }

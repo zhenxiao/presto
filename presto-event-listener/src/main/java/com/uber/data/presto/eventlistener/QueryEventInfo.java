@@ -54,6 +54,8 @@ public class QueryEventInfo
     private final String remoteClientAddress;
     private final String userAgent;
     private final String sessionProperties;
+    private int totalTasks;
+    private int totalStages;
     private long endTime;
     private long elapsedTime;
     private long queuedTime;
@@ -187,6 +189,8 @@ public class QueryEventInfo
         this.elapsedTime = endTime - createTime;
 
         // Query Statistics
+        this.totalTasks = queryStatistics.getTotalTasks();
+        this.totalStages = queryStatistics.getStageGcStatistics().size();
         this.queuedTime = queryStatistics.getQueuedTime().toMillis();
         this.memory = queryStatistics.getCumulativeMemory();
         this.cpuTime = queryStatistics.getCpuTime().getSeconds();
@@ -307,6 +311,8 @@ public class QueryEventInfo
         map.put("errorType", this.errorType);
         map.put("errorName", this.errorName);
         map.put("failureJson", this.failureJson);
+        map.put("totalTasks", this.totalTasks);
+        map.put("totalStages", this.totalStages);
         return map;
     }
 }
