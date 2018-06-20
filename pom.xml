@@ -125,6 +125,7 @@
         <module>presto-event-listener</module>
         <module>presto-geo</module>
         <module>presto-udf</module>
+        <module>presto-yarpc-connector</module>
     </modules>
 
     <dependencyManagement>
@@ -509,6 +510,12 @@
                 <artifactId>presto-thrift-connector</artifactId>
                 <version>${project.version}</version>
                 <type>zip</type>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-yarpc-connector</artifactId>
+                <version>${project.version}</version>
             </dependency>
 
             <dependency>

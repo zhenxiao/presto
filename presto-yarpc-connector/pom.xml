@@ -8,8 +8,8 @@
         <version>0.203-SNAPSHOT</version>
     </parent>
 
-    <artifactId>presto-thrift-connector</artifactId>
-    <description>Presto - Thrift Connector</description>
+    <artifactId>presto-yarpc-connector</artifactId>
+    <description>Presto - YARPC Connector</description>
     <packaging>presto-plugin</packaging>
 
     <properties>
