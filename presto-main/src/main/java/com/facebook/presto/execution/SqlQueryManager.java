@@ -85,6 +85,7 @@ import static com.facebook.presto.execution.ParameterExtractor.getParameterCount
 import static com.facebook.presto.execution.QueryState.RUNNING;
 import static com.facebook.presto.spi.NodeState.ACTIVE;
 import static com.facebook.presto.spi.StandardErrorCode.ABANDONED_QUERY;
+import static com.facebook.presto.spi.StandardErrorCode.EXCEEDED_MAX_STAGES_LIMIT;
 import static com.facebook.presto.spi.StandardErrorCode.EXCEEDED_TIME_LIMIT;
 import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
 import static com.facebook.presto.spi.StandardErrorCode.QUERY_TEXT_TOO_LARGE;
@@ -122,6 +123,7 @@ public class SqlQueryManager
     private final int maxQueryHistory;
     private final Duration minQueryExpireAge;
     private final int maxQueryLength;
+    private final int maxQueryStages;
     private final int initializationRequiredWorkers;
     private final Duration initializationTimeout;
     private final long initialNanos;
@@ -198,6 +200,7 @@ public class SqlQueryManager
         this.maxQueryHistory = queryManagerConfig.getMaxQueryHistory();
         this.clientTimeout = queryManagerConfig.getClientTimeout();
         this.maxQueryLength = queryManagerConfig.getMaxQueryLength();
+        this.maxQueryStages = queryManagerConfig.getMaxStages();
         this.maxQueryCpuTime = queryManagerConfig.getQueryMaxCpuTime();
         this.initializationRequiredWorkers = queryManagerConfig.getInitializationRequiredWorkers();
         this.initializationTimeout = queryManagerConfig.getInitializationTimeout();
@@ -244,6 +247,13 @@ public class SqlQueryManager
                 }
 
                 try {
+                    enforceStageLimits();
+                }
+                catch (Throwable e) {
+                    log.error(e, "Error enforcing query stage limits");
+                }
+
+                try {
                     removeExpiredQueries();
                 }
                 catch (Throwable e) {
@@ -258,6 +268,19 @@ public class SqlQueryManager
                 }
             }
         }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void enforceStageLimits()
+    {
+        for (QueryExecution query : queries.values()) {
+            if (query.getState().isDone()) {
+                continue;
+            }
+            int stages = query.getQueryInfo().getQueryStats().getStageGcStatistics().size();
+            if (stages > maxQueryStages) {
+                query.fail(new PrestoException(EXCEEDED_MAX_STAGES_LIMIT, "Query exceeded maximum stage limit of " + maxQueryStages));
+            }
+        }
     }
 
     @PreDestroy

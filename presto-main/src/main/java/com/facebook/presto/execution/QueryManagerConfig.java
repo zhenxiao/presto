@@ -58,6 +58,7 @@ public class QueryManagerConfig
 
     private int initializationRequiredWorkers = 1;
     private Duration initializationTimeout = new Duration(5, TimeUnit.MINUTES);
+    private int maxStages = 100;
 
     @Min(1)
     public int getScheduleSplitBatchSize()
@@ -166,6 +167,19 @@ public class QueryManagerConfig
     public QueryManagerConfig setMaxQueryLength(int maxQueryLength)
     {
         this.maxQueryLength = maxQueryLength;
+        return this;
+    }
+
+    @Min(1)
+    public int getMaxStages()
+    {
+        return maxStages;
+    }
+
+    @Config("query.max-stages")
+    public QueryManagerConfig setMaxStages(int maxStages)
+    {
+        this.maxStages = maxStages;
         return this;
     }
 
