@@ -25,32 +25,24 @@ import com.facebook.presto.sql.planner.plan.PlanNode;
 import com.facebook.presto.sql.planner.plan.ProjectNode;
 import com.facebook.presto.sql.planner.plan.SimplePlanRewriter;
 import com.facebook.presto.sql.planner.plan.TableScanNode;
-import com.facebook.presto.sql.tree.DefaultExpressionTraversalVisitor;
 import com.facebook.presto.sql.tree.Expression;
-import com.facebook.presto.sql.tree.IsNotNullPredicate;
-import com.facebook.presto.sql.tree.IsNullPredicate;
-import com.facebook.presto.sql.tree.NotExpression;
 import com.facebook.presto.sql.tree.SymbolReference;
 import com.google.common.collect.ImmutableSet;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.facebook.presto.sql.ExpressionUtils.extractPredicates;
 import static com.facebook.presto.sql.planner.plan.AggregationNode.Aggregation;
-import static com.facebook.presto.sql.tree.LogicalBinaryExpression.Type.AND;
 import static java.util.Objects.requireNonNull;
 
 public class AggregationPushDown
         implements PlanOptimizer
 {
-    public static final Set<String> PUSHDOWN_AGGREGATIONS = ImmutableSet.of("count", "max", "min");
+    public static final Set<String> PUSHDOWN_AGGREGATIONS = ImmutableSet.of("sum", "max", "min");
 
     @Override
     public PlanNode optimize(PlanNode plan, Session session, Map<Symbol, Type> types, SymbolAllocator symbolAllocator, PlanNodeIdAllocator idAllocator)
@@ -74,17 +66,6 @@ public class AggregationPushDown
         @Override
         public PlanNode visitTableScan(TableScanNode node, RewriteContext<Map<String, List<String>>> context)
         {
-            int numberOfCount = 0;
-            Map<String, List<String>> aggregations = context.get();
-            for (List<String> functions : aggregations.values()) {
-                if (functions.contains("count")) {
-                    if (numberOfCount >= 1) {
-                        // Support just one count aggregation
-                        return node;
-                    }
-                    numberOfCount = numberOfCount + 1;
-                }
-            }
             return new TableScanNode(
                     node.getId(),
                     node.getTable(),
@@ -96,25 +77,7 @@ public class AggregationPushDown
                     node.getNestedFields(),
                     node.getJsonPaths(),
                     node.getLimit(),
-                    Optional.of(aggregations));
-        }
-
-        @Override
-        public PlanNode visitFilter(FilterNode node, RewriteContext<Map<String, List<String>>> context)
-        {
-            List<Expression> expressions = new ArrayList<>();
-            expressions.addAll(extractPredicates(AND, node.getPredicate()));
-            Iterator<Expression> it = expressions.iterator();
-            while (it.hasNext()) {
-                if (processNullFilter(context.get(), it.next())) {
-                    it.remove();
-                }
-            }
-            for (String symbol : extractSymbols(expressions)) {
-                addAggregations(context.get(), symbol, null);
-            }
-            PlanNode source = context.rewrite(node.getSource(), context.get());
-            return new FilterNode(node.getId(), source, node.getPredicate());
+                    Optional.of(context.get()));
         }
 
         @Override
@@ -128,10 +91,6 @@ public class AggregationPushDown
             for (Aggregation aggregation : node.getAggregations().values()) {
                 String functionName = aggregation.getCall().getName().toString();
                 List<Expression> args = aggregation.getCall().getArguments();
-                if (functionName.equals("count") && args.isEmpty()) {
-                    addAggregations(aggregations, "*", functionName);
-                    continue;
-                }
                 if (args.size() != 1 || !PUSHDOWN_AGGREGATIONS.contains(functionName)) {
                     return node;
                 }
@@ -173,47 +132,6 @@ public class AggregationPushDown
                 return isProjectFilterTableScan(((FilterNode) node).getSource());
             }
             return node instanceof TableScanNode;
-        }
-
-        private static boolean processNullFilter(Map<String, List<String>> aggregations, Expression predicate)
-        {
-            Expression expression = null;
-            boolean isNull = true;
-            if (predicate instanceof NotExpression) {
-                isNull = false;
-                predicate = ((NotExpression) predicate).getValue();
-            }
-            if (predicate instanceof IsNullPredicate) {
-                expression = ((IsNullPredicate) predicate).getValue();
-            }
-            else if (predicate instanceof IsNotNullPredicate) {
-                expression = ((IsNotNullPredicate) predicate).getValue();
-                isNull = isNull ^ false;
-            }
-
-            if (expression == null || !(expression instanceof SymbolReference)) {
-                return false;
-            }
-            addAggregations(aggregations, ((SymbolReference) expression).getName(), isNull ? "isnull" : "notnull");
-            return true;
-        }
-
-        private static Set<String> extractSymbols(List<Expression> nodes)
-        {
-            DefaultExpressionTraversalVisitor<Void, Set<String>> visitor = new DefaultExpressionTraversalVisitor<Void, Set<String>>() {
-                @Override
-                protected Void visitSymbolReference(SymbolReference node, Set<String> context)
-                {
-                    context.add(node.getName());
-                    return null;
-                }
-            };
-
-            Set<String> symbols = new HashSet<>();
-            for (Expression node : nodes) {
-                visitor.process(node, symbols);
-            }
-            return symbols;
         }
     }
 }
