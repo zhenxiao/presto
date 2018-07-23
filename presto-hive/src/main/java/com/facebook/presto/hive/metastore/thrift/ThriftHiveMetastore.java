@@ -319,13 +319,20 @@ public class ThriftHiveMetastore
                     .stopOn(AlreadyExistsException.class, InvalidObjectException.class, MetaException.class)
                     .stopOnIllegalExceptions()
                     .run("createDatabase", stats.getCreateDatabase().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient client = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    client.createDatabase(database);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
                             try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
                                 client.createDatabase(database);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -348,13 +355,20 @@ public class ThriftHiveMetastore
                     .stopOn(NoSuchObjectException.class, InvalidOperationException.class)
                     .stopOnIllegalExceptions()
                     .run("dropDatabase", stats.getDropDatabase().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient client = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    client.dropDatabase(databaseName, false, false);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
                             try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
                                 client.dropDatabase(databaseName, false, false);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -377,13 +391,20 @@ public class ThriftHiveMetastore
                     .stopOn(NoSuchObjectException.class, MetaException.class)
                     .stopOnIllegalExceptions()
                     .run("alterDatabase", stats.getAlterDatabase().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
-                            try (HiveMetastoreClient realClient = clientProvider.createMetastoreClientWithToken(ut.token.encodeToUrlString())) {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient realClient = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    realClient.alterDatabase(databaseName, database);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
+                            try (HiveMetastoreClient realClient = clientProvider.createMetastoreClient()) {
                                 realClient.alterDatabase(databaseName, database);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -410,9 +431,12 @@ public class ThriftHiveMetastore
         }
     }
 
-    private UgiAndDelegationToken withUGIAndToken(String endUser)
+    private Optional<UgiAndDelegationToken> withUGIAndToken(String endUser)
             throws Exception
     {
+        if (endUser.equals(UserGroupInformation.getLoginUser().getShortUserName())) {
+            return Optional.empty();
+        }
         try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
             String tokenStr = client.getHMSClient().get_delegation_token(endUser, UserGroupInformation.getLoginUser().getShortUserName());
             Token<DelegationTokenIdentifier> hmsToken = new Token<>();
@@ -421,7 +445,7 @@ public class ThriftHiveMetastore
             UserGroupInformation ugi =
                     UserGroupInformation.createProxyUser(UserGroupInformation.getCurrentUser().getShortUserName(), UserGroupInformation.getLoginUser());
             ugi.addToken(hmsToken);
-            return new UgiAndDelegationToken(ugi, hmsToken);
+            return Optional.of(new UgiAndDelegationToken(ugi, hmsToken));
         }
     }
 
@@ -433,13 +457,20 @@ public class ThriftHiveMetastore
                     .stopOn(AlreadyExistsException.class, InvalidObjectException.class, MetaException.class, NoSuchObjectException.class)
                     .stopOnIllegalExceptions()
                     .run("createTable", stats.getCreateTable().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
-                            try (HiveMetastoreClient realClient = clientProvider.createMetastoreClientWithToken(ut.token.encodeToUrlString())) {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient realClient = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    realClient.createTable(table);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
+                            try (HiveMetastoreClient realClient = clientProvider.createMetastoreClient()) {
                                 realClient.createTable(table);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -465,13 +496,20 @@ public class ThriftHiveMetastore
                     .stopOn(NoSuchObjectException.class)
                     .stopOnIllegalExceptions()
                     .run("dropTable", stats.getDropTable().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
-                            try (HiveMetastoreClient realClient = clientProvider.createMetastoreClientWithToken(ut.token.encodeToUrlString())) {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient realClient = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    realClient.dropTable(databaseName, tableName, deleteData);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
+                            try (HiveMetastoreClient realClient = clientProvider.createMetastoreClient()) {
                                 realClient.dropTable(databaseName, tableName, deleteData);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -494,8 +532,20 @@ public class ThriftHiveMetastore
                     .stopOn(InvalidOperationException.class, MetaException.class)
                     .stopOnIllegalExceptions()
                     .run("alterTable", stats.getAlterTable().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient client = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    Optional<Table> source = getTable(databaseName, tableName);
+                                    if (!source.isPresent()) {
+                                        throw new TableNotFoundException(new SchemaTableName(databaseName, tableName));
+                                    }
+                                    client.alterTable(databaseName, tableName, table);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
                             try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
                                 Optional<Table> source = getTable(databaseName, tableName);
                                 if (!source.isPresent()) {
@@ -503,8 +553,7 @@ public class ThriftHiveMetastore
                                 }
                                 client.alterTable(databaseName, tableName, table);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -578,17 +627,28 @@ public class ThriftHiveMetastore
                     .stopOn(AlreadyExistsException.class, InvalidObjectException.class, MetaException.class, NoSuchObjectException.class, PrestoException.class)
                     .stopOnIllegalExceptions()
                     .run("addPartitions", stats.getAddPartitions().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient client = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    int partitionsAdded = client.addPartitions(partitions);
+                                    if (partitionsAdded != partitions.size()) {
+                                        throw new PrestoException(HIVE_METASTORE_ERROR,
+                                                format("Hive metastore only added %s of %s partitions", partitionsAdded, partitions.size()));
+                                    }
+                                    return null;
+                                }
+                            });
+                        }
+                        else {
                             try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
                                 int partitionsAdded = client.addPartitions(partitions);
                                 if (partitionsAdded != partitions.size()) {
                                     throw new PrestoException(HIVE_METASTORE_ERROR,
                                             format("Hive metastore only added %s of %s partitions", partitionsAdded, partitions.size()));
                                 }
-                                return null;
                             }
-                        });
+                        }
                         return null;
                     }));
         }
@@ -614,13 +674,20 @@ public class ThriftHiveMetastore
                     .stopOn(NoSuchObjectException.class, MetaException.class)
                     .stopOnIllegalExceptions()
                     .run("dropPartition", stats.getDropPartition().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient client = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    client.dropPartition(databaseName, tableName, parts, deleteData);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
                             try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
                                 client.dropPartition(databaseName, tableName, parts, deleteData);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
@@ -643,13 +710,20 @@ public class ThriftHiveMetastore
                     .stopOn(NoSuchObjectException.class, MetaException.class)
                     .stopOnIllegalExceptions()
                     .run("alterPartition", stats.getAlterPartition().wrap(() -> {
-                        UgiAndDelegationToken ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
-                        UserGroupInformationUtils.executeActionInDoAs(ut.ugi, () -> {
+                        Optional<UgiAndDelegationToken> ut = withUGIAndToken(UserGroupInformation.getCurrentUser().getShortUserName());
+                        if (ut.isPresent()) {
+                            UserGroupInformationUtils.executeActionInDoAs(ut.get().ugi, () -> {
+                                try (HiveMetastoreClient client = clientProvider.createMetastoreClientWithToken(ut.get().token.encodeToUrlString())) {
+                                    client.alterPartition(databaseName, tableName, partition);
+                                }
+                                return null;
+                            });
+                        }
+                        else {
                             try (HiveMetastoreClient client = clientProvider.createMetastoreClient()) {
                                 client.alterPartition(databaseName, tableName, partition);
                             }
-                            return null;
-                        });
+                        }
                         return null;
                     }));
         }
