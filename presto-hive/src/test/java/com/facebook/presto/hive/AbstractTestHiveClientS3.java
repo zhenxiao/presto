@@ -182,7 +182,7 @@ public abstract class AbstractTestHiveClientS3
                 config,
                 writableBucket,
                 hdfsEnvironment);
-        locationService = new HiveLocationService(hdfsEnvironment);
+        locationService = new HiveLocationService(hdfsEnvironment, config);
         JsonCodec<PartitionUpdate> partitionUpdateCodec = JsonCodec.jsonCodec(PartitionUpdate.class);
         metadataFactory = new HiveMetadataFactory(
                 config,
