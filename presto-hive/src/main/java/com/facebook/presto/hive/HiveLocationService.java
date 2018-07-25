@@ -24,6 +24,8 @@ import org.apache.hadoop.fs.Path;
 
 import javax.inject.Inject;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_PATH_ALREADY_EXISTS;
@@ -42,11 +44,13 @@ public class HiveLocationService
         implements LocationService
 {
     private final HdfsEnvironment hdfsEnvironment;
+    private final Map<String, String> viewFsTempDirMapping;
 
     @Inject
-    public HiveLocationService(HdfsEnvironment hdfsEnvironment)
+    public HiveLocationService(HdfsEnvironment hdfsEnvironment, HiveClientConfig config)
     {
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
+        this.viewFsTempDirMapping = requireNonNull(config.getViewFsTempDirMapping(), "HiveClientConfig is null");
     }
 
     @Override
@@ -59,7 +63,7 @@ public class HiveLocationService
         if (pathExists(context, hdfsEnvironment, targetPath)) {
             throw new PrestoException(HIVE_PATH_ALREADY_EXISTS, format("Target directory for table '%s.%s' already exists: %s", schemaName, tableName, targetPath));
         }
-        return createLocationHandle(context, session, targetPath, false);
+        return createLocationHandle(context, session, targetPath, false, viewFsTempDirMapping);
     }
 
     @Override
@@ -67,13 +71,13 @@ public class HiveLocationService
     {
         HdfsContext context = new HdfsContext(session, table.getDatabaseName(), table.getTableName());
         Path targetPath = new Path(table.getStorage().getLocation());
-        return createLocationHandle(context, session, targetPath, true);
+        return createLocationHandle(context, session, targetPath, true, Collections.emptyMap());
     }
 
-    private LocationHandle createLocationHandle(HdfsContext context, ConnectorSession session, Path targetPath, boolean isExistingTable)
+    private LocationHandle createLocationHandle(HdfsContext context, ConnectorSession session, Path targetPath, boolean isExistingTable, Map<String, String> viewFsTempDirMapping)
     {
         if (shouldUseTemporaryDirectory(session, context, targetPath)) {
-            Path writePath = createTemporaryPath(session, context, hdfsEnvironment, targetPath);
+            Path writePath = createTemporaryPath(session, context, hdfsEnvironment, targetPath, viewFsTempDirMapping);
             return new LocationHandle(targetPath, writePath, isExistingTable, STAGE_AND_MOVE_TO_TARGET_DIRECTORY);
         }
         if (isExistingTable) {

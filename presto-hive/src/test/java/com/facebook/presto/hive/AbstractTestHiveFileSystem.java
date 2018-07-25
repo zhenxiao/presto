@@ -168,7 +168,7 @@ public abstract class AbstractTestHiveFileSystem
                 config,
                 getBasePath(),
                 hdfsEnvironment);
-        locationService = new HiveLocationService(hdfsEnvironment);
+        locationService = new HiveLocationService(hdfsEnvironment, config);
         JsonCodec<PartitionUpdate> partitionUpdateCodec = JsonCodec.jsonCodec(PartitionUpdate.class);
         metadataFactory = new HiveMetadataFactory(
                 config,
