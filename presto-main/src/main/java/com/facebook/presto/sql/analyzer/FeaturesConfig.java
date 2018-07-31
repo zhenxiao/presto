@@ -122,6 +122,8 @@ public class FeaturesConfig
     private int filterAndProjectMinOutputPageRowCount = 256;
     private int maxGroupingSets = 2048;
 
+    private int maxStages = 100;
+
     public double getCpuCostWeight()
     {
         return cpuCostWeight;
@@ -864,6 +866,18 @@ public class FeaturesConfig
     public FeaturesConfig setDereferenceExpressionPushDown(boolean dereferenceExpressionPushDown)
     {
         this.dereferenceExpressionPushDown = dereferenceExpressionPushDown;
+        return this;
+    }
+
+    public int getMaxStages()
+    {
+        return maxStages;
+    }
+
+    @Config("max-stages")
+    public FeaturesConfig setMaxStages(int maxStages)
+    {
+        this.maxStages = maxStages;
         return this;
     }
 }

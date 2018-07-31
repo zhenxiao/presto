@@ -123,7 +123,6 @@ public class SqlQueryManager
     private final int maxQueryHistory;
     private final Duration minQueryExpireAge;
     private final int maxQueryLength;
-    private final int maxQueryStages;
     private final int initializationRequiredWorkers;
     private final Duration initializationTimeout;
     private final long initialNanos;
@@ -200,7 +199,6 @@ public class SqlQueryManager
         this.maxQueryHistory = queryManagerConfig.getMaxQueryHistory();
         this.clientTimeout = queryManagerConfig.getClientTimeout();
         this.maxQueryLength = queryManagerConfig.getMaxQueryLength();
-        this.maxQueryStages = queryManagerConfig.getMaxStages();
         this.maxQueryCpuTime = queryManagerConfig.getQueryMaxCpuTime();
         this.initializationRequiredWorkers = queryManagerConfig.getInitializationRequiredWorkers();
         this.initializationTimeout = queryManagerConfig.getInitializationTimeout();
@@ -277,8 +275,9 @@ public class SqlQueryManager
                 continue;
             }
             int stages = query.getQueryInfo().getQueryStats().getStageGcStatistics().size();
-            if (stages > maxQueryStages) {
-                query.fail(new PrestoException(EXCEEDED_MAX_STAGES_LIMIT, "Query exceeded maximum stage limit of " + maxQueryStages));
+            int maxStages = SystemSessionProperties.getQueryMaxStages(query.getSession());
+            if (stages > maxStages) {
+                query.fail(new PrestoException(EXCEEDED_MAX_STAGES_LIMIT, format("Query stages (%d) exceeded maximum stage limit of %d", stages, maxStages)));
             }
         }
     }

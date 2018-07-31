@@ -101,6 +101,7 @@ public final class SystemSessionProperties
     public static final String REWRITE_GEOSPATIAL_QUERY = "rewrite_geospatial_query";
     public static final String AGGREGATION_PUSHDOWN = "aggregation_pushdown";
     public static final String DEREFERENCE_EXPRESSION_PUSHDOWN = "dereference_expression_pushdown";
+    private static final String QUERY_MAX_STAGES = "query_max_stages";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -270,12 +271,12 @@ public final class SystemSessionProperties
                         featuresConfig.isPruneNestedFields(),
                         false),
                 booleanSessionProperty(
-                  PARTITION_FILTER,
+                        PARTITION_FILTER,
                         "Enforce partition filtering",
                         featuresConfig.isPartitionFilteringEnforced(),
                         false),
                 stringSessionProperty(
-                  PARTITION_FILTER_TABLES,
+                        PARTITION_FILTER_TABLES,
                         "tables to enforce partition filtering",
                         featuresConfig.getPartitionFilteringTables(),
                         true),
@@ -472,7 +473,17 @@ public final class SystemSessionProperties
                         DEREFERENCE_EXPRESSION_PUSHDOWN,
                         "pushdown dereference expression",
                         featuresConfig.isDereferenceExpressionPushDown(),
-                        false));
+                        false),
+                integerSessionProperty(
+                        QUERY_MAX_STAGES,
+                        "Maximum number of stages allowed for query",
+                        featuresConfig.getMaxStages(),
+                        true));
+    }
+
+    public static int getQueryMaxStages(Session session)
+    {
+        return session.getSystemProperty(QUERY_MAX_STAGES, Integer.class);
     }
 
     public List<PropertyMetadata<?>> getSessionProperties()
