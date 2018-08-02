@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import static com.linkedin.pinot.common.config.TableNameBuilder.extractRawTableName;
+
 public class PinotClusterInfoFetcher
 {
     private static final String APPLICATION_JSON = "application/json";
@@ -133,20 +135,31 @@ public class PinotClusterInfoFetcher
         return this.dynamicBrokerSelector.selectBroker(table);
     }
 
-    public Map<String, Map<String, List<String>>> getRoutingTableForTable(String table) throws Exception
+    public Map<String, Map<String, List<String>>> getRoutingTableForTable(String tableName) throws Exception
     {
         final Map<String, Map<String, List<String>>> routingTableMap = new HashMap<>();
-        final String url = String.format(ROUTING_TABLE_API_TEMPLATE, getBrokerHost(table), table);
+        final String url = String.format(ROUTING_TABLE_API_TEMPLATE, getBrokerHost(tableName), tableName);
         String responseBody = sendHttpGet(url);
+        log.debug("Trying to get routingTable for %s. url: %s", tableName, url);
         JSONObject resp = JSONObject.parseObject(responseBody);
         JSONArray routingTableSnapshots = resp.getJSONArray("routingTableSnapshot");
         for (int i = 0; i < routingTableSnapshots.size(); i++) {
             JSONObject snapshot = routingTableSnapshots.getJSONObject(i);
-            String tableName = snapshot.getString("tableName");
+            String tableNameWithType = snapshot.getString("tableName");
+            // Response could contain info for tableName that matches the original table by prefix.
+            // e.g. when table name is "table1", response could contain routingTable for "table1_staging"
+            if (!tableName.equals(extractRawTableName(tableNameWithType))) {
+                log.debug("Ignoring routingTable for %s", tableNameWithType);
+                continue;
+            }
             JSONArray routingTableEntriesArray = snapshot.getJSONArray("routingTableEntries");
+            if (routingTableEntriesArray.size() == 0) {
+                log.error("Empty routingTableEntries for %s. RoutingTable: %s", tableName, resp.toString());
+                throw new RuntimeException("RoutingTable is empty for " + tableName);
+            }
             String routingTableEntries = routingTableEntriesArray.getJSONObject(new Random().nextInt(routingTableEntriesArray.size())).toJSONString();
             Map<String, List<String>> routingTable = new ObjectMapper().readValue(routingTableEntries, Map.class);
-            routingTableMap.put(tableName, routingTable);
+            routingTableMap.put(tableNameWithType, routingTable);
         }
         return routingTableMap;
     }
