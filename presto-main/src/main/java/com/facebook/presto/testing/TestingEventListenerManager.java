@@ -14,6 +14,7 @@
 package com.facebook.presto.testing;
 
 import com.facebook.presto.eventlistener.EventListenerManager;
+import com.facebook.presto.eventlistener.EventListenerStats;
 import com.facebook.presto.spi.eventlistener.EventListener;
 import com.facebook.presto.spi.eventlistener.EventListenerFactory;
 import com.facebook.presto.spi.eventlistener.QueryCompletedEvent;
@@ -28,6 +29,11 @@ public class TestingEventListenerManager
         extends EventListenerManager
 {
     private final AtomicReference<Optional<EventListener>> configuredEventListener = new AtomicReference<>(Optional.empty());
+
+    public TestingEventListenerManager()
+    {
+        super(new EventListenerStats());
+    }
 
     @Override
     public void addEventListenerFactory(EventListenerFactory eventListenerFactory)
