@@ -29,6 +29,7 @@ import com.facebook.presto.metadata.OperatorNotFoundException;
 import com.facebook.presto.metadata.Signature;
 import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.Marker;
@@ -95,6 +96,8 @@ import com.facebook.presto.sql.tree.SymbolReference;
 import com.facebook.presto.sql.tree.Window;
 import com.facebook.presto.sql.tree.WindowFrame;
 import com.facebook.presto.util.GraphvizPrinter;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
@@ -106,17 +109,22 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import io.airlift.slice.Slice;
 
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.facebook.presto.connector.ConnectorId.isInternalSystemConnector;
 import static com.facebook.presto.cost.PlanNodeCostEstimate.UNKNOWN_COST;
 import static com.facebook.presto.cost.PlanNodeStatsEstimate.UNKNOWN_STATS;
 import static com.facebook.presto.execution.StageInfo.getAllStages;
@@ -124,6 +132,8 @@ import static com.facebook.presto.operator.PipelineExecutionStrategy.UNGROUPED_E
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.SINGLE_DISTRIBUTION;
 import static com.facebook.presto.sql.planner.planPrinter.PlanNodeStatsSummarizer.aggregatePlanNodeStats;
+import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.RangeValue.MAX_INFINITY;
+import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.RangeValue.MIN_INFINITY;
 import static com.google.common.base.CaseFormat.UPPER_UNDERSCORE;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -1437,6 +1447,201 @@ public class PlanPrinter
         }
         catch (OperatorNotFoundException e) {
             return "<UNREPRESENTABLE VALUE>";
+        }
+    }
+
+    public static List<ColumnPredicate> getColumnPredicates(StageInfo outputStageInfo, FunctionRegistry functionRegistry, Session session)
+    {
+        ImmutableList.Builder<ColumnPredicate> builder = ImmutableList.builder();
+        List<PlanFragment> planFragments = getAllStages(Optional.of(outputStageInfo)).stream().map(StageInfo::getPlan).filter(Objects::nonNull).collect(toImmutableList());
+        for (PlanFragment fragment : planFragments) {
+            TableScanVisitor visitor = new TableScanVisitor(functionRegistry, session);
+            fragment.getRoot().accept(visitor, null);
+            builder.addAll(visitor.getPredicates());
+        }
+        return builder.build();
+    }
+
+    private static class TableScanVisitor
+            extends PlanVisitor<Void, Void>
+    {
+        private final FunctionRegistry functionRegistry;
+        private final Session session;
+
+        private final ImmutableList.Builder<ColumnPredicate> columnPredicateBuilder = ImmutableList.builder();
+
+        public List<ColumnPredicate> getPredicates()
+        {
+            return columnPredicateBuilder.build();
+        }
+
+        public TableScanVisitor(FunctionRegistry functionRegistry, Session session)
+        {
+            this.functionRegistry = requireNonNull(functionRegistry);
+            this.session = requireNonNull(session);
+        }
+
+        @Override
+        protected Void visitPlan(PlanNode node, Void context)
+        {
+            for (PlanNode child : node.getSources()) {
+                child.accept(this, context);
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitTableScan(TableScanNode node, Void context)
+        {
+            TupleDomain<ColumnHandle> predicate = node.getCurrentConstraint();
+            if (!predicate.isNone() && !predicate.isAll()) {
+                Map<ColumnHandle, Domain> columnHandleDomainMap = predicate.getDomains().get();
+                columnHandleDomainMap.entrySet().stream().forEach((columnHandleDomainEntry -> {
+                    ColumnHandle column = columnHandleDomainEntry.getKey();
+                    // TODO decide whether to use domain.simplify
+                    List<PredicateValue> predicateValues = formatDomain(columnHandleDomainEntry.getValue().simplify());
+                    if (!isInternalSystemConnector(node.getTable().getConnectorId()) && !predicateValues.isEmpty()) {
+                        columnPredicateBuilder.add(new ColumnPredicate(node.getTable().getConnectorHandle(), column, predicateValues));
+                    }
+                }));
+            }
+            return null;
+        }
+
+        // Transfer domain to human readable json
+        // Domain use Block, which is not readable and for internal usage only
+        private List<PredicateValue> formatDomain(Domain domain)
+        {
+            ImmutableList.Builder<PredicateValue> parts = ImmutableList.builder();
+            Type type = domain.getType();
+            domain.getValues().getValuesProcessor().consume(
+                    ranges -> {
+                        for (Range range : ranges.getOrderedRanges()) {
+                            if (range.isSingleValue()) {
+                                String value = castToVarchar(type, range.getSingleValue(), functionRegistry, session);
+                                parts.add(new PredicateValue(value, null));
+                            }
+                            else {
+                                String min;
+                                if (range.getLow().isLowerUnbounded()) {
+                                    min = MIN_INFINITY;
+                                }
+                                else {
+                                    min = castToVarchar(type, range.getLow().getValue(), functionRegistry, session);
+                                }
+
+                                String max;
+                                if (range.getHigh().isUpperUnbounded()) {
+                                    max = MAX_INFINITY;
+                                }
+                                else {
+                                    max = castToVarchar(type, range.getHigh().getValue(), functionRegistry, session);
+                                }
+                                parts.add(new PredicateValue(null, new RangeValue(min, max)));
+                            }
+                        }
+                    },
+                    discreteValues -> discreteValues.getValues().stream()
+                            .map(value -> castToVarchar(type, value, functionRegistry, session))
+                            .sorted()
+                            .map(value -> new PredicateValue(value, null))
+                            .forEach(parts::add),
+                    allOrNone -> {
+                        // ignore
+                    });
+
+            return parts.build();
+        }
+    }
+
+    @Immutable
+    public static class ColumnPredicate
+    {
+        private final ConnectorTableHandle tableHandle;
+        private final ColumnHandle columnHandle;
+        private final List<PredicateValue> predicates;
+
+        @JsonCreator
+        public ColumnPredicate(@JsonProperty("tableHandle") ConnectorTableHandle tableHandle, @JsonProperty("columnHandle") ColumnHandle columnHandle, @JsonProperty("predicates") List<PredicateValue> predicates)
+        {
+            this.tableHandle = tableHandle;
+            this.columnHandle = columnHandle;
+            this.predicates = predicates;
+        }
+
+        @JsonProperty
+        public ConnectorTableHandle getTableHandle()
+        {
+            return tableHandle;
+        }
+
+        @JsonProperty
+        public ColumnHandle getColumnHandle()
+        {
+            return columnHandle;
+        }
+
+        @JsonProperty
+        public List<PredicateValue> getPredicates()
+        {
+            return predicates;
+        }
+    }
+
+    @Immutable
+    public static class PredicateValue
+    {
+        private final String singleValue;
+        private final RangeValue rangeValue;
+
+        @JsonCreator
+        public PredicateValue(@Nullable @JsonProperty("single") String singleValue, @Nullable @JsonProperty("rangeValue") RangeValue rangeValue)
+        {
+            this.singleValue = singleValue;
+            this.rangeValue = rangeValue;
+        }
+
+        @Nullable
+        @JsonProperty
+        public String getSingleValue()
+        {
+            return singleValue;
+        }
+
+        @Nullable
+        @JsonProperty
+        public RangeValue getRangeValue()
+        {
+            return rangeValue;
+        }
+    }
+
+    @Immutable
+    public static class RangeValue
+    {
+        public static final String MIN_INFINITY = "MIN_INFINITY";
+        public static final String MAX_INFINITY = "MAX_INFINITY";
+
+        private final String min;
+        private final String max;
+
+        @JsonCreator
+        public RangeValue(@JsonProperty("min") String min, @JsonProperty("max") String max)
+        {
+            this.min = min;
+            this.max = max;
+        }
+
+        @JsonProperty
+        public String getMin()
+        {
+            return min;
+        }
+
+        @JsonProperty
+        public String getMax()
+        {
+            return max;
         }
     }
 }

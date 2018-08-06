@@ -45,6 +45,7 @@ import com.facebook.presto.spi.eventlistener.SplitCompletedEvent;
 import com.facebook.presto.spi.eventlistener.SplitFailureInfo;
 import com.facebook.presto.spi.eventlistener.SplitStatistics;
 import com.facebook.presto.spi.eventlistener.StageCpuDistribution;
+import com.facebook.presto.sql.planner.planPrinter.PlanPrinter;
 import com.facebook.presto.transaction.TransactionId;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,6 +69,7 @@ import java.util.stream.Collectors;
 
 import static com.facebook.presto.cost.PlanNodeCostEstimate.UNKNOWN_COST;
 import static com.facebook.presto.cost.PlanNodeStatsEstimate.UNKNOWN_STATS;
+import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.getColumnPredicates;
 import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.textDistributedPlan;
 import static java.lang.Math.max;
 import static java.lang.Math.toIntExact;
@@ -195,6 +197,7 @@ public class QueryMonitor
             }
 
             Optional<String> plan = Optional.empty();
+            ImmutableList.Builder<String> predicates = ImmutableList.builder();
             try {
                 if (queryInfo.getOutputStage().isPresent()) {
                     // Stats and costs are suppress, since transaction is already completed
@@ -205,6 +208,9 @@ public class QueryMonitor
                             (node, stats, lookup, session, types) -> UNKNOWN_COST,
                             queryInfo.getSession().toSession(sessionPropertyManager),
                             false));
+                    for (PlanPrinter.ColumnPredicate columnPredicate : getColumnPredicates(queryInfo.getOutputStage().get(), functionRegistry, queryInfo.getSession().toSession(sessionPropertyManager))) {
+                        predicates.add(objectMapper.writeValueAsString(columnPredicate));
+                    }
                 }
             }
             catch (Exception e) {
@@ -259,7 +265,7 @@ public class QueryMonitor
                                     serverAddress,
                                     serverVersion,
                                     environment),
-                            new QueryIOMetadata(inputs.build(), output),
+                            new QueryIOMetadata(inputs.build(), output, predicates.build()),
                             queryFailureInfo,
                             ofEpochMilli(queryStats.getCreateTime().getMillis()),
                             ofEpochMilli(queryStats.getExecutionStartTime().getMillis()),

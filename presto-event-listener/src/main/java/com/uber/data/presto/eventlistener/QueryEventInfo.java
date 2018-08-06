@@ -72,6 +72,7 @@ public class QueryEventInfo
     private String errorName;
     private String failureJson;
     private List<Map<String, Object>> columnAccess;
+    private List<String> predicates;
 
     private class ColumnAccessEntry
     {
@@ -204,6 +205,9 @@ public class QueryEventInfo
         // Query IOMetadata
         this.columnAccess = getColumnAccess(queryIOMetadata.getInputs());
 
+        // Column Predicates
+        this.predicates = queryIOMetadata.getColumnDomains();
+
         // Failure related
         if (queryCompletedEvent.getFailureInfo().isPresent()) {
             QueryFailureInfo queryFailureInfo = queryCompletedEvent.getFailureInfo().get();
@@ -313,6 +317,7 @@ public class QueryEventInfo
         map.put("failureJson", this.failureJson);
         map.put("totalTasks", this.totalTasks);
         map.put("totalStages", this.totalStages);
+        map.put("predicates", this.predicates);
         return map;
     }
 }

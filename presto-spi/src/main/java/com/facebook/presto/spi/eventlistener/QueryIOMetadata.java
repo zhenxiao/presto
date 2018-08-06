@@ -22,11 +22,13 @@ public class QueryIOMetadata
 {
     private final List<QueryInputMetadata> inputs;
     private final Optional<QueryOutputMetadata> output;
+    private final List<String> columnDomains;
 
-    public QueryIOMetadata(List<QueryInputMetadata> inputs, Optional<QueryOutputMetadata> output)
+    public QueryIOMetadata(List<QueryInputMetadata> inputs, Optional<QueryOutputMetadata> output, List<String> columnDomains)
     {
         this.inputs = requireNonNull(inputs, "inputs is null");
         this.output = requireNonNull(output, "output is null");
+        this.columnDomains = requireNonNull(columnDomains, "output is null");
     }
 
     public List<QueryInputMetadata> getInputs()
@@ -37,5 +39,10 @@ public class QueryIOMetadata
     public Optional<QueryOutputMetadata> getOutput()
     {
         return output;
+    }
+
+    public List<String> getColumnDomains()
+    {
+        return columnDomains;
     }
 }
