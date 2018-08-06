@@ -25,6 +25,7 @@ import com.facebook.presto.cost.SelectingStatsCalculator;
 import com.facebook.presto.event.query.QueryMonitor;
 import com.facebook.presto.event.query.QueryMonitorConfig;
 import com.facebook.presto.eventlistener.EventListenerManager;
+import com.facebook.presto.eventlistener.EventListenerStats;
 import com.facebook.presto.execution.TestSqlTaskManager.MockExchangeClientSupplier;
 import com.facebook.presto.execution.scheduler.LegacyNetworkTopology;
 import com.facebook.presto.execution.scheduler.NodeScheduler;
@@ -182,7 +183,7 @@ public final class TaskTestUtils
         return new QueryMonitor(
                 new ObjectMapperProvider().get(),
                 jsonCodec(StageInfo.class),
-                new EventListenerManager(),
+                new EventListenerManager(new EventListenerStats()),
                 new NodeInfo("test"),
                 new NodeVersion("testVersion"),
                 new SessionPropertyManager(),

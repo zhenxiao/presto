@@ -17,6 +17,8 @@ import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
 
+import static org.weakref.jmx.guice.ExportBinder.newExporter;
+
 public class EventListenerModule
         implements Module
 {
@@ -24,5 +26,7 @@ public class EventListenerModule
     public void configure(Binder binder)
     {
         binder.bind(EventListenerManager.class).in(Scopes.SINGLETON);
+        binder.bind(EventListenerStats.class).in(Scopes.SINGLETON);
+        newExporter(binder).export(EventListenerStats.class).withGeneratedName();
     }
 }

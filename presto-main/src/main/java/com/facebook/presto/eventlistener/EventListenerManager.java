@@ -21,6 +21,9 @@ import com.facebook.presto.spi.eventlistener.SplitCompletedEvent;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.log.Logger;
+import io.airlift.stats.TimeStat;
+
+import javax.inject.Inject;
 
 import java.io.File;
 import java.util.HashMap;
@@ -44,6 +47,14 @@ public class EventListenerManager
 
     private final Map<String, EventListenerFactory> eventListenerFactories = new ConcurrentHashMap<>();
     private final AtomicReference<Optional<EventListener>> configuredEventListener = new AtomicReference<>(Optional.empty());
+
+    private final EventListenerStats eventListenerStats;
+
+    @Inject
+    public EventListenerManager(EventListenerStats stats)
+    {
+        this.eventListenerStats = requireNonNull(stats, "eventListenerStats is null");
+    }
 
     public void addEventListenerFactory(EventListenerFactory eventListenerFactory)
     {
@@ -88,21 +99,27 @@ public class EventListenerManager
     public void queryCompleted(QueryCompletedEvent queryCompletedEvent)
     {
         if (configuredEventListener.get().isPresent()) {
-            configuredEventListener.get().get().queryCompleted(queryCompletedEvent);
+            try (TimeStat.BlockTimer ignored = eventListenerStats.getQueryCompleteEventProcessTime().time()) {
+                configuredEventListener.get().get().queryCompleted(queryCompletedEvent);
+            }
         }
     }
 
     public void queryCreated(QueryCreatedEvent queryCreatedEvent)
     {
         if (configuredEventListener.get().isPresent()) {
-            configuredEventListener.get().get().queryCreated(queryCreatedEvent);
+            try (TimeStat.BlockTimer ignored = eventListenerStats.getQueryCreateEventProcessTime().time()) {
+                configuredEventListener.get().get().queryCreated(queryCreatedEvent);
+            }
         }
     }
 
     public void splitCompleted(SplitCompletedEvent splitCompletedEvent)
     {
         if (configuredEventListener.get().isPresent()) {
-            configuredEventListener.get().get().splitCompleted(splitCompletedEvent);
+            try (TimeStat.BlockTimer ignored = eventListenerStats.getSplitCompleteEventProcessTime().time()) {
+                configuredEventListener.get().get().splitCompleted(splitCompletedEvent);
+            }
         }
     }
 }
