@@ -81,6 +81,7 @@ import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static io.airlift.concurrent.MoreFutures.addSuccessCallback;
 import static io.airlift.concurrent.MoreFutures.addTimeout;
+import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -275,7 +276,7 @@ class Query
         return clearTransactionId;
     }
 
-    public synchronized ListenableFuture<QueryResults> waitForResults(OptionalLong token, UriInfo uriInfo, String scheme, Duration wait)
+    public synchronized ListenableFuture<QueryResults> waitForResults(OptionalLong token, UriInfo uriInfo, String scheme, Duration wait, URI baseUri)
     {
         // before waiting, check if this request has already been processed and cached
         if (token.isPresent()) {
@@ -293,7 +294,7 @@ class Query
                 timeoutExecutor);
 
         // when state changes, fetch the next result
-        return Futures.transform(futureStateChange, ignored -> getNextResult(token, uriInfo, scheme), resultsProcessorExecutor);
+        return Futures.transform(futureStateChange, ignored -> getNextResult(token, uriInfo, scheme, baseUri), resultsProcessorExecutor);
     }
 
     private synchronized ListenableFuture<?> getFutureStateChange()
@@ -343,7 +344,7 @@ class Query
         return Optional.empty();
     }
 
-    public synchronized QueryResults getNextResult(OptionalLong token, UriInfo uriInfo, String scheme)
+    public synchronized QueryResults getNextResult(OptionalLong token, UriInfo uriInfo, String scheme, URI baseUri)
     {
         // check if the result for the token have already been created
         if (token.isPresent()) {
@@ -365,7 +366,7 @@ class Query
                     queryId.toString(),
                     queryHtmlUri,
                     null,
-                    createNextResultsUri(scheme, uriInfo),
+                    createNextResultsUri(scheme, baseUri),
                     null,
                     null,
                     StatementStats.builder()
@@ -445,7 +446,7 @@ class Query
         // only return a next if the query is not done or there is more data to send (due to buffering)
         URI nextResultsUri = null;
         if (!queryInfo.isFinalQueryInfo() || !exchangeClient.isClosed()) {
-            nextResultsUri = createNextResultsUri(scheme, uriInfo);
+            nextResultsUri = createNextResultsUri(scheme, baseUri);
         }
 
         // update catalog and schema
@@ -536,14 +537,13 @@ class Query
         return Futures.transformAsync(queryManager.getStateChange(queryId, currentState), this::queryDoneFuture);
     }
 
-    private synchronized URI createNextResultsUri(String scheme, UriInfo uriInfo)
+    private synchronized URI createNextResultsUri(String scheme, URI baseUri)
     {
-        return uriInfo.getBaseUriBuilder()
+        return uriBuilderFrom(baseUri)
                 .scheme(scheme)
-                .replacePath("/v1/statement")
-                .path(queryId.toString())
-                .path(String.valueOf(resultId.incrementAndGet()))
-                .replaceQuery("")
+                .appendPath("/v1/statement")
+                .appendPath(queryId.toString())
+                .appendPath(String.valueOf(resultId.incrementAndGet()))
                 .build();
     }
 

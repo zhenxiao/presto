@@ -21,6 +21,7 @@ import com.facebook.presto.operator.ExchangeClient;
 import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.HttpRequestSessionContext;
+import com.facebook.presto.server.InternalCommunicationConfig;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
@@ -28,6 +29,7 @@ import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.concurrent.BoundedExecutor;
+import io.airlift.http.server.HttpServerInfo;
 import io.airlift.units.Duration;
 
 import javax.annotation.PreDestroy;
@@ -52,6 +54,7 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.util.Map.Entry;
 import java.util.OptionalLong;
@@ -89,6 +92,7 @@ public class StatementResource
     private final BlockEncodingSerde blockEncodingSerde;
     private final BoundedExecutor responseExecutor;
     private final ScheduledExecutorService timeoutExecutor;
+    private final URI baseUri;
 
     private final ConcurrentMap<QueryId, Query> queries = new ConcurrentHashMap<>();
     private final ScheduledExecutorService queryPurger = newSingleThreadScheduledExecutor(threadsNamed("query-purger"));
@@ -99,6 +103,8 @@ public class StatementResource
             SessionPropertyManager sessionPropertyManager,
             ExchangeClientSupplier exchangeClientSupplier,
             BlockEncodingSerde blockEncodingSerde,
+            HttpServerInfo httpServerInfo,
+            InternalCommunicationConfig config,
             @ForStatementResource BoundedExecutor responseExecutor,
             @ForStatementResource ScheduledExecutorService timeoutExecutor)
     {
@@ -110,6 +116,7 @@ public class StatementResource
         this.timeoutExecutor = requireNonNull(timeoutExecutor, "timeoutExecutor is null");
 
         queryPurger.scheduleWithFixedDelay(new PurgeQueriesRunnable(queries, queryManager), 200, 200, MILLISECONDS);
+        this.baseUri = config.isHttpsRequired() ? httpServerInfo.getHttpsUri() : httpServerInfo.getHttpUri();
     }
 
     @PreDestroy
@@ -151,7 +158,7 @@ public class StatementResource
                 blockEncodingSerde);
         queries.put(query.getQueryId(), query);
 
-        QueryResults queryResults = query.getNextResult(OptionalLong.empty(), uriInfo, proto);
+        QueryResults queryResults = query.getNextResult(OptionalLong.empty(), uriInfo, proto, baseUri);
         return toResponse(query, queryResults);
     }
 
@@ -181,7 +188,7 @@ public class StatementResource
     private void asyncQueryResults(Query query, OptionalLong token, Duration maxWait, UriInfo uriInfo, String scheme, AsyncResponse asyncResponse)
     {
         Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
-        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, scheme, wait);
+        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, scheme, wait, baseUri);
 
         ListenableFuture<Response> response = Futures.transform(queryResultsFuture, queryResults -> toResponse(query, queryResults));
 
