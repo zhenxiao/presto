@@ -63,6 +63,8 @@ import com.facebook.presto.memory.TotalReservationLowMemoryKiller;
 import com.facebook.presto.memory.TotalReservationOnBlockedNodesLowMemoryKiller;
 import com.facebook.presto.operator.ForScheduler;
 import com.facebook.presto.server.protocol.StatementResource;
+import com.facebook.presto.server.redirect.RedirectConfig;
+import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.server.remotetask.RemoteTaskStats;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.QueryType;
@@ -113,6 +115,7 @@ import static com.google.common.base.Verify.verify;
 import static com.google.inject.multibindings.MapBinder.newMapBinder;
 import static io.airlift.concurrent.Threads.threadsNamed;
 import static io.airlift.configuration.ConditionalModule.installModuleIf;
+import static io.airlift.configuration.ConfigBinder.configBinder;
 import static io.airlift.discovery.client.DiscoveryBinder.discoveryBinder;
 import static io.airlift.http.client.HttpClientBinder.httpClientBinder;
 import static io.airlift.http.server.HttpServerBinder.httpServerBinder;
@@ -135,6 +138,10 @@ public class CoordinatorModule
 
         // presto coordinator announcement
         discoveryBinder(binder).bindHttpAnnouncement("presto-coordinator");
+
+        // redirect rule
+        binder.bind(RedirectManager.class).in(Scopes.SINGLETON);
+        configBinder(binder).bindConfig(RedirectConfig.class);
 
         // statement resource
         jsonCodecBinder(binder).bindJsonCodec(QueryInfo.class);

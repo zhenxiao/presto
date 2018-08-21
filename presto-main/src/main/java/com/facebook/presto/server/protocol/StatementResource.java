@@ -23,6 +23,7 @@ import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.HttpRequestSessionContext;
 import com.facebook.presto.server.InternalCommunicationConfig;
 import com.facebook.presto.server.SessionContext;
+import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.google.common.collect.Ordering;
@@ -57,11 +58,13 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static com.facebook.presto.SystemSessionProperties.QUERY_SUBMIT_USER;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_TRANSACTION_ID;
@@ -74,6 +77,7 @@ import static com.facebook.presto.memory.context.AggregatedMemoryContext.newSimp
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.net.HttpHeaders.X_FORWARDED_PROTO;
 import static io.airlift.concurrent.Threads.threadsNamed;
+import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
@@ -93,6 +97,7 @@ public class StatementResource
     private final BoundedExecutor responseExecutor;
     private final ScheduledExecutorService timeoutExecutor;
     private final URI baseUri;
+    private final RedirectManager redirectManager;
 
     private final ConcurrentMap<QueryId, Query> queries = new ConcurrentHashMap<>();
     private final ScheduledExecutorService queryPurger = newSingleThreadScheduledExecutor(threadsNamed("query-purger"));
@@ -105,6 +110,7 @@ public class StatementResource
             BlockEncodingSerde blockEncodingSerde,
             HttpServerInfo httpServerInfo,
             InternalCommunicationConfig config,
+            RedirectManager redirectManager,
             @ForStatementResource BoundedExecutor responseExecutor,
             @ForStatementResource ScheduledExecutorService timeoutExecutor)
     {
@@ -116,7 +122,9 @@ public class StatementResource
         this.timeoutExecutor = requireNonNull(timeoutExecutor, "timeoutExecutor is null");
 
         queryPurger.scheduleWithFixedDelay(new PurgeQueriesRunnable(queries, queryManager), 200, 200, MILLISECONDS);
+
         this.baseUri = config.isHttpsRequired() ? httpServerInfo.getHttpsUri() : httpServerInfo.getHttpUri();
+        this.redirectManager = requireNonNull(redirectManager, "redirectManager is null");
     }
 
     @PreDestroy
@@ -145,6 +153,13 @@ public class StatementResource
         }
 
         SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
+
+        String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER) ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER) : sessionContext.getIdentity().getUser();
+        Optional<URI> match = redirectManager.getMatch(user);
+        if (match.isPresent()) {
+            URI redirectUri = uriBuilderFrom(match.get()).replacePath("/v1/statement").build();
+            return Response.temporaryRedirect(redirectUri).build();
+        }
 
         ExchangeClient exchangeClient = exchangeClientSupplier.get(new SimpleLocalMemoryContext(newSimpleAggregatedMemoryContext()));
         Query query = Query.create(
