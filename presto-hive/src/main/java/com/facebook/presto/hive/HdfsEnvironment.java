@@ -53,6 +53,11 @@ public class HdfsEnvironment
         this.hdfsAuthentication = requireNonNull(hdfsAuthentication, "hdfsAuthentication is null");
     }
 
+    public HdfsAuthentication getHdfsAuthentication()
+    {
+        return hdfsAuthentication;
+    }
+
     public Configuration getConfiguration(HdfsContext context, Path path)
     {
         return hdfsConfiguration.getConfiguration(context, path.toUri());

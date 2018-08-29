@@ -34,6 +34,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Streams;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.ListenableFuture;
+import io.airlift.stats.TimeStat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -313,7 +314,8 @@ public class BackgroundHiveSplitLoader
                         partition.getColumnCoercions(),
                         Optional.empty(),
                         isForceLocalScheduling(session),
-                        s3SelectPushdownEnabled);
+                        s3SelectPushdownEnabled,
+                        namenodeStats);
                 lastResult = addSplitsToSource(targetSplits, splitFactory);
                 if (stopped) {
                     return COMPLETED_FUTURE;
@@ -349,19 +351,26 @@ public class BackgroundHiveSplitLoader
                 partition.getColumnCoercions(),
                 bucketConversionRequiresWorkerParticipation ? bucketConversion : Optional.empty(),
                 isForceLocalScheduling(session),
-                s3SelectPushdownEnabled);
+                s3SelectPushdownEnabled,
+                namenodeStats);
 
         // To support custom input formats, we want to call getSplits()
         // on the input format to obtain file splits.
         if (shouldUseFileSplitsFromInputFormat(inputFormat)) {
-            if (tableBucketInfo.isPresent()) {
-                throw new PrestoException(NOT_SUPPORTED, "Presto cannot read bucketed partition in an input format with UseFileSplitsFromInputFormat annotation: " + inputFormat.getClass().getSimpleName());
-            }
-            JobConf jobConf = toJobConf(configuration);
-            FileInputFormat.setInputPaths(jobConf, path);
-            InputSplit[] splits = inputFormat.getSplits(jobConf, 0);
-
-            return addSplitsToSource(splits, splitFactory);
+            return hdfsEnvironment.getHdfsAuthentication().doAs(session.getUser(), () -> {
+                if (tableBucketInfo.isPresent()) {
+                    throw new PrestoException(NOT_SUPPORTED,
+                        "Presto cannot read bucketed partition in an input format with UseFileSplitsFromInputFormat annotation: "
+                            + inputFormat.getClass().getSimpleName());
+                }
+                JobConf jobConf = toJobConf(configuration);
+                FileInputFormat.setInputPaths(jobConf, path);
+                InputSplit[] splits;
+                try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetSplits().time()) {
+                    splits = inputFormat.getSplits(jobConf, 0);
+                }
+                return addSplitsToSource(splits, splitFactory);
+            });
         }
 
         // Bucketed partitions are fully loaded immediately since all files must be loaded to determine the file to bucket mapping
