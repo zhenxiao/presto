@@ -19,11 +19,13 @@ import com.facebook.presto.hive.HiveSplit.BucketConversion;
 import com.facebook.presto.hive.HiveTypeName;
 import com.facebook.presto.hive.InternalHiveSplit;
 import com.facebook.presto.hive.InternalHiveSplit.InternalHiveBlock;
+import com.facebook.presto.hive.NamenodeStats;
 import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
+import io.airlift.stats.TimeStat;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -62,6 +64,7 @@ public class InternalHiveSplitFactory
     private final Optional<Map<String, NestedField>> nestedFields;
     private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
     private final Optional<Map<String, List<String>>> aggregations;
+    private final NamenodeStats namenodeStats;
 
     public InternalHiveSplitFactory(
             FileSystem fileSystem,
@@ -75,7 +78,8 @@ public class InternalHiveSplitFactory
             boolean forceLocalScheduling,
             Optional<Map<String, NestedField>> nestedFields,
             Optional<TupleDomain<List<String>>> nestedTupleDomain,
-            Optional<Map<String, List<String>>> aggregations)
+            Optional<Map<String, List<String>>> aggregations,
+            NamenodeStats namenodeStats)
     {
         this.fileSystem = requireNonNull(fileSystem, "fileSystem is null");
         this.partitionName = requireNonNull(partitionName, "partitionName is null");
@@ -89,6 +93,7 @@ public class InternalHiveSplitFactory
         this.nestedFields = nestedFields;
         this.nestedTupleDomain = nestedTupleDomain;
         this.aggregations = aggregations;
+        this.namenodeStats = requireNonNull(namenodeStats, "namenodeStats is null");
     }
 
     public String getPartitionName()
@@ -124,10 +129,17 @@ public class InternalHiveSplitFactory
     public Optional<InternalHiveSplit> createInternalHiveSplit(FileSplit split)
             throws IOException
     {
-        FileStatus file = fileSystem.getFileStatus(split.getPath());
+        FileStatus file;
+        try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetFileStatus().time()) {
+            file = fileSystem.getFileStatus(split.getPath());
+        }
+        BlockLocation[] fileBlockLocations;
+        try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetBlockLocation().time()) {
+            fileBlockLocations = fileSystem.getFileBlockLocations(file, split.getStart(), split.getLength());
+        }
         return createInternalHiveSplit(
                 split.getPath(),
-                fileSystem.getFileBlockLocations(file, split.getStart(), split.getLength()),
+                fileBlockLocations,
                 split.getStart(),
                 split.getLength(),
                 file.getLen(),

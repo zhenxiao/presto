@@ -25,6 +25,9 @@ public class NamenodeStats
 {
     private final CallStats listLocatedStatus = new CallStats();
     private final CallStats remoteIteratorNext = new CallStats();
+    private final CallStats hoodieGetSplits = new CallStats();
+    private final CallStats hoodieGetFileStatus = new CallStats();
+    private final CallStats hoodieGetBlockLocation = new CallStats();
 
     @Managed
     @Nested
@@ -38,6 +41,27 @@ public class NamenodeStats
     public CallStats getRemoteIteratorNext()
     {
         return remoteIteratorNext;
+    }
+
+    @Managed
+    @Nested
+    public CallStats getHoodieGetFileStatus()
+    {
+        return hoodieGetFileStatus;
+    }
+
+    @Managed
+    @Nested
+    public CallStats getHoodieGetBlockLocation()
+    {
+        return hoodieGetBlockLocation;
+    }
+
+    @Managed
+    @Nested
+    public CallStats getHoodieGetSplits()
+    {
+        return hoodieGetSplits;
     }
 
     public static class CallStats

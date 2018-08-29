@@ -21,7 +21,6 @@ import com.facebook.presto.operator.ExchangeClient;
 import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.HttpRequestSessionContext;
-import com.facebook.presto.server.InternalCommunicationConfig;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.spi.QueryId;
@@ -30,7 +29,6 @@ import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.concurrent.BoundedExecutor;
-import io.airlift.http.server.HttpServerInfo;
 import io.airlift.units.Duration;
 
 import javax.annotation.PreDestroy;
@@ -96,7 +94,6 @@ public class StatementResource
     private final BlockEncodingSerde blockEncodingSerde;
     private final BoundedExecutor responseExecutor;
     private final ScheduledExecutorService timeoutExecutor;
-    private final URI baseUri;
     private final RedirectManager redirectManager;
 
     private final ConcurrentMap<QueryId, Query> queries = new ConcurrentHashMap<>();
@@ -108,8 +105,6 @@ public class StatementResource
             SessionPropertyManager sessionPropertyManager,
             ExchangeClientSupplier exchangeClientSupplier,
             BlockEncodingSerde blockEncodingSerde,
-            HttpServerInfo httpServerInfo,
-            InternalCommunicationConfig config,
             RedirectManager redirectManager,
             @ForStatementResource BoundedExecutor responseExecutor,
             @ForStatementResource ScheduledExecutorService timeoutExecutor)
@@ -122,8 +117,6 @@ public class StatementResource
         this.timeoutExecutor = requireNonNull(timeoutExecutor, "timeoutExecutor is null");
 
         queryPurger.scheduleWithFixedDelay(new PurgeQueriesRunnable(queries, queryManager), 200, 200, MILLISECONDS);
-
-        this.baseUri = config.isHttpsRequired() ? httpServerInfo.getHttpsUri() : httpServerInfo.getHttpUri();
         this.redirectManager = requireNonNull(redirectManager, "redirectManager is null");
     }
 
@@ -173,7 +166,7 @@ public class StatementResource
                 blockEncodingSerde);
         queries.put(query.getQueryId(), query);
 
-        QueryResults queryResults = query.getNextResult(OptionalLong.empty(), uriInfo, proto, baseUri);
+        QueryResults queryResults = query.getNextResult(OptionalLong.empty(), uriInfo, proto);
         return toResponse(query, queryResults);
     }
 
@@ -203,7 +196,7 @@ public class StatementResource
     private void asyncQueryResults(Query query, OptionalLong token, Duration maxWait, UriInfo uriInfo, String scheme, AsyncResponse asyncResponse)
     {
         Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
-        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, scheme, wait, baseUri);
+        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, scheme, wait);
 
         ListenableFuture<Response> response = Futures.transform(queryResultsFuture, queryResults -> toResponse(query, queryResults));
 

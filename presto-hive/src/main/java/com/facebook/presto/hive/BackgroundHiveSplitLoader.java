@@ -35,6 +35,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Streams;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.ListenableFuture;
+import io.airlift.stats.TimeStat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -305,7 +306,7 @@ public class BackgroundHiveSplitLoader
                 FileInputFormat.setInputPaths(targetJob, targetPath);
                 InputSplit[] targetSplits = targetInputFormat.getSplits(targetJob, 0);
 
-                InternalHiveSplitFactory splitFactory = new InternalHiveSplitFactory(targetFilesystem, partitionName, inputFormat, schema, partitionKeys, effectivePredicate, partition.getColumnCoercions(), Optional.empty(), isForceLocalScheduling(session), nestedFields, nestedTupleDomain, aggregations);
+                InternalHiveSplitFactory splitFactory = new InternalHiveSplitFactory(targetFilesystem, partitionName, inputFormat, schema, partitionKeys, effectivePredicate, partition.getColumnCoercions(), Optional.empty(), isForceLocalScheduling(session), nestedFields, nestedTupleDomain, aggregations, namenodeStats);
                 lastResult = addSplitsToSource(targetSplits, splitFactory);
                 if (stopped) {
                     return COMPLETED_FUTURE;
@@ -343,7 +344,8 @@ public class BackgroundHiveSplitLoader
                 isForceLocalScheduling(session),
                 nestedFields,
                 nestedTupleDomain,
-                aggregations);
+                aggregations,
+                namenodeStats);
 
         // To support custom input formats, we want to call getSplits()
         // on the input format to obtain file splits.
@@ -355,7 +357,10 @@ public class BackgroundHiveSplitLoader
                 JobConf jobConf = toJobConf(configuration);
                 handleFileHeader(schema, jobConf);
                 FileInputFormat.setInputPaths(jobConf, path);
-                InputSplit[] splits = inputFormat.getSplits(jobConf, 0);
+                InputSplit[] splits;
+                try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetSplits().time()) {
+                    splits = inputFormat.getSplits(jobConf, 0);
+                }
 
                 return addSplitsToSource(splits, splitFactory);
             });
