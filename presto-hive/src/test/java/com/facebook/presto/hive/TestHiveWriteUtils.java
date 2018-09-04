@@ -14,19 +14,21 @@
 package com.facebook.presto.hive;
 
 import com.facebook.presto.hive.HdfsEnvironment.HdfsContext;
+import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.testing.TestingConnectorSession;
 import org.apache.hadoop.fs.Path;
 import org.testng.annotations.Test;
 
 import static com.facebook.presto.hive.HiveTestUtils.createTestHdfsEnvironment;
 import static com.facebook.presto.hive.HiveWriteUtils.isS3FileSystem;
 import static com.facebook.presto.hive.HiveWriteUtils.isViewFileSystem;
-import static com.facebook.presto.testing.TestingConnectorSession.SESSION;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
 public class TestHiveWriteUtils
 {
-    private static final HdfsContext CONTEXT = new HdfsContext(SESSION, "test_schema");
+    private static final ConnectorSession HDFS_SESSION = new TestingConnectorSession(new HiveSessionProperties(new HiveClientConfig().setHdfsObserverReadEnabled(false), new OrcFileWriterConfig()).getSessionProperties());
+    private static final HdfsContext CONTEXT = new HdfsContext(HDFS_SESSION, "test_schema");
 
     @Test
     public void testIsS3FileSystem()

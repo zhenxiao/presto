@@ -94,7 +94,15 @@ public class TestFeaturesConfig
                 .setPreferPartialAggregation(true)
                 .setHistogramGroupImplementation(HistogramGroupImplementation.NEW)
                 .setArrayAggGroupImplementation(ArrayAggGroupImplementation.NEW)
-                .setMaxGroupingSets(2048));
+                .setMaxGroupingSets(2048)
+                .setAggregationPushDown(false)
+                .setDereferenceExpressionPushDown(false)
+                .setJsonPathPushDown(false)
+                .setLimitTableScan(false)
+                .setMaxStages(100)
+                .setPartitionFilteringEnforced(false)
+                .setPartitionFilteringTables("")
+                .setRewriteGeoSpatialQuery(false));
     }
 
     @Test
@@ -104,9 +112,11 @@ public class TestFeaturesConfig
                 .put("cpu-cost-weight", "0.4")
                 .put("memory-cost-weight", "0.3")
                 .put("network-cost-weight", "0.2")
+                .put("max-stages", "90")
                 .put("experimental.iterative-optimizer-enabled", "false")
                 .put("experimental.iterative-optimizer-timeout", "10s")
                 .put("experimental.enable-new-stats-calculator", "false")
+                .put("experimental.rewrite-geospatial-query", "true")
                 .put("deprecated.legacy-array-agg", "true")
                 .put("deprecated.legacy-log-function", "true")
                 .put("deprecated.group-by-uses-equal", "true")
@@ -124,6 +134,7 @@ public class TestFeaturesConfig
                 .put("redistribute-writes", "false")
                 .put("scale-writers", "true")
                 .put("writer-min-size", "42GB")
+                .put("optimizer.dereference-expression-pushdown", "true")
                 .put("optimizer.optimize-metadata-queries", "true")
                 .put("optimizer.optimize-hash-generation", "false")
                 .put("optimizer.optimize-mixed-distinct-aggregations", "true")
@@ -170,6 +181,9 @@ public class TestFeaturesConfig
                 .setEnableNewStatsCalculator(false)
                 .setDistributedIndexJoinsEnabled(true)
                 .setDistributedJoinsEnabled(false)
+                .setDereferenceExpressionPushDown(true)
+                .setMaxStages(90)
+                .setRewriteGeoSpatialQuery(true)
                 .setGroupedExecutionForAggregationEnabled(true)
                 .setFastInequalityJoins(false)
                 .setColocatedJoinsEnabled(true)

@@ -112,7 +112,8 @@ public class TestHiveClientConfig
                 .setFileStatusCacheMaxSize(1000 * 1000)
                 .setFileStatusCacheTables(null)
                 .setWritesToNonManagedTablesEnabled(false)
-                .setClientFallbackSimpleAuthAllowed(false));
+                .setClientFallbackSimpleAuthAllowed(false)
+                .setViewFsTempDirMapping(""));
     }
 
     @Test
@@ -146,7 +147,6 @@ public class TestHiveClientConfig
                 .put("hive.max-initial-splits", "10")
                 .put("hive.max-initial-split-size", "16MB")
                 .put("hive.split-loader-concurrency", "1")
-                .put("hive.respect-input-format-splits", "false")
                 .put("hive.domain-compaction-threshold", "42")
                 .put("hive.writer-sort-buffer-size", "13MB")
                 .put("hive.recursive-directories", "true")
@@ -191,7 +191,9 @@ public class TestHiveClientConfig
                 .put("hive.file-status-cache-tables", "foo.bar1, foo.bar2")
                 .put("hive.file-status-cache-size", "1000")
                 .put("hive.file-status-cache-expire-time", "30m")
-                .put("hive.ipc.client.fallback-to-simple-auth-allowed", "false")
+                .put("hive.ipc.client.fallback-to-simple-auth-allowed", "true")
+                .put("hive.hdfs.viewfs.tmpdirs", "foo#1,bar#2")
+                .put("hive.respect-splits.input-formats", "foo,bar")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -268,7 +270,9 @@ public class TestHiveClientConfig
                 .setFileStatusCacheMaxSize(1000)
                 .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES))
                 .setWritesToNonManagedTablesEnabled(true)
-                .setClientFallbackSimpleAuthAllowed(false);
+                .setClientFallbackSimpleAuthAllowed(true)
+                .setViewFsTempDirMapping("foo#1,bar#2")
+                .setRespectSplitsInputFormats("foo,bar");
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }
