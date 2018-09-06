@@ -1,0 +1,181 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.facebook.presto.uber.jdbc;
+
+import com.google.common.base.Throwables;
+import com.google.common.collect.Maps;
+import okhttp3.OkHttpClient;
+
+import java.io.Closeable;
+import java.sql.Connection;
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.sql.DriverPropertyInfo;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.util.Map;
+import java.util.Properties;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static com.facebook.presto.client.OkHttpUtil.userAgent;
+import static com.google.common.base.Strings.nullToEmpty;
+import static java.lang.Integer.parseInt;
+
+public class PrestoDriver
+        implements Driver, Closeable
+{
+    static final String DRIVER_NAME = "Presto Uber JDBC Driver";
+    static final String DRIVER_VERSION;
+    static final int DRIVER_VERSION_MAJOR;
+    static final int DRIVER_VERSION_MINOR;
+    static final String RPC_CALLER = "RPC-Caller";
+    static final String DEFAULT_RPC_CALLER_VALUE = "presto-jdbc";
+    static final String RPC_SERVICE = "RPC-Service";
+    static final String DEFAULT_RPC_SERVICE_VALUE = "presto_prod_coordinator";
+
+    private static final String DRIVER_URL_START = "jdbc:presto:";
+
+    private final OkHttpClient httpClient = new OkHttpClient().newBuilder()
+            .addInterceptor(userAgent(DRIVER_NAME + "/" + DRIVER_VERSION))
+            .build();
+
+    static {
+        String version = nullToEmpty(PrestoDriver.class.getPackage().getImplementationVersion());
+        Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)($|[.-])").matcher(version);
+        if (!matcher.find()) {
+            DRIVER_VERSION = "unknown";
+            DRIVER_VERSION_MAJOR = 0;
+            DRIVER_VERSION_MINOR = 0;
+        }
+        else {
+            DRIVER_VERSION = version;
+            DRIVER_VERSION_MAJOR = parseInt(matcher.group(1));
+            DRIVER_VERSION_MINOR = parseInt(matcher.group(2));
+        }
+
+        try {
+            DriverManager.registerDriver(new PrestoDriver());
+        }
+        catch (SQLException e) {
+            throw Throwables.propagate(e);
+        }
+    }
+
+    @Override
+    public void close()
+    {
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
+    }
+
+    @Override
+    public Connection connect(String url, Properties info)
+            throws SQLException
+    {
+        if (!acceptsURL(url)) {
+            return null;
+        }
+        DriverConnectionProperties driverConnProperties = getDriverConnProperties(info);
+        PrestoDriverUri uri = new PrestoDriverUri(url, driverConnProperties.driverProperties);
+
+        OkHttpClient.Builder builder = httpClient.newBuilder();
+        uri.setupClient(builder);
+        QueryExecutor executor = new QueryExecutor(builder.build());
+
+        return new PrestoConnection(uri, executor, Maps.fromProperties(driverConnProperties.connectionProperties));
+    }
+
+    @Override
+    public boolean acceptsURL(String url)
+            throws SQLException
+    {
+        return url.startsWith(DRIVER_URL_START);
+    }
+
+    private DriverConnectionProperties getDriverConnProperties(Properties info)
+    {
+        Map<String, String> props = Maps.fromProperties(info);
+        Properties driverProperties = new Properties();
+        Properties connectionProperties = new Properties();
+        for (String key : props.keySet()) {
+            if (!key.startsWith("RPC-")) {
+                driverProperties.setProperty(key, props.get(key));
+            }
+            else {
+                connectionProperties.setProperty(key, props.get(key));
+            }
+        }
+        // Set Default RPC properties if not present
+        if (!connectionProperties.containsKey(RPC_CALLER)) {
+            connectionProperties.setProperty(RPC_CALLER, DEFAULT_RPC_CALLER_VALUE);
+        }
+        if (!connectionProperties.containsKey(RPC_SERVICE)) {
+            connectionProperties.setProperty(RPC_SERVICE, DEFAULT_RPC_SERVICE_VALUE);
+        }
+
+        return new DriverConnectionProperties(driverProperties, connectionProperties);
+    }
+
+    private class DriverConnectionProperties
+    {
+        Properties driverProperties;
+        Properties connectionProperties;
+
+        DriverConnectionProperties(Properties driverProperties, Properties connectionProperties)
+        {
+            this.driverProperties = driverProperties;
+            this.connectionProperties = connectionProperties;
+        }
+    }
+
+    @Override
+    public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)
+            throws SQLException
+    {
+        Properties properties = new PrestoDriverUri(url, info).getProperties();
+
+        return ConnectionProperties.allProperties().stream()
+                .map(property -> property.getDriverPropertyInfo(properties))
+                .toArray(DriverPropertyInfo[]::new);
+    }
+
+    @Override
+    public int getMajorVersion()
+    {
+        return DRIVER_VERSION_MAJOR;
+    }
+
+    @Override
+    public int getMinorVersion()
+    {
+        return DRIVER_VERSION_MINOR;
+    }
+
+    @Override
+    public boolean jdbcCompliant()
+    {
+        // TODO: pass compliance tests
+        return false;
+    }
+
+    @Override
+    public Logger getParentLogger()
+            throws SQLFeatureNotSupportedException
+    {
+        // TODO: support java.util.Logging
+        throw new SQLFeatureNotSupportedException();
+    }
+}

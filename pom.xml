@@ -103,6 +103,7 @@
         <module>presto-tests</module>
         <module>presto-product-tests</module>
         <module>presto-jdbc</module>
+        <module>presto-uber-jdbc</module>
         <module>presto-cli</module>
         <module>presto-benchmark-driver</module>
         <module>presto-server</module>
@@ -423,6 +424,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-event-listener</artifactId>
+		<version>${project.version}</version>
+	    </dependency>
+
+	    <dependency>
+		<groupId>com.facebook.presto</groupId>
+                <artifactId>presto-uber-jdbc</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
