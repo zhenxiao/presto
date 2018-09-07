@@ -21,6 +21,7 @@ import com.facebook.presto.hive.parquet.PrimitiveField;
 import com.facebook.presto.hive.parquet.RichColumnDescriptor;
 import com.facebook.presto.memory.context.AggregatedMemoryContext;
 import com.facebook.presto.memory.context.LocalMemoryContext;
+import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.ArrayBlock;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.RowBlock;
@@ -28,6 +29,7 @@ import com.facebook.presto.spi.block.RunLengthEncodedBlock;
 import com.facebook.presto.spi.type.MapType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeSignatureParameter;
+import com.google.common.base.Joiner;
 import it.unimi.dsi.fastutil.booleans.BooleanArrayList;
 import it.unimi.dsi.fastutil.booleans.BooleanList;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -45,6 +47,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import static com.facebook.presto.hive.HiveErrorCode.HIVE_FILE_SCHEMA_MISMATCH;
 import static com.facebook.presto.hive.parquet.ParquetValidationUtils.validateParquet;
 import static com.facebook.presto.hive.parquet.reader.ParquetListColumnReader.calculateCollectionOffsets;
 import static com.facebook.presto.spi.type.StandardTypes.ARRAY;
@@ -53,6 +56,7 @@ import static com.facebook.presto.spi.type.StandardTypes.ROW;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.min;
 import static java.lang.Math.toIntExact;
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 public class ParquetReader
@@ -205,7 +209,17 @@ public class ParquetReader
             ParquetColumnChunk columnChunk = new ParquetColumnChunk(descriptor, buffer, 0);
             columnReader.setPageReader(columnChunk.readAllPages());
         }
-        return columnReader.readPrimitive(field);
+        try {
+            return columnReader.readPrimitive(field);
+        }
+        catch (UnsupportedOperationException e) {
+            throw new PrestoException(HIVE_FILE_SCHEMA_MISMATCH, format("There is a mismatch between file schema and partition schema. " +
+                                                                "The column %s in file %s is declared as type %s but parquet file declared column type as %s.",
+                                                                Joiner.on(".").join(columnDescriptor.getPath()).toLowerCase(),
+                                                                dataSource.getPath(),
+                                                                field.getType(),
+                                                                columnDescriptor.getType()));
+        }
     }
 
     private byte[] allocateBlock(int length)
