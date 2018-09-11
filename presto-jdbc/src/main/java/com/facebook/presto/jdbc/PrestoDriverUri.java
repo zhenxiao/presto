@@ -32,6 +32,7 @@ import java.util.Properties;
 
 import static com.facebook.presto.client.KerberosUtil.defaultCredentialCachePath;
 import static com.facebook.presto.client.OkHttpUtil.basicAuth;
+import static com.facebook.presto.client.OkHttpUtil.delegationTokenAuth;
 import static com.facebook.presto.client.OkHttpUtil.setupCookieJar;
 import static com.facebook.presto.client.OkHttpUtil.setupHttpProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupKerberos;
@@ -40,6 +41,7 @@ import static com.facebook.presto.client.OkHttpUtil.setupSsl;
 import static com.facebook.presto.client.OkHttpUtil.tokenAuth;
 import static com.facebook.presto.jdbc.ConnectionProperties.ACCESS_TOKEN;
 import static com.facebook.presto.jdbc.ConnectionProperties.APPLICATION_NAME_PREFIX;
+import static com.facebook.presto.jdbc.ConnectionProperties.DELEGATION_TOKEN;
 import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROXY;
 import static com.facebook.presto.jdbc.ConnectionProperties.KERBEROS_CONFIG_PATH;
 import static com.facebook.presto.jdbc.ConnectionProperties.KERBEROS_CREDENTIAL_CACHE_PATH;
@@ -176,6 +178,16 @@ final class PrestoDriverUri
                         KERBEROS_KEYTAB_PATH.getValue(properties),
                         Optional.ofNullable(KERBEROS_CREDENTIAL_CACHE_PATH.getValue(properties)
                                 .orElseGet(() -> defaultCredentialCachePath().map(File::new).orElse(null))));
+            }
+            else {
+                // Look at delegation token only if the Kerberos settings are not present
+                final String delegationToken = DELEGATION_TOKEN.getValue(properties).orElse("");
+                if (!delegationToken.isEmpty()) {
+                    if (!useSecureConnection) {
+                        throw new SQLException("Authentication using delegation token requires SSL to be enabled");
+                    }
+                    builder.addInterceptor(delegationTokenAuth(delegationToken));
+                }
             }
 
             if (ACCESS_TOKEN.getValue(properties).isPresent()) {
