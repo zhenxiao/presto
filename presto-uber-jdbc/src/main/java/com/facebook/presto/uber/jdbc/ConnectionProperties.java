@@ -33,6 +33,7 @@ final class ConnectionProperties
 {
     public static final ConnectionProperty<String> USER = new User();
     public static final ConnectionProperty<String> PASSWORD = new Password();
+    public static final ConnectionProperty<String> DELEGATION_TOKEN = new DelegationToken();
     public static final ConnectionProperty<HostAndPort> SOCKS_PROXY = new SocksProxy();
     public static final ConnectionProperty<HostAndPort> HTTP_PROXY = new HttpProxy();
     public static final ConnectionProperty<Boolean> SSL = new Ssl();
@@ -48,6 +49,7 @@ final class ConnectionProperties
     private static final Set<ConnectionProperty<?>> ALL_PROPERTIES = ImmutableSet.<ConnectionProperty<?>>builder()
             .add(USER)
             .add(PASSWORD)
+            .add(DELEGATION_TOKEN)
             .add(SOCKS_PROXY)
             .add(HTTP_PROXY)
             .add(SSL)
@@ -106,6 +108,15 @@ final class ConnectionProperties
         public Password()
         {
             super("password", NOT_REQUIRED, ALLOWED, STRING_CONVERTER);
+        }
+    }
+
+    private static class DelegationToken
+            extends AbstractConnectionProperty<String>
+    {
+        public DelegationToken()
+        {
+            super("delegationToken", NOT_REQUIRED, ALLOWED, STRING_CONVERTER);
         }
     }
 

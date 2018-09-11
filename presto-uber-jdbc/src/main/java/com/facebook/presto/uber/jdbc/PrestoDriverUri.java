@@ -32,10 +32,12 @@ import java.util.Properties;
 
 import static com.facebook.presto.client.KerberosUtil.defaultCredentialCachePath;
 import static com.facebook.presto.client.OkHttpUtil.basicAuth;
+import static com.facebook.presto.client.OkHttpUtil.delegationTokenAuth;
 import static com.facebook.presto.client.OkHttpUtil.setupHttpProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupKerberos;
 import static com.facebook.presto.client.OkHttpUtil.setupSocksProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupSsl;
+import static com.facebook.presto.uber.jdbc.ConnectionProperties.DELEGATION_TOKEN;
 import static com.facebook.presto.uber.jdbc.ConnectionProperties.HTTP_PROXY;
 import static com.facebook.presto.uber.jdbc.ConnectionProperties.KERBEROS_CONFIG_PATH;
 import static com.facebook.presto.uber.jdbc.ConnectionProperties.KERBEROS_CREDENTIAL_CACHE_PATH;
@@ -159,6 +161,16 @@ final class PrestoDriverUri
                         KERBEROS_KEYTAB_PATH.getValue(properties),
                         Optional.ofNullable(KERBEROS_CREDENTIAL_CACHE_PATH.getValue(properties)
                                 .orElseGet(() -> defaultCredentialCachePath().map(File::new).orElse(null))));
+            }
+            else {
+                // Look at delegation token only if the Kerberos settings are not present
+                final String delegationToken = DELEGATION_TOKEN.getValue(properties).orElse("");
+                if (!delegationToken.isEmpty()) {
+                    if (!useSecureConnection) {
+                        throw new SQLException("Authentication using delegation token requires SSL to be enabled");
+                    }
+                    builder.addInterceptor(delegationTokenAuth(delegationToken));
+                }
             }
         }
         catch (ClientException e) {
