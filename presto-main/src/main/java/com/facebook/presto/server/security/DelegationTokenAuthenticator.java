@@ -131,7 +131,7 @@ public class DelegationTokenAuthenticator
             throw new AuthenticationException("Authentication failed with delegation token");
         }
         catch (Exception e) {
-            throw new RuntimeException("Authentication error with delegation token", e);
+            throw new AuthenticationException("Authentication error with delegation token");
         }
     }
 
