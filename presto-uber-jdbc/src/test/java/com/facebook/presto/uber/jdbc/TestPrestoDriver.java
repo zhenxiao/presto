@@ -134,7 +134,16 @@ public class TestPrestoDriver
     {
         try (Connection connection = createConnection("blackhole", "blackhole");
                 Statement statement = connection.createStatement()) {
+            assertEquals(statement.executeUpdate("CREATE SCHEMA blackhole.blackhole"), 0);
             assertEquals(statement.executeUpdate("CREATE TABLE test_table (x bigint)"), 0);
+
+            assertEquals(statement.executeUpdate("CREATE TABLE slow_test_table (x bigint) " +
+                    "WITH (" +
+                    "   split_count = 1, " +
+                    "   pages_per_split = 1, " +
+                    "   rows_per_page = 1, " +
+                    "   page_processing_delay = '1m'" +
+                    ")"), 0);
         }
     }
 
@@ -157,7 +166,7 @@ public class TestPrestoDriver
                         "  123 _integer" +
                         ",  12300000000 _bigint" +
                         ", 'foo' _varchar" +
-                        ", 0.1 _double" +
+                        ", 0.1E0 _double" +
                         ", true _boolean" +
                         ", cast('hello' as varbinary) _varbinary" +
                         ", DECIMAL '1234567890.1234567' _decimal_short" +
@@ -417,6 +426,7 @@ public class TestPrestoDriver
         List<List<String>> blackhole = new ArrayList<>();
         blackhole.add(list("blackhole", "information_schema"));
         blackhole.add(list("blackhole", "default"));
+        blackhole.add(list("blackhole", "blackhole"));
 
         List<List<String>> test = new ArrayList<>();
         test.add(list(TEST_CATALOG, "information_schema"));
@@ -826,9 +836,9 @@ public class TestPrestoDriver
                             "c_char_345 char(345), " +
                             "c_varbinary varbinary, " +
                             "c_time time, " +
-                            "c_time_with_time_zone \"time with time zone\", " +
+                            "c_time_with_time_zone time with time zone, " +
                             "c_timestamp timestamp, " +
-                            "c_timestamp_with_time_zone \"timestamp with time zone\", " +
+                            "c_timestamp_with_time_zone timestamp with time zone, " +
                             "c_date date, " +
                             "c_decimal_8_2 decimal(8,2), " +
                             "c_decimal_38_0 decimal(38,0), " +

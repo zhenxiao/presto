@@ -39,6 +39,7 @@ import java.util.Locale;
 
 import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_BIGINT;
 import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_BOOLEAN;
+import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_CHAR;
 import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_DATE;
 import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_DOUBLE;
 import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_INTEGER;
@@ -50,6 +51,7 @@ import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_TINYINT
 import static com.facebook.presto.plugin.jdbc.TestingJdbcTypeHandle.JDBC_VARCHAR;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
+import static com.facebook.presto.spi.type.CharType.CHAR;
 import static com.facebook.presto.spi.type.DateType.DATE;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
@@ -92,7 +94,8 @@ public class TestJdbcQueryBuilder
                 new JdbcColumnHandle("test_id", "col_7", JDBC_TINYINT, TINYINT),
                 new JdbcColumnHandle("test_id", "col_8", JDBC_SMALLINT, SMALLINT),
                 new JdbcColumnHandle("test_id", "col_9", JDBC_INTEGER, INTEGER),
-                new JdbcColumnHandle("test_id", "col_10", JDBC_REAL, REAL));
+                new JdbcColumnHandle("test_id", "col_10", JDBC_REAL, REAL),
+                new JdbcColumnHandle("test_id", "col_11", JDBC_CHAR, CHAR));
 
         Connection connection = database.getConnection();
         try (PreparedStatement preparedStatement = connection.prepareStatement("create table \"test_table\" (" + "" +
