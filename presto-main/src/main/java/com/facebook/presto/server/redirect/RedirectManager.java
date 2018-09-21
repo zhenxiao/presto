@@ -40,7 +40,7 @@ import static java.util.Objects.requireNonNull;
 
 public class RedirectManager
 {
-    private static final JsonCodec<RedirectRulesSpec> CODEC = new JsonCodecFactory(
+    public static final JsonCodec<RedirectRulesSpec> CODEC = new JsonCodecFactory(
             () -> new ObjectMapperProvider().get().enable(FAIL_ON_UNKNOWN_PROPERTIES))
             .jsonCodec(RedirectRulesSpec.class);
 
@@ -99,6 +99,7 @@ public class RedirectManager
             this.redirectRules = ImmutableList.copyOf(requireNonNull(rules, "rules is null"));
         }
 
+        @JsonProperty
         public List<RedirectRule> getRedirectRules()
         {
             return redirectRules;

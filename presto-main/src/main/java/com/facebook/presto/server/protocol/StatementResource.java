@@ -61,6 +61,7 @@ import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Stream;
 
 import static com.facebook.presto.SystemSessionProperties.QUERY_SUBMIT_USER;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
@@ -148,7 +149,12 @@ public class StatementResource
         SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
 
         String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER) ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER) : sessionContext.getIdentity().getUser();
-        Optional<URI> match = redirectManager.getMatch(user);
+
+        Optional<URI> match = Stream.of(redirectManager.getMatch(user), redirectManager.getMatch(sessionContext.getSource()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+
         if (match.isPresent()) {
             URI redirectUri = uriBuilderFrom(match.get()).replacePath("/v1/statement").build();
             return Response.temporaryRedirect(redirectUri).build();

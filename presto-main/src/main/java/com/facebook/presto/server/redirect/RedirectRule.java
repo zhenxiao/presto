@@ -32,11 +32,13 @@ public class RedirectRule
         this.user = requireNonNull(user, "user is null");
     }
 
+    @JsonProperty
     public URI getHostname()
     {
         return hostname;
     }
 
+    @JsonProperty
     public String getUser()
     {
         return user;
