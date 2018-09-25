@@ -104,7 +104,7 @@ public class TestUDFQueries
         assertQuery("SELECT DAYS (DATE '1999-12-31')", "select 730119");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testTimestampRound()
             throws Exception
     {
@@ -122,7 +122,10 @@ public class TestUDFQueries
         assertQueryFails("SELECT TIMESTAMP_ROUND(TIMESTAMP '2011-09-14 12:00:00', 'bad_precision')", "bad_precision is not a valid precision for function TIMESTAMP_ROUND");
     }
 
-    @Test
+    @Test(enabled = false)
+    /* With revision 379156607649c9a7cf6bd97ddb0e5bc3601d24c9 support for Timestamp with TZ has been removed from H2QueryRunner.
+     * Can be re-enabled in future once H2QueryRunner supports Timestamp with TZ.
+     */
     public void testTimestampToTimezone()
             throws Exception
     {
