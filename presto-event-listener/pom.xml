@@ -38,7 +38,7 @@
         <dependency>
             <groupId>com.uber</groupId>
             <artifactId>heatpipe-producer-wrapper</artifactId>
-            <version>0.0.6</version>
+            <version>0.0.9</version>
         </dependency>
 
         <dependency>
