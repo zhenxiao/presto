@@ -210,6 +210,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <threadCount>1</threadCount>
+                    <excludes>
+                        <exclude>*</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
 
