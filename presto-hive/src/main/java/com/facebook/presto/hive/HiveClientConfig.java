@@ -150,6 +150,8 @@ public class HiveClientConfig
     private List<String> fileStatusCacheTables;
     private Map<String, String> viewFsTempDirMapping = Collections.emptyMap();
 
+    private boolean useDummyBlock;
+
     public int getMaxInitialSplits()
     {
         return maxInitialSplits;
@@ -969,6 +971,18 @@ public class HiveClientConfig
     public HiveClientConfig setFileStatusCacheExpireAfterWrite(Duration fileStatusCacheExpireAfterWrite)
     {
         this.fileStatusCacheExpireAfterWrite = fileStatusCacheExpireAfterWrite;
+        return this;
+    }
+
+    public boolean isUseDummyBlock()
+    {
+        return useDummyBlock;
+    }
+
+    @Config("hive.use-dummy-block")
+    public HiveClientConfig setUseDummyBlock(boolean useDummyBlock)
+    {
+        this.useDummyBlock = useDummyBlock;
         return this;
     }
 

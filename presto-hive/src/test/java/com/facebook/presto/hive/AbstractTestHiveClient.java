@@ -647,7 +647,8 @@ public abstract class AbstractTestHiveClient
                 hiveClientConfig.getMaxInitialSplits(),
                 hiveClientConfig.getSplitLoaderConcurrency(),
                 false,
-                hiveClientConfig.getRespectSplitsInputFormats());
+                hiveClientConfig.getRespectSplitsInputFormats(),
+                false);
         pageSinkProvider = new HivePageSinkProvider(
                 getDefaultHiveFileWriterFactories(hiveClientConfig),
                 hdfsEnvironment,

@@ -317,7 +317,8 @@ public class TestBackgroundHiveSplitLoader
                 Optional.empty(),
                 Optional.empty(),
                 ImmutableSet.of(),
-                Optional.empty());
+                Optional.empty(),
+                false);
     }
 
     private static BackgroundHiveSplitLoader backgroundHiveSplitLoader(List<LocatedFileStatus> files, DirectoryLister directoryLister)
@@ -347,7 +348,8 @@ public class TestBackgroundHiveSplitLoader
                 Optional.empty(),
                 Optional.empty(),
                 ImmutableSet.of(),
-                Optional.empty());
+                Optional.empty(),
+                false);
     }
 
     private static BackgroundHiveSplitLoader backgroundHiveSplitLoaderOfflinePartitions()
@@ -370,7 +372,8 @@ public class TestBackgroundHiveSplitLoader
                 Optional.empty(),
                 Optional.empty(),
                 ImmutableSet.of(),
-                Optional.empty());
+                Optional.empty(),
+                false);
     }
 
     private static Iterable<HivePartitionMetadata> createPartitionMetadataWithOfflinePartitions()

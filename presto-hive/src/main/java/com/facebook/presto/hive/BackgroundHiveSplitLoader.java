@@ -109,6 +109,7 @@ public class BackgroundHiveSplitLoader
     private final Optional<Map<String, NestedField>> nestedFields;
     private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
     private final Optional<Map<String, List<String>>> aggregations;
+    private final boolean useDummyBlock;
 
     // Purpose of this lock:
     // * Write lock: when you need a consistent view across partitions, fileIterators, and hiveSplitSource.
@@ -145,7 +146,8 @@ public class BackgroundHiveSplitLoader
             Optional<Map<String, NestedField>> nestedFields,
             Optional<TupleDomain<List<String>>> nestedTupleDomain,
             Set<String> respectSplitsInputFormats,
-            Optional<Map<String, List<String>>> aggregations)
+            Optional<Map<String, List<String>>> aggregations,
+            boolean useDummyBlock)
     {
         this.table = table;
         this.compactEffectivePredicate = compactEffectivePredicate;
@@ -163,6 +165,7 @@ public class BackgroundHiveSplitLoader
         this.executor = executor;
         this.partitions = new ConcurrentLazyQueue<>(partitions);
         this.hdfsContext = new HdfsContext(session, table.getDatabaseName(), table.getTableName());
+        this.useDummyBlock = useDummyBlock;
     }
 
     @Override
@@ -391,7 +394,7 @@ public class BackgroundHiveSplitLoader
     {
         ListenableFuture<?> lastResult = COMPLETED_FUTURE;
         for (InputSplit inputSplit : targetSplits) {
-            Optional<InternalHiveSplit> internalHiveSplit = splitFactory.createInternalHiveSplit((FileSplit) inputSplit);
+            Optional<InternalHiveSplit> internalHiveSplit = splitFactory.createInternalHiveSplit((FileSplit) inputSplit, useDummyBlock);
             if (internalHiveSplit.isPresent()) {
                 lastResult = hiveSplitSource.addToQueue(internalHiveSplit.get());
             }

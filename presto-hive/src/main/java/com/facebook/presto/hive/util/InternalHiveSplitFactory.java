@@ -126,16 +126,22 @@ public class InternalHiveSplitFactory
                 aggregations);
     }
 
-    public Optional<InternalHiveSplit> createInternalHiveSplit(FileSplit split)
+    public Optional<InternalHiveSplit> createInternalHiveSplit(FileSplit split, boolean useDummyBlock)
             throws IOException
     {
         FileStatus file;
         try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetFileStatus().time()) {
             file = fileSystem.getFileStatus(split.getPath());
         }
+
         BlockLocation[] fileBlockLocations;
-        try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetBlockLocation().time()) {
-            fileBlockLocations = fileSystem.getFileBlockLocations(file, split.getStart(), split.getLength());
+        if (useDummyBlock) {
+            fileBlockLocations = createDummyBlockLocations(split);
+        }
+        else {
+            try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetBlockLocation().time()) {
+                fileBlockLocations = fileSystem.getFileBlockLocations(file, split.getStart(), split.getLength());
+            }
         }
         return createInternalHiveSplit(
                 split.getPath(),
@@ -148,6 +154,14 @@ public class InternalHiveSplitFactory
                 nestedFields,
                 nestedTupleDomain,
                 aggregations);
+    }
+
+    // HACK!!!
+    // Create dummy block location to avoid getBlockLocation call.
+    // Any change in split calculation logic might lead to fatal error.
+    private BlockLocation[] createDummyBlockLocations(FileSplit split)
+    {
+        return new BlockLocation[] {new BlockLocation(new String[] {"dummyname"}, new String[] {"dummyhost:1234"}, split.getStart(), split.getLength())};
     }
 
     private Optional<InternalHiveSplit> createInternalHiveSplit(

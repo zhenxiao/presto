@@ -93,6 +93,7 @@ public class HiveSplitManager
     private final boolean recursiveDfsWalkerEnabled;
     private final CounterStat highMemorySplitSourceCounter;
     private final Set<String> respectSplitsInputFormats;
+    private final boolean useDummyBlock;
 
     @Inject
     public HiveSplitManager(
@@ -119,7 +120,8 @@ public class HiveSplitManager
                 hiveClientConfig.getMaxInitialSplits(),
                 hiveClientConfig.getSplitLoaderConcurrency(),
                 hiveClientConfig.getRecursiveDirWalkerEnabled(),
-                hiveClientConfig.getRespectSplitsInputFormats());
+                hiveClientConfig.getRespectSplitsInputFormats(),
+                hiveClientConfig.isUseDummyBlock());
     }
 
     public HiveSplitManager(
@@ -137,7 +139,8 @@ public class HiveSplitManager
             int maxInitialSplits,
             int splitLoaderConcurrency,
             boolean recursiveDfsWalkerEnabled,
-            Set<String> respectSplitsInputFormats)
+            Set<String> respectSplitsInputFormats,
+            boolean useDummyBlock)
     {
         this.metastoreProvider = requireNonNull(metastoreProvider, "metastore is null");
         this.namenodeStats = requireNonNull(namenodeStats, "namenodeStats is null");
@@ -155,6 +158,7 @@ public class HiveSplitManager
         this.splitLoaderConcurrency = splitLoaderConcurrency;
         this.recursiveDfsWalkerEnabled = recursiveDfsWalkerEnabled;
         this.respectSplitsInputFormats = respectSplitsInputFormats;
+        this.useDummyBlock = useDummyBlock;
     }
 
     @Override
@@ -213,7 +217,8 @@ public class HiveSplitManager
                 nestedFields,
                 layout.getNestedTupleDomain(),
                 respectSplitsInputFormats,
-                layout.getAggregations());
+                layout.getAggregations(),
+                useDummyBlock);
 
         HiveSplitSource splitSource;
         switch (splitSchedulingStrategy) {

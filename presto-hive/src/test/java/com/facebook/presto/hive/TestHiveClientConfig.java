@@ -113,7 +113,8 @@ public class TestHiveClientConfig
                 .setFileStatusCacheTables(null)
                 .setWritesToNonManagedTablesEnabled(false)
                 .setClientFallbackSimpleAuthAllowed(false)
-                .setViewFsTempDirMapping(""));
+                .setViewFsTempDirMapping("")
+                .setUseDummyBlock(false));
     }
 
     @Test
@@ -194,6 +195,7 @@ public class TestHiveClientConfig
                 .put("hive.ipc.client.fallback-to-simple-auth-allowed", "true")
                 .put("hive.hdfs.viewfs.tmpdirs", "foo#1,bar#2")
                 .put("hive.respect-splits.input-formats", "foo,bar")
+                .put("hive.use-dummy-block", "true")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -272,7 +274,8 @@ public class TestHiveClientConfig
                 .setWritesToNonManagedTablesEnabled(true)
                 .setClientFallbackSimpleAuthAllowed(true)
                 .setViewFsTempDirMapping("foo#1,bar#2")
-                .setRespectSplitsInputFormats("foo,bar");
+                .setRespectSplitsInputFormats("foo,bar")
+                .setUseDummyBlock(true);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }
