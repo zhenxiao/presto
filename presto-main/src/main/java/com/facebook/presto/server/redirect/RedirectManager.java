@@ -22,6 +22,7 @@ import io.airlift.json.JsonCodec;
 import io.airlift.json.JsonCodecFactory;
 import io.airlift.json.ObjectMapperProvider;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import java.io.IOException;
@@ -45,6 +46,7 @@ public class RedirectManager
             .jsonCodec(RedirectRulesSpec.class);
 
     private final Map<String, URI> redirectRules;
+    private Optional<MaxTasksRule> maxTasksRule;
 
     @Inject
     public RedirectManager(RedirectConfig config)
@@ -79,9 +81,10 @@ public class RedirectManager
             }
         }
         else {
-            redirectRulesSpec = new RedirectRulesSpec(ImmutableList.of());
+            redirectRulesSpec = new RedirectRulesSpec(ImmutableList.of(), null);
         }
         redirectRules = redirectRulesSpec.getRedirectRules().stream().collect(Collectors.toMap(RedirectRule::getUser, RedirectRule::getHostname));
+        maxTasksRule = Optional.ofNullable(redirectRulesSpec.getClusterMaxTaskRule());
     }
 
     public Optional<URI> getMatch(String user)
@@ -89,20 +92,33 @@ public class RedirectManager
         return Optional.ofNullable(redirectRules.get(user));
     }
 
+    public Optional<URI> redirectByMaxTasks(long maxTasks)
+    {
+        return maxTasksRule.filter(maxTasksRule -> maxTasksRule.getTasks() < maxTasks).map(MaxTasksRule::getHostname);
+    }
+
     public static class RedirectRulesSpec
     {
         private final List<RedirectRule> redirectRules;
+        private final MaxTasksRule clusterMaxTaskRule;
 
         @JsonCreator
-        public RedirectRulesSpec(@JsonProperty("redirectRules") List<RedirectRule> rules)
+        public RedirectRulesSpec(@JsonProperty("redirectRules") List<RedirectRule> rules, @JsonProperty("clusterMaxTaskRule") @Nullable MaxTasksRule maxTasksRule)
         {
             this.redirectRules = ImmutableList.copyOf(requireNonNull(rules, "rules is null"));
+            this.clusterMaxTaskRule = maxTasksRule;
         }
 
         @JsonProperty
         public List<RedirectRule> getRedirectRules()
         {
             return redirectRules;
+        }
+
+        @JsonProperty
+        public MaxTasksRule getClusterMaxTaskRule()
+        {
+            return clusterMaxTaskRule;
         }
     }
 }

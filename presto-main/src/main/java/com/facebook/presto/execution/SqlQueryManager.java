@@ -264,6 +264,13 @@ public class SqlQueryManager
                 catch (Throwable e) {
                     log.error(e, "Error pruning expired queries");
                 }
+
+                try {
+                    updateTotalTasks();
+                }
+                catch (Throwable e) {
+                    log.error(e, "Error updating total tasks");
+                }
             }
         }, 1, 1, TimeUnit.SECONDS);
     }
@@ -280,6 +287,18 @@ public class SqlQueryManager
                 query.fail(new PrestoException(EXCEEDED_MAX_STAGES_LIMIT, format("Query stages (%d) exceeded maximum stage limit of %d", stages, maxStages)));
             }
         }
+    }
+
+    private void updateTotalTasks()
+    {
+        long tasks = 0;
+        for (QueryExecution query : queries.values()) {
+            if (query.getState().isDone()) {
+                continue;
+            }
+            tasks += query.getQueryInfo().getQueryStats().getTotalTasks();
+        }
+        stats.updateTasks(tasks);
     }
 
     @PreDestroy

@@ -14,6 +14,7 @@
 package com.facebook.presto.redirect;
 
 import com.facebook.presto.client.QueryResults;
+import com.facebook.presto.server.redirect.MaxTasksRule;
 import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.server.redirect.RedirectRule;
 import com.facebook.presto.server.testing.TestingPrestoServer;
@@ -55,11 +56,14 @@ public class TestRedirect
     private final String dummy = "dummy";
     private final String userName = "test";
 
+    private final int maxTasks = 100;
+
     public TestRedirect()
             throws Exception
     {
         secondaryServer = new TestingPrestoServer();
-        primaryServer = createRedirectPrestoServer(ImmutableList.of(new RedirectRule(secondaryServer.getBaseUrl().toString(), userName)));
+        String hostname = secondaryServer.getBaseUrl().toString();
+        primaryServer = createRedirectPrestoServer(ImmutableList.of(new RedirectRule(hostname, userName)), new MaxTasksRule(hostname, maxTasks));
     }
 
     @AfterClass(alwaysRun = true)
@@ -71,7 +75,16 @@ public class TestRedirect
     }
 
     @Test
-    public void testRedirect()
+    public void testDefault()
+            throws Exception
+    {
+        TestingPrestoServer redirectPrestoServer = createRedirectPrestoServer(ImmutableList.of(), null);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), redirectPrestoServer, redirectPrestoServer);
+        redirectPrestoServer.close();
+    }
+
+    @Test
+    public void testRedirectOnHeaders()
     {
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), primaryServer);
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), secondaryServer);
@@ -79,12 +92,28 @@ public class TestRedirect
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy, PRESTO_SOURCE, userName), secondaryServer);
     }
 
+    @Test
+    public void testRedirectOnTasks()
+    {
+        assertEquals(primaryServer.getQueryManager().getStats().getTotalTasks(), 0);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), primaryServer);
+
+        primaryServer.getQueryManager().getStats().updateTasks(maxTasks + 1);
+
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), secondaryServer);
+    }
+
     private void assertQueryDestination(Map<String, String> headers, TestingPrestoServer testingPrestoServer)
     {
+        assertQueryDestination(headers, primaryServer, testingPrestoServer);
+    }
+
+    private void assertQueryDestination(Map<String, String> headers, TestingPrestoServer startServer, TestingPrestoServer destinationServer)
+    {
         // Query will always go to primary server first
-        Request request = createRequest(primaryServer.getBaseUrl(), headers);
+        Request request = createRequest(startServer.getBaseUrl(), headers);
         QueryResults queryResults = client.execute(request, createJsonResponseHandler(jsonCodec(QueryResults.class)));
-        assertEquals(HostAndPort.fromParts(queryResults.getNextUri().getHost(), queryResults.getNextUri().getPort()), testingPrestoServer.getAddress());
+        assertEquals(HostAndPort.fromParts(queryResults.getNextUri().getHost(), queryResults.getNextUri().getPort()), destinationServer.getAddress());
     }
 
     private Request createRequest(URI serveruri, Map<String, String> headers)
@@ -97,12 +126,12 @@ public class TestRedirect
         return builder.build();
     }
 
-    private TestingPrestoServer createRedirectPrestoServer(List<RedirectRule> rules)
+    private TestingPrestoServer createRedirectPrestoServer(List<RedirectRule> rules, MaxTasksRule maxTasksRule)
             throws Exception
     {
         File tempFile = File.createTempFile("pattern", ".suffix");
         BufferedWriter out = new BufferedWriter(new FileWriter(tempFile));
-        out.write(RedirectManager.CODEC.toJson(new RedirectManager.RedirectRulesSpec(rules)));
+        out.write(RedirectManager.CODEC.toJson(new RedirectManager.RedirectRulesSpec(rules, maxTasksRule)));
         out.close();
         return new TestingPrestoServer(true, ImmutableMap.of("redirect.config-file", tempFile.getPath()), null, null, new SqlParserOptions(), ImmutableList.of());
     }

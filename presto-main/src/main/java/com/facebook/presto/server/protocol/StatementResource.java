@@ -150,7 +150,7 @@ public class StatementResource
 
         String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER) ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER) : sessionContext.getIdentity().getUser();
 
-        Optional<URI> match = Stream.of(redirectManager.getMatch(user), redirectManager.getMatch(sessionContext.getSource()))
+        Optional<URI> match = Stream.of(redirectManager.redirectByMaxTasks(queryManager.getStats().getTotalTasks()), redirectManager.getMatch(user), redirectManager.getMatch(sessionContext.getSource()))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .findFirst();
