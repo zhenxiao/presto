@@ -296,7 +296,7 @@ public class SqlQueryManager
             if (query.getState().isDone()) {
                 continue;
             }
-            tasks += query.getQueryInfo().getQueryStats().getTotalTasks();
+            tasks += query.getQueryInfo().getQueryStats().getRunningTasks();
         }
         stats.updateTasks(tasks);
     }
