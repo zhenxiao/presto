@@ -68,10 +68,9 @@ public class TestFileBasedSystemAccessControl
     {
         TransactionManager transactionManager = createTestTransactionManager();
         AccessControlManager accessControlManager = newAccessControlManager(transactionManager, "impersonation_principal.json");
-        accessControlManager.checkCanSetUser(kerberosValidAlice.getPrincipal().get(), kerberosValidBob.getUser());
-        accessControlManager.checkCanSetUser(kerberosValidBob.getPrincipal().get(), kerberosValidBob.getUser());
+        accessControlManager.checkCanSetUser(kerberosValidAlice.getPrincipal(), kerberosValidBob.getUser());
         try {
-            accessControlManager.checkCanSetUser(kerberosValidBob.getPrincipal().get(), kerberosValidAlice.getUser());
+            accessControlManager.checkCanSetUser(kerberosValidBob.getPrincipal(), kerberosValidAlice.getUser());
             throw new AssertionError("expected AccessDeniedExeption");
         }
         catch (AccessDeniedException expected) {
