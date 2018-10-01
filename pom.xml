@@ -294,6 +294,13 @@
 
             <dependency>
                 <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-client</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-parser</artifactId>
                 <version>${project.version}</version>
             </dependency>

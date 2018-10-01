@@ -17,6 +17,7 @@ import com.facebook.presto.client.ClientTypeSignature;
 import com.facebook.presto.client.Column;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.StatementStats;
+import com.facebook.presto.client.TestMockWebServerFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.json.JsonCodec;
@@ -24,9 +25,7 @@ import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-import okhttp3.internal.tls.SslClient;
 import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.QueueDispatcher;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.testng.annotations.AfterMethod;
@@ -35,11 +34,6 @@ import org.testng.annotations.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.security.KeyStore;
-import java.security.cert.X509Certificate;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -52,6 +46,7 @@ import java.util.Properties;
 
 import static com.facebook.presto.client.OkHttpUtil.userAgent;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_DELEGATION_TOKEN;
+import static com.facebook.presto.client.TestMockWebServerFactory.MockWebServerInfo;
 import static com.facebook.presto.uber.jdbc.ConnectionProperties.DELEGATION_TOKEN;
 import static com.facebook.presto.uber.jdbc.ConnectionProperties.KERBEROS_CONFIG_PATH;
 import static com.facebook.presto.uber.jdbc.ConnectionProperties.KERBEROS_KEYTAB_PATH;
@@ -64,7 +59,6 @@ import static com.facebook.presto.uber.jdbc.ConnectionProperties.SSL_TRUST_STORE
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.lang.String.format;
-import static okhttp3.internal.tls.SslClient.localhost;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
@@ -76,19 +70,16 @@ import static org.testng.Assert.assertTrue;
 public class TestPrestoDriverDelegationTokenAuth
 {
     private static final String VALID_DELEGATION_TOKEN = "This is valid token!";
-    private static final String TRUSTSTORE_PASSWORD = "a password!";
     private static final JsonCodec<QueryResults> QUERY_RESULTS_CODEC = jsonCodec(QueryResults.class);
 
-    private MockWebServer server;
-    private String trustStorePath;
+    private MockWebServerInfo serverInfo;
 
     @BeforeMethod
     public void setup()
             throws Exception
     {
-        server = new MockWebServer();
-        setupSSL();
-        server.start();
+        serverInfo = TestMockWebServerFactory.getMockWebServerWithSSL();
+        serverInfo.server.start();
 
         setupDispatcher();
     }
@@ -127,11 +118,11 @@ public class TestPrestoDriverDelegationTokenAuth
         props.setProperty(KERBEROS_CONFIG_PATH.getKey(), File.createTempFile("temp", "krb").getPath());
         props.setProperty(KERBEROS_KEYTAB_PATH.getKey(), File.createTempFile("temp", "krb").getPath());
         props.setProperty(SSL.getKey(), "true");
-        props.setProperty(SSL_TRUST_STORE_PATH.getKey(), trustStorePath);
-        props.setProperty(SSL_TRUST_STORE_PASSWORD.getKey(), TRUSTSTORE_PASSWORD);
+        props.setProperty(SSL_TRUST_STORE_PATH.getKey(), serverInfo.trustStorePath);
+        props.setProperty(SSL_TRUST_STORE_PASSWORD.getKey(), serverInfo.trustStorePassword);
         props.setProperty("user", "test");
 
-        String url = format("jdbc:presto://localhost:%s", server.getPort());
+        String url = format("jdbc:presto://localhost:%s", serverInfo.server.getPort());
 
         OkHttpClient httpClient = new OkHttpClient().newBuilder()
                 .addInterceptor(userAgent("Presto JDBC driver"))
@@ -143,7 +134,7 @@ public class TestPrestoDriverDelegationTokenAuth
         uri.setupClient(builder);
         OkHttpClient client = builder.build();
 
-        Call call = client.newCall(new Request.Builder().url(server.url("/v1/info")).build());
+        Call call = client.newCall(new Request.Builder().url(serverInfo.server.url("/v1/info")).build());
         Response response = call.execute();
         assertNull(response.request().header(PRESTO_DELEGATION_TOKEN), "expected no delegation token in request");
     }
@@ -152,35 +143,7 @@ public class TestPrestoDriverDelegationTokenAuth
     public void teardown()
             throws IOException
     {
-        server.close();
-    }
-
-    /**
-     * Helper method that setups the SSL in mock web server and also creates a truststore file. We need the transport
-     * to be secured when authenticating through delegation token.
-     * @throws Exception
-     */
-    private void setupSSL()
-            throws Exception
-    {
-        final SslClient sslClient = localhost();
-        server.useHttps(sslClient.socketFactory, false);
-        // generate the truststore file from certificates
-        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        trustStore.load(null, null);
-
-        File trustStoreFile = File.createTempFile("truststore", "jks");
-        int id = 0;
-        for (X509Certificate cert : sslClient.trustManager.getAcceptedIssuers()) {
-            trustStore.setEntry("TestCert" + id,
-                    new KeyStore.TrustedCertificateEntry(cert), null);
-            id++;
-        }
-
-        try (OutputStream stream = Files.newOutputStream(trustStoreFile.toPath(), StandardOpenOption.WRITE)) {
-            trustStore.store(stream, TRUSTSTORE_PASSWORD.toCharArray());
-        }
-        this.trustStorePath = trustStoreFile.getPath();
+        serverInfo.server.close();
     }
 
     /**
@@ -194,7 +157,7 @@ public class TestPrestoDriverDelegationTokenAuth
                     .addHeader(CONTENT_TYPE, "application/json")
                     .setBody(response));
         }
-        server.setDispatcher(dispatcherWithAuth);
+        serverInfo.server.setDispatcher(dispatcherWithAuth);
     }
 
     /**
@@ -233,9 +196,9 @@ public class TestPrestoDriverDelegationTokenAuth
 
         QueryResults queryResults = new QueryResults(
                 queryId,
-                server.url("/query.html?" + queryId).uri(),
+                serverInfo.server.url("/query.html?" + queryId).uri(),
                 null,
-                nextUriId == null ? null : server.url(format("/v1/statement/%s/%s", queryId, nextUriId)).uri(),
+                nextUriId == null ? null : serverInfo.server.url(format("/v1/statement/%s/%s", queryId, nextUriId)).uri(),
                 responseColumns,
                 data,
                 new StatementStats(state, state.equals("QUEUED"), true, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null),
@@ -269,12 +232,12 @@ public class TestPrestoDriverDelegationTokenAuth
     private Connection createConnection(Map<String, String> additionalProperties)
             throws SQLException
     {
-        String url = format("jdbc:presto://localhost:%s", server.getPort());
+        String url = format("jdbc:presto://localhost:%s", serverInfo.server.getPort());
         Properties properties = new Properties();
         properties.setProperty("user", "test");
         properties.setProperty("SSL", "true");
-        properties.setProperty("SSLTrustStorePath", trustStorePath);
-        properties.setProperty("SSLTrustStorePassword", TRUSTSTORE_PASSWORD);
+        properties.setProperty("SSLTrustStorePath", serverInfo.trustStorePath);
+        properties.setProperty("SSLTrustStorePassword", serverInfo.trustStorePassword);
         properties.putAll(additionalProperties);
         return DriverManager.getConnection(url, properties);
     }
