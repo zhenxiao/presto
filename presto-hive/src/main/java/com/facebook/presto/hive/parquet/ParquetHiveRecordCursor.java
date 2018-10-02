@@ -15,9 +15,11 @@ package com.facebook.presto.hive.parquet;
 
 import com.facebook.presto.hive.FileFormatDataSourceStats;
 import com.facebook.presto.hive.HdfsEnvironment;
+import com.facebook.presto.hive.HdfsEnvironment.HdfsContext;
 import com.facebook.presto.hive.HiveColumnHandle;
 import com.facebook.presto.hive.parquet.predicate.ParquetPredicate;
 import com.facebook.presto.hive.util.DecimalUtils;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
@@ -125,7 +127,7 @@ public class ParquetHiveRecordCursor
 
     public ParquetHiveRecordCursor(
             HdfsEnvironment hdfsEnvironment,
-            String sessionUser,
+            ConnectorSession session,
             Configuration configuration,
             Path path,
             long start,
@@ -171,7 +173,7 @@ public class ParquetHiveRecordCursor
         this.nestedTupleDomain = nestedTupleDomain;
         this.recordReader = createParquetRecordReader(
                 hdfsEnvironment,
-                sessionUser,
+                session,
                 configuration,
                 path,
                 start,
@@ -322,7 +324,7 @@ public class ParquetHiveRecordCursor
 
     private ParquetRecordReader<FakeParquetRecord> createParquetRecordReader(
             HdfsEnvironment hdfsEnvironment,
-            String sessionUser,
+            ConnectorSession session,
             Configuration configuration,
             Path path,
             long start,
@@ -335,9 +337,10 @@ public class ParquetHiveRecordCursor
     {
         ParquetDataSource dataSource = null;
         try {
-            FileSystem fileSystem = hdfsEnvironment.getFileSystem(sessionUser, path, configuration);
+            HdfsContext hdfsContext = new HdfsContext(session);
+            FileSystem fileSystem = hdfsEnvironment.getFileSystem(hdfsContext, path, configuration);
             dataSource = buildHdfsParquetDataSource(fileSystem, path, start, length, fileSize, stats);
-            ParquetMetadata parquetMetadata = hdfsEnvironment.doAs(sessionUser, () -> ParquetFileReader.readFooter(configuration, path, NO_FILTER));
+            ParquetMetadata parquetMetadata = hdfsEnvironment.doAs(hdfsContext, () -> ParquetFileReader.readFooter(configuration, path, NO_FILTER));
             List<BlockMetaData> blocks = parquetMetadata.getBlocks();
             FileMetaData fileMetaData = parquetMetadata.getFileMetaData();
             MessageType fileSchema = fileMetaData.getSchema();
@@ -374,7 +377,7 @@ public class ParquetHiveRecordCursor
 
             TaskAttemptContext taskContext = ContextUtil.newTaskAttemptContext(configuration, new TaskAttemptID());
 
-            return hdfsEnvironment.doAs(sessionUser, () -> {
+            return hdfsEnvironment.doAs(hdfsContext, () -> {
                 ParquetRecordReader<FakeParquetRecord> realReader = new PrestoParquetRecordReader(readSupport);
                 realReader.initialize(split, taskContext);
                 return realReader;

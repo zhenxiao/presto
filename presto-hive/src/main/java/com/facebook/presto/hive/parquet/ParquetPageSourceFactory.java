@@ -15,6 +15,7 @@ package com.facebook.presto.hive.parquet;
 
 import com.facebook.presto.hive.FileFormatDataSourceStats;
 import com.facebook.presto.hive.HdfsEnvironment;
+import com.facebook.presto.hive.HdfsEnvironment.HdfsContext;
 import com.facebook.presto.hive.HiveClientConfig;
 import com.facebook.presto.hive.HiveColumnHandle;
 import com.facebook.presto.hive.HivePageSourceFactory;
@@ -124,7 +125,7 @@ public class ParquetPageSourceFactory
 
         return Optional.of(createParquetPageSource(
                 hdfsEnvironment,
-                session.getUser(),
+                session,
                 configuration,
                 path,
                 start,
@@ -143,7 +144,7 @@ public class ParquetPageSourceFactory
 
     public static ParquetPageSource createParquetPageSource(
             HdfsEnvironment hdfsEnvironment,
-            String user,
+            ConnectorSession session,
             Configuration configuration,
             Path path,
             long start,
@@ -163,7 +164,8 @@ public class ParquetPageSourceFactory
 
         ParquetDataSource dataSource = null;
         try {
-            FileSystem fileSystem = hdfsEnvironment.getFileSystem(user, path, configuration);
+            HdfsContext hdfsContext = new HdfsContext(session);
+            FileSystem fileSystem = hdfsEnvironment.getFileSystem(hdfsContext, path, configuration);
             FSDataInputStream inputStream = fileSystem.open(path);
             ParquetMetadata parquetMetadata = ParquetMetadataReader.readFooter(inputStream, path, fileSize);
             FileMetaData fileMetaData = parquetMetadata.getFileMetaData();

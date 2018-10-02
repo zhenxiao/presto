@@ -118,6 +118,7 @@ public class HiveWriterFactory
     private final HivePageSinkMetadataProvider pageSinkMetadataProvider;
     private final TypeManager typeManager;
     private final HdfsEnvironment hdfsEnvironment;
+    private final HdfsContext hdfsContext;
     private final PageSorter pageSorter;
     private final JobConf conf;
 
@@ -179,6 +180,8 @@ public class HiveWriterFactory
         this.maxSortFilesPerBucket = maxSortFilesPerBucket;
         this.immutablePartitions = immutablePartitions;
 
+        this.hdfsContext = new HdfsContext(session, schemaName, tableName);
+
         // divide input columns into partition and data columns
         requireNonNull(inputColumns, "inputColumns is null");
         ImmutableList.Builder<String> partitionColumnNames = ImmutableList.builder();
@@ -230,7 +233,7 @@ public class HiveWriterFactory
                 .collect(toImmutableMap(PropertyMetadata::getName,
                         entry -> session.getProperty(entry.getName(), entry.getJavaType()).toString()));
 
-        Configuration conf = hdfsEnvironment.getConfiguration(new HdfsContext(session, schemaName, tableName), writePath);
+        Configuration conf = hdfsEnvironment.getConfiguration(hdfsContext, writePath);
         this.conf = toJobConf(conf);
 
         // make sure the FileSystem is created with the correct Configuration object
@@ -430,7 +433,7 @@ public class HiveWriterFactory
         Consumer<HiveWriter> onCommit = hiveWriter -> {
             Optional<Long> size;
             try {
-                size = Optional.of(hdfsEnvironment.getFileSystem(session.getUser(), path, conf).getFileStatus(path).getLen());
+                size = Optional.of(hdfsEnvironment.getFileSystem(hdfsContext, path, conf).getFileStatus(path).getLen());
             }
             catch (IOException | RuntimeException e) {
                 // Do not fail the query if file system is not available
@@ -457,7 +460,7 @@ public class HiveWriterFactory
         if (!sortedBy.isEmpty()) {
             FileSystem fileSystem;
             try {
-                fileSystem = hdfsEnvironment.getFileSystem(session.getUser(), path, conf);
+                fileSystem = hdfsEnvironment.getFileSystem(hdfsContext, path, conf);
             }
             catch (IOException e) {
                 throw new PrestoException(HIVE_WRITER_OPEN_ERROR, e);

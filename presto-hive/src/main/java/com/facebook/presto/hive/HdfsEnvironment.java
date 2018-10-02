@@ -22,6 +22,7 @@ import com.facebook.presto.spi.security.Identity;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.ipc.CallerContext;
 
 import javax.inject.Inject;
 
@@ -66,7 +67,13 @@ public class HdfsEnvironment
     public FileSystem getFileSystem(HdfsContext context, Path path)
             throws IOException
     {
-        return getFileSystem(context.getIdentity().getUser(), path, getConfiguration(context, path));
+        return wrapWithHdfsContextIfNeeded(getFileSystem(context.getIdentity().getUser(), path, getConfiguration(context, path)), context);
+    }
+
+    public FileSystem getFileSystem(HdfsContext context, Path path, Configuration configuration)
+            throws IOException
+    {
+        return wrapWithHdfsContextIfNeeded(getFileSystem(context.getIdentity().getUser(), path, configuration), context);
     }
 
     public FileSystem getFileSystem(String user, Path path, Configuration configuration)
@@ -79,10 +86,19 @@ public class HdfsEnvironment
         });
     }
 
-    public <R, E extends Exception> R doAs(String user, GenericExceptionAction<R, E> action)
+    public <R, E extends Exception> R doAs(HdfsContext context, GenericExceptionAction<R, E> action)
             throws E
     {
-        return hdfsAuthentication.doAs(user, action);
+        try (HdfsCallerContextSetter ignored = new HdfsCallerContextSetter(context)) {
+            return hdfsAuthentication.doAs(context.getIdentity().getUser(), action);
+        }
+    }
+
+    public void doAs(HdfsContext context, Runnable action)
+    {
+        try (HdfsCallerContextSetter ignored = new HdfsCallerContextSetter(context)) {
+            hdfsAuthentication.doAs(context.getIdentity().getUser(), action);
+        }
     }
 
     public void doAs(String user, Runnable action)
@@ -107,6 +123,17 @@ public class HdfsEnvironment
             this.schemaName = Optional.empty();
             this.tableName = Optional.empty();
             this.hdfsObserverReadEnabled = false;
+        }
+
+        public HdfsContext(ConnectorSession session)
+        {
+            requireNonNull(session, "session is null");
+            this.identity = requireNonNull(session.getIdentity(), "session.getIdentity() is null");
+            this.source = requireNonNull(session.getSource(), "session.getSource()");
+            this.queryId = Optional.of(session.getQueryId());
+            this.schemaName = Optional.empty();
+            this.tableName = Optional.empty();
+            this.hdfsObserverReadEnabled = HiveSessionProperties.isHdfsObserverReadEnabled(session);
         }
 
         public HdfsContext(ConnectorSession session, String schemaName)
@@ -177,5 +204,49 @@ public class HdfsEnvironment
                     .add("hdfsObserverReadEnabled", hdfsObserverReadEnabled)
                     .toString();
         }
+    }
+
+    /**
+     * Sets the HDFS caller context in thread local variable and resets the thread local value to original value when closed
+     */
+    public static class HdfsCallerContextSetter
+            implements AutoCloseable
+    {
+        private CallerContext originalContext;
+
+        public HdfsCallerContextSetter(HdfsContext hdfsContext)
+        {
+            originalContext = CallerContext.getCurrent();
+            CallerContext.setCurrent(new CallerContext.Builder(hdfsContext.toString()).build());
+        }
+
+        @Override
+        public void close()
+        {
+            CallerContext.setCurrent(originalContext);
+        }
+    }
+
+    /**
+     * If the give file system instance is an HDFS filesystem instance wrap it in a wrapper that sets the HDFS caller context before
+     * making any HDFS RPC calls.
+     * @param fileSystem
+     * @param hdfsContext
+     * @return
+     */
+    private static FileSystem wrapWithHdfsContextIfNeeded(FileSystem fileSystem, HdfsContext hdfsContext)
+    {
+        try {
+            final String scheme = fileSystem.getUri().getScheme().toLowerCase();
+            if ("hdfs".equals(scheme) || "viewfs".equals(scheme)) {
+                return new FileSystemWithHdfsContext(fileSystem, hdfsContext);
+            }
+        }
+        catch (UnsupportedOperationException ex) {
+            // if the getUri is not supported, then this isn't a HDFS or ViewFS, proceed without the context setting wrapper
+            return fileSystem;
+        }
+
+        return fileSystem;
     }
 }

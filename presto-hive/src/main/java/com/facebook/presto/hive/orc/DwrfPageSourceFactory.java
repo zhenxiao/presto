@@ -87,7 +87,7 @@ public class DwrfPageSourceFactory
         return Optional.of(createOrcPageSource(
                 DWRF,
                 hdfsEnvironment,
-                session.getUser(),
+                session,
                 configuration,
                 path,
                 start,

@@ -87,7 +87,7 @@ public class ParquetRecordCursorProvider
 
         return Optional.of(new ParquetHiveRecordCursor(
                 hdfsEnvironment,
-                session.getUser(),
+                session,
                 configuration,
                 path,
                 start,

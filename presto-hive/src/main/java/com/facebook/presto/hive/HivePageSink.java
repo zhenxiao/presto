@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.hive;
 
+import com.facebook.presto.hive.HdfsEnvironment.HdfsContext;
 import com.facebook.presto.spi.ConnectorPageSink;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.Page;
@@ -170,7 +171,8 @@ public class HivePageSink
     {
         // Must be wrapped in doAs entirely
         // Implicit FileSystem initializations are possible in HiveRecordWriter#commit -> RecordWriter#close
-        ListenableFuture<Collection<Slice>> result = hdfsEnvironment.doAs(session.getUser(), this::doFinish);
+        HdfsContext hdfsContext = new HdfsContext(session);
+        ListenableFuture<Collection<Slice>> result = hdfsEnvironment.doAs(hdfsContext, this::doFinish);
         return MoreFutures.toCompletableFuture(result);
     }
 
@@ -213,7 +215,8 @@ public class HivePageSink
     {
         // Must be wrapped in doAs entirely
         // Implicit FileSystem initializations are possible in HiveRecordWriter#rollback -> RecordWriter#close
-        hdfsEnvironment.doAs(session.getUser(), this::doAbort);
+        HdfsContext hdfsContext = new HdfsContext(session);
+        hdfsEnvironment.doAs(hdfsContext, this::doAbort);
     }
 
     private void doAbort()
@@ -242,7 +245,8 @@ public class HivePageSink
         if (page.getPositionCount() > 0) {
             // Must be wrapped in doAs entirely
             // Implicit FileSystem initializations are possible in HiveRecordWriter#addRow or #createWriter
-            hdfsEnvironment.doAs(session.getUser(), () -> doAppend(page));
+            HdfsContext hdfsContext = new HdfsContext(session);
+            hdfsEnvironment.doAs(hdfsContext, () -> doAppend(page));
         }
 
         return NOT_BLOCKED;

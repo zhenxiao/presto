@@ -15,6 +15,7 @@ package com.facebook.presto.hive.orc;
 
 import com.facebook.presto.hive.FileFormatDataSourceStats;
 import com.facebook.presto.hive.HdfsEnvironment;
+import com.facebook.presto.hive.HdfsEnvironment.HdfsContext;
 import com.facebook.presto.hive.HiveClientConfig;
 import com.facebook.presto.hive.HiveColumnHandle;
 import com.facebook.presto.hive.HivePageSourceFactory;
@@ -123,7 +124,7 @@ public class OrcPageSourceFactory
         return Optional.of(createOrcPageSource(
                 ORC,
                 hdfsEnvironment,
-                session.getUser(),
+                session,
                 configuration,
                 path,
                 start,
@@ -147,7 +148,7 @@ public class OrcPageSourceFactory
     public static OrcPageSource createOrcPageSource(
             OrcEncoding orcEncoding,
             HdfsEnvironment hdfsEnvironment,
-            String sessionUser,
+            ConnectorSession session,
             Configuration configuration,
             Path path,
             long start,
@@ -169,7 +170,8 @@ public class OrcPageSourceFactory
     {
         OrcDataSource orcDataSource;
         try {
-            FileSystem fileSystem = hdfsEnvironment.getFileSystem(sessionUser, path, configuration);
+            HdfsContext hdfsContext = new HdfsContext(session);
+            FileSystem fileSystem = hdfsEnvironment.getFileSystem(hdfsContext, path, configuration);
             FSDataInputStream inputStream = fileSystem.open(path);
             orcDataSource = new HdfsOrcDataSource(
                     new OrcDataSourceId(path.toString()),

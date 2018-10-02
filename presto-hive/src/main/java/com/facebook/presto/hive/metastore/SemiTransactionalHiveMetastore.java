@@ -767,9 +767,10 @@ public class SemiTransactionalHiveMetastore
                 case EMPTY:
                     break;
                 case SHARED_OPERATION_BUFFERED:
-                    Optional<String> doAsUser = getImpersonationUser();
-                    if (doAsUser.isPresent()) {
-                        hdfsEnvironment.doAs(doAsUser.get(), () -> commitShared());
+                    Optional<HdfsContext> hdfsContext = getImpersonatedUserHdfsContext();
+                    // TODO: investigate if we need this. The underlying systems already have correct user
+                    if (hdfsContext.isPresent()) {
+                        hdfsEnvironment.doAs(hdfsContext.get(), () -> commitShared());
                     }
                     else {
                         commitShared();
@@ -811,10 +812,10 @@ public class SemiTransactionalHiveMetastore
         }
     }
 
-    private Optional<String> getImpersonationUser()
+    private Optional<HdfsContext> getImpersonatedUserHdfsContext()
     {
         if (!tableActions.isEmpty()) {
-            return Optional.ofNullable(tableActions.values().iterator().next().context.getIdentity().getUser());
+            return Optional.ofNullable(tableActions.values().iterator().next().context);
         }
 
         if (!partitionActions.isEmpty()) {
@@ -822,13 +823,13 @@ public class SemiTransactionalHiveMetastore
             while (partitionActionsIterator.hasNext()) {
                 Map<List<String>, Action<PartitionAndMore>> partitionAction = partitionActionsIterator.next();
                 if (!partitionAction.isEmpty()) {
-                    return Optional.ofNullable(partitionAction.values().iterator().next().context.getIdentity().getUser());
+                    return Optional.ofNullable(partitionAction.values().iterator().next().context);
                 }
             }
         }
 
         if (!declaredIntentionsToWrite.isEmpty()) {
-            return Optional.ofNullable(declaredIntentionsToWrite.iterator().next().context.getIdentity().getUser());
+            return Optional.ofNullable(declaredIntentionsToWrite.iterator().next().context);
         }
 
         return Optional.empty();
