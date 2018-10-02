@@ -51,19 +51,25 @@ public class PinotClusterInfoFetcher
     private static final String ROUTING_TABLE_API_TEMPLATE = "http://%s/debug/routingTable/%s";
     private static final String TIME_BOUNDARY_API_TEMPLATE = "http://%s/debug/timeBoundary/%s";
 
+    private static final String MUTTLEY_RPC_CALLER_HEADER = "Rpc-Caller";
+    private static final String MUTTLEY_RPC_CALLER_VALUE = "presto";
+    private static final String MUTTLEY_RPC_SERVICE_HEADER = "Rpc-Service";
+    private static final String MUTTLEY_RPC_SERVICE_VALUE = "streaming-pinot-controller-%s";
+
     private static final Logger log = Logger.get(PinotClusterInfoFetcher.class);
     private static final CloseableHttpClient httpClient = HttpClients.createDefault();
     private final String controllerUrl;
+    private static String clusterEnv;
     private final DynamicBrokerSelector dynamicBrokerSelector;
     private String instanceId = "Presto_pinot_master";
 
     @Inject
     public PinotClusterInfoFetcher(PinotConfig pinotConfig) throws SocketException, UnknownHostException
     {
-        this(pinotConfig.getZkUrl(), pinotConfig.getPinotCluster(), pinotConfig.getControllerUrl());
+        this(pinotConfig.getZkUrl(), pinotConfig.getPinotCluster(), pinotConfig.getControllerUrl(), pinotConfig.getPinotClusterEnv());
     }
 
-    public PinotClusterInfoFetcher(String zkUrl, String pinotCluster, String controllerUrl) throws SocketException, UnknownHostException
+    public PinotClusterInfoFetcher(String zkUrl, String pinotCluster, String controllerUrl, String clusterEnv) throws SocketException, UnknownHostException
     {
         log.info("Trying to init PinotClusterInfoFetcher with Zookeeper: %s, PinotCluster %s, ControllerUrl: %s.", zkUrl, pinotCluster, controllerUrl);
         String zkServers = zkUrl + "/" + pinotCluster;
@@ -77,11 +83,16 @@ public class PinotClusterInfoFetcher
             throw e;
         }
         this.controllerUrl = controllerUrl;
+        PinotClusterInfoFetcher.clusterEnv = clusterEnv;
     }
 
     public static String sendHttpGet(final String url) throws Exception
     {
-        HttpUriRequest request = RequestBuilder.get(url).setHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON).build();
+        final String rpcService = String.format(MUTTLEY_RPC_SERVICE_VALUE, clusterEnv);
+        HttpUriRequest request = RequestBuilder.get(url).setHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
+                .setHeader(MUTTLEY_RPC_CALLER_HEADER, MUTTLEY_RPC_CALLER_VALUE)
+                .setHeader(MUTTLEY_RPC_SERVICE_HEADER, rpcService)
+                .build();
         return httpClient.execute(request, getStringResponseHandler());
     }
 

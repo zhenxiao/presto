@@ -24,6 +24,7 @@ public class PinotConfig
     private static final int DEFAULT_MAX_CONNECTIONS_PER_SERVER = 30;
     private static final int DEFAULT_MAX_BACKLOG_PER_SERVER = 30;
     private static final int DEFAULT_THREAD_POOL_SIZE = 30;
+    private static final String DEFAULT_PINOT_CLUSTER_ENV = "adhoc";
 
     private static final long DEFAULT_LIMIT_ALL = 2147483647;
     private static final long DEFAULT_LIMIT_LARGE = 10000;
@@ -31,6 +32,7 @@ public class PinotConfig
 
     private String zkUrl;
     private String pinotCluster;
+    private String pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
     private String controllerUrl;
 
     private long limitAll = DEFAULT_LIMIT_ALL;
@@ -69,6 +71,22 @@ public class PinotConfig
     public PinotConfig setPinotCluster(String pinotCluster)
     {
         this.pinotCluster = pinotCluster;
+        return this;
+    }
+
+    @NotNull
+    public String getPinotClusterEnv()
+    {
+        return pinotClusterEnv;
+    }
+
+    @Config("pinot-cluster-env")
+    public PinotConfig setPinotClusterEnv(String pinotClusterEnv)
+    {
+        if (pinotClusterEnv == null || pinotClusterEnv.length() == 0) {
+            pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
+        }
+        this.pinotClusterEnv = pinotClusterEnv;
         return this;
     }
 
