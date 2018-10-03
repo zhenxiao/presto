@@ -38,6 +38,7 @@ public class TestFileBasedSystemAccessControl
 {
     private static final Identity alice = new Identity("alice", Optional.empty());
     private static final Identity kerberosValidAlice = new Identity("alice", Optional.of(new KerberosPrincipal("alice/example.com@EXAMPLE.COM")));
+    private static final Identity kerberosValidBob = new Identity("bob", Optional.of(new KerberosPrincipal("bob/example.com@EXAMPLE.COM")));
     private static final Identity kerberosValidNonAsciiUser = new Identity("\u0194\u0194\u0194", Optional.of(new KerberosPrincipal("\u0194\u0194\u0194/example.com@EXAMPLE.COM")));
     private static final Identity kerberosInvalidAlice = new Identity("alice", Optional.of(new KerberosPrincipal("mallory/example.com@EXAMPLE.COM")));
     private static final Identity kerberosValidShare = new Identity("alice", Optional.of(new KerberosPrincipal("valid/example.com@EXAMPLE.COM")));
@@ -52,6 +53,21 @@ public class TestFileBasedSystemAccessControl
     private static final QualifiedObjectName aliceTable = new QualifiedObjectName("alice-catalog", "schema", "table");
     private static final QualifiedObjectName aliceView = new QualifiedObjectName("alice-catalog", "schema", "view");
     private static final CatalogSchemaName aliceSchema = new CatalogSchemaName("alice-catalog", "schema");
+
+    @Test
+    public void testCanSetUserOperationsWithImpersonation()
+    {
+        TransactionManager transactionManager = createTestTransactionManager();
+        AccessControlManager accessControlManager = newAccessControlManager(transactionManager, "impersonation_principal.json");
+        accessControlManager.checkCanSetUser(kerberosValidAlice.getPrincipal().get(), kerberosValidBob.getUser());
+        accessControlManager.checkCanSetUser(kerberosValidBob.getPrincipal().get(), kerberosValidBob.getUser());
+        try {
+            accessControlManager.checkCanSetUser(kerberosValidBob.getPrincipal().get(), kerberosValidAlice.getUser());
+            throw new AssertionError("expected AccessDeniedExeption");
+        }
+        catch (AccessDeniedException expected) {
+        }
+    }
 
     @Test
     public void testCanSetUserOperations()

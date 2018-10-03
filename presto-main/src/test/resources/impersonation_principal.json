@@ -1,0 +1,21 @@
+{
+  "catalogs": [
+    {
+      "allow": true
+    }
+  ],
+  "principals": [
+    {
+      "principal": "alice",
+      "user": ".*",
+      "allow": true
+    },
+    {
+      "principal": "other",
+      "user": ".*",
+      "allow": false
+    }
+  ],
+  "kerberosRules" : "RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//RULE:[2:$1@$0](.*@EXAMPLE.COM)s/@.*//RULE:[2:$1/$2@$0](.*/hdfs@EXAMPLE.COM)s/.*/hdfs/RULE:[2:$1/$2@$0](.*/yarn@EXAMPLE.COM)s/.*/yarn/RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//RULE:[2:$1@$0](.*@EXAMPLE.COM)s/@.*//DEFAULT"
+
+}
