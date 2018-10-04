@@ -13,19 +13,31 @@
  */
 package com.facebook.presto.hive.metastore;
 
+import com.facebook.presto.hive.authentication.UserGroupInformationUtils;
 import com.facebook.presto.hive.metastore.thrift.BridgingHiveMetastore;
 import com.facebook.presto.hive.metastore.thrift.HiveCluster;
 import com.facebook.presto.hive.metastore.thrift.HiveMetastoreClient;
 import com.facebook.presto.hive.metastore.thrift.MockHiveMetastoreClient;
+import com.facebook.presto.hive.metastore.thrift.MockThriftHiveMetastoreClient;
 import com.facebook.presto.hive.metastore.thrift.ThriftHiveMetastore;
 import com.facebook.presto.hive.metastore.thrift.ThriftHiveMetastoreStats;
+import com.facebook.presto.spi.PrestoException;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.units.Duration;
+import org.apache.hadoop.hive.thrift.DelegationTokenIdentifier;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.token.Token;
+import org.apache.thrift.transport.TTransportException;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +53,7 @@ import static java.util.concurrent.Executors.newCachedThreadPool;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.fail;
 
 @Test(singleThreaded = true)
 public class TestCachingHiveMetastore
@@ -98,6 +111,53 @@ public class TestCachingHiveMetastore
     public void testInvalidDbGetAllTAbles()
     {
         assertFalse(metastore.getAllTables(BAD_DATABASE).isPresent());
+    }
+
+    @Test
+    public void testCreateDatabaseWithImpersonation()
+    {
+        try {
+            MockThriftHiveMetastoreClient mockHMSClient = new MockThriftHiveMetastoreClient();
+            mockClient.setHMSClient(mockHMSClient);
+            assertEquals(mockHMSClient.getAccessCount(), 0);
+            String realUser = "testUser";
+            Database db = new Database("test", Optional.empty(), realUser, PrincipalType.USER, Optional.empty(), ImmutableMap.of());
+            UserGroupInformationUtils.executeActionInDoAs(UserGroupInformation.createRemoteUser(realUser), () -> {
+                metastore.createDatabase(db);
+                return null;
+            });
+            assertEquals(mockHMSClient.getAccessCount(), 1);
+            Token<DelegationTokenIdentifier> token = mockHMSClient.getTokenCreated();
+            ByteArrayInputStream buf = new ByteArrayInputStream(token.getIdentifier());
+            DataInputStream in = new DataInputStream(buf);
+            DelegationTokenIdentifier id = new DelegationTokenIdentifier();
+            id.readFields(in);
+            assertEquals(id.getOwner(), new Text(realUser));
+        }
+        catch (IOException ioe) {
+            fail(ioe.getMessage());
+        }
+        catch (TTransportException e) {
+            fail(e.getMessage());
+        }
+    }
+
+    @Test(expectedExceptions = PrestoException.class, expectedExceptionsMessageRegExp = "HIVE_METASTORE_ERROR")
+    public void testCreateDatabaseWithImpersonationWithError()
+    {
+        try {
+            MockThriftHiveMetastoreClient mockHMSClient = new MockThriftHiveMetastoreClient();
+            mockHMSClient.setThrowException(true);
+            mockClient.setHMSClient(mockHMSClient);
+            Database db = new Database("test", Optional.empty(), "test", PrincipalType.USER, Optional.empty(), ImmutableMap.of());
+            UserGroupInformationUtils.executeActionInDoAs(UserGroupInformation.createRemoteUser("testUser"), () -> {
+                metastore.createDatabase(db);
+                return null;
+            });
+        }
+        catch (TTransportException e) {
+            fail(e.getMessage());
+        }
     }
 
     @Test
