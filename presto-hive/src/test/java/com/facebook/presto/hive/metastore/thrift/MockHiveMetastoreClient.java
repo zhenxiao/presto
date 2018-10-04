@@ -57,6 +57,7 @@ public class MockHiveMetastoreClient
 
     private final AtomicInteger accessCount = new AtomicInteger();
     private boolean throwException;
+    private MockThriftHiveMetastoreClient hmsClient;
 
     public void setThrowException(boolean throwException)
     {
@@ -66,6 +67,11 @@ public class MockHiveMetastoreClient
     public int getAccessCount()
     {
         return accessCount.get();
+    }
+
+    public void setHMSClient(MockThriftHiveMetastoreClient client)
+    {
+        hmsClient = client;
     }
 
     @Override
@@ -81,7 +87,7 @@ public class MockHiveMetastoreClient
     @Override
     public Client getHMSClient()
     {
-        return null;
+        return hmsClient;
     }
 
     @Override
@@ -220,7 +226,6 @@ public class MockHiveMetastoreClient
     @Override
     public void createDatabase(Database database)
     {
-        throw new UnsupportedOperationException();
     }
 
     @Override
