@@ -14,13 +14,12 @@
 package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
-import com.facebook.presto.spi.RecordSet;
-import com.facebook.presto.spi.connector.ConnectorRecordSetProvider;
+import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.google.common.collect.ImmutableList;
-import io.airlift.log.Logger;
 
 import javax.inject.Inject;
 
@@ -30,16 +29,15 @@ import static com.facebook.presto.pinot.Types.checkType;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
-public class PinotRecordSetProvider
-        implements ConnectorRecordSetProvider
+public class PinotPageSourceProvider
+        implements ConnectorPageSourceProvider
 {
-    private static final Logger log = Logger.get(PinotRecordSetProvider.class);
     private final String connectorId;
     private final PinotConfig pinotConfig;
     private final PinotScatterGatherQueryClient pinotQueryClient;
 
     @Inject
-    public PinotRecordSetProvider(PinotConnectorId connectorId, PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient)
+    public PinotPageSourceProvider(PinotConnectorId connectorId, PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
         this.pinotConfig = requireNonNull(pinotConfig, "pinotConfig is null");
@@ -47,7 +45,7 @@ public class PinotRecordSetProvider
     }
 
     @Override
-    public RecordSet getRecordSet(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorSplit split, List<? extends ColumnHandle> columns)
+    public ConnectorPageSource createPageSource(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorSplit split, List<ColumnHandle> columns)
     {
         requireNonNull(split, "partitionChunk is null");
         PinotSplit pinotSplit = checkType(split, PinotSplit.class, "split");
@@ -55,6 +53,8 @@ public class PinotRecordSetProvider
 
         ImmutableList.Builder<PinotColumnHandle> handles = ImmutableList.builder();
         if (columns.isEmpty()) {
+            // For COUNT(*) and COUNT(1), no columns are passed down to Pinot
+            // Since this is the only known type of queries for this scenario, we just select time column from Pinot to facilitate the COUNT
             handles.add(new PinotColumnHandle(this.connectorId, pinotSplit.getTimeColumn().getName(), pinotSplit.getTimeColumn().getType(), 0));
         }
         else {
@@ -62,6 +62,6 @@ public class PinotRecordSetProvider
                 handles.add(checkType(handle, PinotColumnHandle.class, "handle"));
             }
         }
-        return new PinotRecordSet(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles.build());
+        return new PinotPageSource(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles.build());
     }
 }

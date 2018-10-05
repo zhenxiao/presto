@@ -118,7 +118,7 @@ public class PinotMetadata
     {
         PinotTableHandle tableHandle = checkType(table, PinotTableHandle.class, "table");
         tableHandle.setConstraintSummary(constraint.getSummary());
-        ConnectorTableLayout layout = new ConnectorTableLayout(new PinotTableLayoutHandle(tableHandle));
+        ConnectorTableLayout layout = new ConnectorTableLayout(new PinotTableLayoutHandle(tableHandle, aggregations));
         return ImmutableList.of(new ConnectorTableLayoutResult(layout, constraint.getSummary()));
     }
 

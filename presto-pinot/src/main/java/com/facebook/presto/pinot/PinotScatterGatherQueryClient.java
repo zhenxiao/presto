@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PinotScatterGatherQueryClient
 {
-    private static final Logger log = Logger.get(PinotRecordSet.class);
+    private static final Logger log = Logger.get(PinotScatterGatherQueryClient.class);
     private static final Pql2Compiler REQUEST_COMPILER = new Pql2Compiler();
     private static final String PRESTO_HOST_PREFIX = "presto-pinot-master";
     private static final boolean DEFAULT_EMIT_TABLE_LEVEL_METRICS = true;

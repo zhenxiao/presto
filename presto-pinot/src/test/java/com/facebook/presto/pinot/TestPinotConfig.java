@@ -24,15 +24,15 @@ public class TestPinotConfig
     @Test
     public void testDefaults()
     {
-        ConfigAssertions.assertRecordedDefaults(ConfigAssertions.recordDefaults(PinotConfig.class).setZkUrl(null).setPinotCluster(null).setPinotClusterEnv(null).setControllerUrl(null).setIdleTimeoutMs(null).setLimitAll(null).setLimitLarge(null).setLimitMedium(null).setMaxBacklogPerServer(null).setMaxConnectionsPerServer(null).setMinConnectionsPerServer(null).setThreadPoolSize(null));
+        ConfigAssertions.assertRecordedDefaults(ConfigAssertions.recordDefaults(PinotConfig.class).setZkUrl(null).setPinotCluster(null).setPinotClusterEnv(null).setControllerUrl(null).setIdleTimeoutMs(null).setLimitAll(null).setLimitLarge(null).setLimitMedium(null).setMaxBacklogPerServer(null).setMaxConnectionsPerServer(null).setMinConnectionsPerServer(null).setThreadPoolSize(null).setEstimatedSizeInBytesForNonNumericColumn(20));
     }
 
     @Test
     public void testExplicitPropertyMappings()
     {
-        Map<String, String> properties = new ImmutableMap.Builder<String, String>().put("zk-uri", "localhost:2181").put("pinot-cluster", "upinot").put("pinot-cluster-env", "adhoc2").put("controller-url", "localhost:15982").put("idle-timeout-ms", "20000").put("limit-all", "2147483646").put("limit-large", "10000000").put("limit-medium", "100000").put("max-backlog-per-server", "15").put("max-connections-per-server", "10").put("min-connections-per-server", "1").put("thread-pool-size", "100").build();
+        Map<String, String> properties = new ImmutableMap.Builder<String, String>().put("zk-uri", "localhost:2181").put("pinot-cluster", "upinot").put("pinot-cluster-env", "adhoc2").put("controller-url", "localhost:15982").put("idle-timeout-ms", "20000").put("limit-all", "2147483646").put("limit-large", "10000000").put("limit-medium", "100000").put("max-backlog-per-server", "15").put("max-connections-per-server", "10").put("min-connections-per-server", "1").put("thread-pool-size", "100").put("estimated-size-in-bytes-for-non-numeric-column", "30").build();
 
-        PinotConfig expected = new PinotConfig().setZkUrl("localhost:2181").setPinotCluster("upinot").setPinotClusterEnv("adhoc2").setControllerUrl("localhost:15982").setIdleTimeoutMs("20000").setLimitAll("2147483646").setLimitLarge("10000000").setLimitMedium("100000").setMaxBacklogPerServer("15").setMaxConnectionsPerServer("10").setMinConnectionsPerServer("1").setThreadPoolSize("100");
+        PinotConfig expected = new PinotConfig().setZkUrl("localhost:2181").setPinotCluster("upinot").setPinotClusterEnv("adhoc2").setControllerUrl("localhost:15982").setIdleTimeoutMs("20000").setLimitAll("2147483646").setLimitLarge("10000000").setLimitMedium("100000").setMaxBacklogPerServer("15").setMaxConnectionsPerServer("10").setMinConnectionsPerServer("1").setThreadPoolSize("100").setEstimatedSizeInBytesForNonNumericColumn(30);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }

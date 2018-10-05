@@ -15,7 +15,7 @@ package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
-import com.facebook.presto.spi.connector.ConnectorRecordSetProvider;
+import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.transaction.IsolationLevel;
@@ -34,15 +34,15 @@ public class PinotConnector
     private final LifeCycleManager lifeCycleManager;
     private final PinotMetadata metadata;
     private final PinotSplitManager splitManager;
-    private final PinotRecordSetProvider recordSetProvider;
+    private final PinotPageSourceProvider pageSourceProvider;
 
     @Inject
-    public PinotConnector(LifeCycleManager lifeCycleManager, PinotMetadata metadata, PinotSplitManager splitManager, PinotRecordSetProvider recordSetProvider)
+    public PinotConnector(LifeCycleManager lifeCycleManager, PinotMetadata metadata, PinotSplitManager splitManager, PinotPageSourceProvider pageSourceProvider)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
-        this.recordSetProvider = requireNonNull(recordSetProvider, "recordSetProvider is null");
+        this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
     }
 
     @Override
@@ -64,9 +64,9 @@ public class PinotConnector
     }
 
     @Override
-    public ConnectorRecordSetProvider getRecordSetProvider()
+    public ConnectorPageSourceProvider getPageSourceProvider()
     {
-        return recordSetProvider;
+        return pageSourceProvider;
     }
 
     @Override

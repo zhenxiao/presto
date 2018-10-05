@@ -38,6 +38,7 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,8 +94,8 @@ public class PinotSplitManager
 
         List<ConnectorSplit> splits = new ArrayList<>();
         if (!routingTable.isEmpty()) {
-            setSplits(splits, timeColumn, routingTable, timeBoundary, getOfflineTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary(), limit);
-            setSplits(splits, timeColumn, routingTable, timeBoundary, getRealtimeTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary(), limit);
+            setSplits(splits, timeColumn, routingTable, timeBoundary, getOfflineTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary(), limit, layoutHandle.getAggregations());
+            setSplits(splits, timeColumn, routingTable, timeBoundary, getRealtimeTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary(), limit, layoutHandle.getAggregations());
         }
 
         Collections.shuffle(splits);
@@ -114,13 +115,17 @@ public class PinotSplitManager
         return null;
     }
 
-    private void setSplits(List<ConnectorSplit> splits, PinotColumn timeColumn, Map<String, Map<String, List<String>>> routingTable, Map<String, String> timeBoundary, String tableName, TupleDomain<ColumnHandle> constraintSummary, Optional<Long> optionalLimit)
+    private void setSplits(List<ConnectorSplit> splits, PinotColumn timeColumn, Map<String, Map<String, List<String>>> routingTable, Map<String, String> timeBoundary, String tableName, TupleDomain<ColumnHandle> constraintSummary, Optional<Long> optionalLimit, Optional<Map<String, List<String>>> optionalAggregations)
     {
         String pinotFilter = getSimplePredicate(constraintSummary);
         String timeFilter = "";
         long limit = -1;
         if (optionalLimit.isPresent()) {
             limit = optionalLimit.get();
+        }
+        Map<String, List<String>> aggregations = new HashMap<>();
+        if (optionalAggregations.isPresent()) {
+            aggregations = optionalAggregations.get();
         }
         if (timeBoundary.containsKey("timeColumnName") && timeBoundary.containsKey("timeColumnValue")) {
             timeFilter = getTimePredicate(getTableType(tableName), timeBoundary.get("timeColumnName"), timeBoundary.get("timeColumnValue"));
@@ -130,7 +135,7 @@ public class PinotSplitManager
                 Map<String, List<String>> hostToSegmentsMap = routingTable.get(routingTableName);
                 for (String host : hostToSegmentsMap.keySet()) {
                     for (String segment : hostToSegmentsMap.get(host)) {
-                        splits.add(new PinotSplit(connectorId, routingTableName, host, segment, timeColumn, timeFilter, pinotFilter, limit));
+                        splits.add(new PinotSplit(connectorId, routingTableName, host, segment, timeColumn, timeFilter, pinotFilter, limit, aggregations));
                     }
                 }
             }

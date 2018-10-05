@@ -44,7 +44,7 @@ public class PinotModule
         binder.bind(PinotConnector.class).in(Scopes.SINGLETON);
         binder.bind(PinotMetadata.class).in(Scopes.SINGLETON);
         binder.bind(PinotSplitManager.class).in(Scopes.SINGLETON);
-        binder.bind(PinotRecordSetProvider.class).in(Scopes.SINGLETON);
+        binder.bind(PinotPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(PinotScatterGatherQueryClient.class).in(Scopes.SINGLETON);
         binder.bind(PinotClusterInfoFetcher.class).in(Scopes.SINGLETON);
         binder.bind(PinotConnection.class).in(Scopes.SINGLETON);

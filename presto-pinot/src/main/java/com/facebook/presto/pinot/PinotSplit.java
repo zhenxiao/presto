@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.airlift.log.Logger;
 
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
@@ -37,6 +38,7 @@ public class PinotSplit
     private final String timeFilter;
     private final String pinotFilter;
     private final long limit;
+    private final Map<String, List<String>> columnAggregationMap;
 
     @JsonCreator
     public PinotSplit(
@@ -47,7 +49,8 @@ public class PinotSplit
             @JsonProperty("timeColumn") PinotColumn timeColumn,
             @JsonProperty("timeFilter") String timeFilter,
             @JsonProperty("pinotFilter") String pinotFilter,
-            @JsonProperty("limit") long limit)
+            @JsonProperty("limit") long limit,
+            @JsonProperty("aggregations") Map<String, List<String>> aggregations)
     {
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.tableName = requireNonNull(tableName, "table name is null");
@@ -59,6 +62,7 @@ public class PinotSplit
         this.timeFilter = timeFilter;
         this.limit = limit;
         this.remotelyAccessible = true;
+        this.columnAggregationMap = aggregations;
     }
 
     @JsonProperty
@@ -126,5 +130,11 @@ public class PinotSplit
     public Object getInfo()
     {
         return this;
+    }
+
+    @JsonProperty
+    public Map<String, List<String>> getAggregations()
+    {
+        return columnAggregationMap;
     }
 }

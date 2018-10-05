@@ -17,24 +17,36 @@ import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class PinotTableLayoutHandle
         implements ConnectorTableLayoutHandle
 {
     private final PinotTableHandle table;
+    private final Optional<Map<String, List<String>>> aggregations;
 
     @JsonCreator
     public PinotTableLayoutHandle(
-            @JsonProperty("table") PinotTableHandle table)
+            @JsonProperty("table") PinotTableHandle table,
+            @JsonProperty("aggregations") Optional<Map<String, List<String>>> aggregations)
     {
         this.table = table;
+        this.aggregations = aggregations;
     }
 
     @JsonProperty
     public PinotTableHandle getTable()
     {
         return table;
+    }
+
+    @JsonProperty
+    public Optional<Map<String, List<String>>> getAggregations()
+    {
+        return aggregations;
     }
 
     @Override

@@ -30,6 +30,8 @@ public class PinotConfig
     private static final long DEFAULT_LIMIT_LARGE = 10000;
     private static final long DEFAULT_LIMIT_MEDIUM = 1000;
 
+    private static final int DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN = 20;
+
     private String zkUrl;
     private String pinotCluster;
     private String pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
@@ -44,6 +46,7 @@ public class PinotConfig
     private int maxConnectionsPerServer = DEFAULT_MAX_CONNECTIONS_PER_SERVER;
     private int maxBacklogPerServer = DEFAULT_MAX_BACKLOG_PER_SERVER;
     private long idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
+    private int estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
 
     @NotNull
     public String getZkUrl()
@@ -243,6 +246,24 @@ public class PinotConfig
         }
         catch (Exception e) {
             this.idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
+        }
+        return this;
+    }
+
+    @NotNull
+    public int getEstimatedSizeInBytesForNonNumericColumn()
+    {
+        return estimatedSizeInBytesForNonNumericColumn;
+    }
+
+    @Config("estimated-size-in-bytes-for-non-numeric-column")
+    public PinotConfig setEstimatedSizeInBytesForNonNumericColumn(int estimatedSizeInBytesForNonNumericColumn)
+    {
+        try {
+            this.estimatedSizeInBytesForNonNumericColumn = Integer.valueOf(estimatedSizeInBytesForNonNumericColumn);
+        }
+        catch (Exception e) {
+            this.estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
         }
         return this;
     }
