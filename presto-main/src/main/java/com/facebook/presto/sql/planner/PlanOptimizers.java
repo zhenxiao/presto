@@ -360,6 +360,7 @@ public class PlanOptimizers
                 // EnforcePartitionFilter depends on originalConstraint
                 // Hence Add PredicatePushDown here
                 new PredicatePushDown(metadata, sqlParser),
+                new AggregationPushDown(),
 
                 simplifyOptimizer, // Should be always run after PredicatePushDown
                 new IterativeOptimizer(
@@ -374,9 +375,6 @@ public class PlanOptimizers
             builder.add(simplifyOptimizer);
         }
 
-        if (featuresConfig.isAggregationPushDown()) {
-            builder.add(new AggregationPushDown());
-        }
         builder.add(new OptimizeMixedDistinctAggregations(metadata));
         builder.add(new IterativeOptimizer(
                 stats,

@@ -557,6 +557,7 @@ public class AddExchanges
                     node.getAssignments(),
                     constraint);
 
+            Optional<Map<String, List<String>>> aggregations = BooleanLiteral.TRUE_LITERAL.equals(decomposedPredicate.getRemainingExpression()) ? node.getAggregations() : Optional.empty();
             // Layouts will be returned in order of the connector's preference
             List<TableLayoutResult> layouts = metadata.getLayouts(
                     session, node.getTable(),
@@ -565,7 +566,7 @@ public class AddExchanges
                             .map(node.getAssignments()::get)
                             .collect(toImmutableSet())),
                     decomposedPredicate.getNestedTupleDomain(),
-                    node.getAggregations());
+                    aggregations);
 
             if (layouts.isEmpty()) {
                 return emptyRelation(node.getOutputSymbols());
@@ -594,7 +595,7 @@ public class AddExchanges
                                 node.getNestedFields(),
                                 node.getJsonPaths(),
                                 node.getLimit(),
-                                node.getAggregations());
+                                aggregations);
 
                         PlanWithProperties result = new PlanWithProperties(tableScan, deriveProperties(tableScan, ImmutableList.of()));
 

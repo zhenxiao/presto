@@ -200,13 +200,14 @@ public class PickTableLayout
                 .transform(node.getAssignments()::get)
                 .intersect(node.getCurrentConstraint());
 
+        Optional<Map<String, List<String>>> aggregations = TRUE_LITERAL.equals(decomposedPredicate.getRemainingExpression()) ? node.getAggregations() : Optional.empty();
         List<TableLayoutResult> layouts = metadata.getLayouts(
                 context.getSession(),
                 node.getTable(),
                 new Constraint<>(simplifiedConstraint, bindings -> true),
                 Optional.of(ImmutableSet.copyOf(node.getAssignments().values())),
                 decomposedPredicate.getNestedTupleDomain(),
-                node.getAggregations());
+                aggregations);
         if (layouts.isEmpty()) {
             return new ValuesNode(context.getIdAllocator().getNextId(), node.getOutputSymbols(), ImmutableList.of());
         }
@@ -227,7 +228,7 @@ public class PickTableLayout
                 node.getNestedFields(),
                 node.getJsonPaths(),
                 node.getLimit(),
-                node.getAggregations());
+                aggregations);
 
         Map<ColumnHandle, Symbol> assignments = ImmutableBiMap.copyOf(node.getAssignments()).inverse();
         Expression resultingPredicate = combineConjuncts(
