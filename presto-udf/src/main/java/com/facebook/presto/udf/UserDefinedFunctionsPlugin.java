@@ -27,6 +27,7 @@ public class UserDefinedFunctionsPlugin
         return ImmutableSet.<Class<?>>builder()
                 .add(UserDefinedFunctions.class)
                 .add(VerticaDateTimeFunctions.class)
+                .add(H3HexFunctions.class)
                 .build();
     }
 }
