@@ -24,6 +24,8 @@ import org.testng.annotations.Test;
 
 import java.util.Map;
 
+import static com.facebook.presto.sql.analyzer.FeaturesConfig.JoinDistributionType.BROADCAST;
+import static com.facebook.presto.sql.analyzer.FeaturesConfig.JoinDistributionType.PARTITIONED;
 import static com.facebook.presto.sql.analyzer.FeaturesConfig.SPILLER_SPILL_PATH;
 import static com.facebook.presto.sql.analyzer.FeaturesConfig.SPILL_ENABLED;
 import static com.facebook.presto.sql.analyzer.RegexLibrary.JONI;
@@ -46,12 +48,11 @@ public class TestFeaturesConfig
                 .setMemoryCostWeight(10)
                 .setNetworkCostWeight(15)
                 .setDistributedIndexJoinsEnabled(false)
-                .setDistributedJoinsEnabled(true)
+                .setJoinDistributionType(PARTITIONED)
                 .setGroupedExecutionForAggregationEnabled(false)
                 .setFastInequalityJoins(true)
                 .setColocatedJoinsEnabled(false)
                 .setSpatialJoinsEnabled(false)
-                .setJoinReorderingEnabled(true)
                 .setRedistributeWrites(true)
                 .setScaleWriters(false)
                 .setWriterMinSize(new DataSize(32, MEGABYTE))
@@ -125,12 +126,11 @@ public class TestFeaturesConfig
                 .put("deprecated.legacy-join-using", "true")
                 .put("deprecated.legacy-row-field-ordinal-access", "true")
                 .put("distributed-index-joins-enabled", "true")
-                .put("distributed-joins-enabled", "false")
+                .put("join-distribution-type", "BROADCAST")
                 .put("grouped-execution-for-aggregation-enabled", "true")
                 .put("fast-inequality-joins", "false")
                 .put("colocated-joins-enabled", "true")
                 .put("spatial-joins-enabled", "true")
-                .put("reorder-joins", "false")
                 .put("redistribute-writes", "false")
                 .put("scale-writers", "true")
                 .put("writer-min-size", "42GB")
@@ -180,7 +180,7 @@ public class TestFeaturesConfig
                 .setIterativeOptimizerTimeout(new Duration(10, SECONDS))
                 .setEnableNewStatsCalculator(false)
                 .setDistributedIndexJoinsEnabled(true)
-                .setDistributedJoinsEnabled(false)
+                .setJoinDistributionType(BROADCAST)
                 .setDereferenceExpressionPushDown(true)
                 .setMaxStages(90)
                 .setRewriteGeoSpatialQuery(true)
@@ -188,7 +188,6 @@ public class TestFeaturesConfig
                 .setFastInequalityJoins(false)
                 .setColocatedJoinsEnabled(true)
                 .setSpatialJoinsEnabled(true)
-                .setJoinReorderingEnabled(false)
                 .setRedistributeWrites(false)
                 .setScaleWriters(true)
                 .setWriterMinSize(new DataSize(42, GIGABYTE))
