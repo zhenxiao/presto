@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static com.facebook.presto.sql.analyzer.FeaturesConfig.JoinDistributionType.BROADCAST;
 import static com.facebook.presto.sql.analyzer.FeaturesConfig.JoinDistributionType.PARTITIONED;
+import static com.facebook.presto.sql.analyzer.FeaturesConfig.JoinReorderingStrategy.NONE;
 import static com.facebook.presto.sql.analyzer.FeaturesConfig.SPILLER_SPILL_PATH;
 import static com.facebook.presto.sql.analyzer.FeaturesConfig.SPILL_ENABLED;
 import static com.facebook.presto.sql.analyzer.RegexLibrary.JONI;
@@ -53,6 +54,7 @@ public class TestFeaturesConfig
                 .setFastInequalityJoins(true)
                 .setColocatedJoinsEnabled(false)
                 .setSpatialJoinsEnabled(false)
+                .setJoinReorderingStrategy(FeaturesConfig.JoinReorderingStrategy.ELIMINATE_CROSS_JOINS)
                 .setRedistributeWrites(true)
                 .setScaleWriters(false)
                 .setWriterMinSize(new DataSize(32, MEGABYTE))
@@ -142,6 +144,7 @@ public class TestFeaturesConfig
                 .put("optimizer.dictionary-aggregation", "true")
                 .put("optimizer.push-aggregation-through-join", "false")
                 .put("optimizer.prune-nested-fields", "true")
+                .put("optimizer.join-reordering-strategy", "NONE")
                 .put("regex-library", "RE2J")
                 .put("re2j.dfa-states-limit", "42")
                 .put("re2j.dfa-retries", "42")
@@ -181,6 +184,7 @@ public class TestFeaturesConfig
                 .setEnableNewStatsCalculator(false)
                 .setDistributedIndexJoinsEnabled(true)
                 .setJoinDistributionType(BROADCAST)
+                .setJoinReorderingStrategy(NONE)
                 .setDereferenceExpressionPushDown(true)
                 .setMaxStages(90)
                 .setRewriteGeoSpatialQuery(true)
