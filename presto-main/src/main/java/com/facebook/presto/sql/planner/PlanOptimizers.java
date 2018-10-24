@@ -360,6 +360,7 @@ public class PlanOptimizers
                 // EnforcePartitionFilter depends on originalConstraint
                 // Hence Add PredicatePushDown here
                 new PredicatePushDown(metadata, sqlParser),
+                new PredicatePushDown(metadata, sqlParser),
                 new AggregationPushDown(),
 
                 simplifyOptimizer, // Should be always run after PredicatePushDown
