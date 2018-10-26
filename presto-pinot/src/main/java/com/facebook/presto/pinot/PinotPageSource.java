@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.linkedin.pinot.common.data.FieldSpec.DataType;
 import com.linkedin.pinot.common.response.ServerInstance;
 import com.linkedin.pinot.common.utils.DataTable;
+import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
@@ -47,6 +48,7 @@ import static java.util.Objects.requireNonNull;
 public class PinotPageSource
         implements ConnectorPageSource
 {
+    private static final Logger log = Logger.get(PinotPageSource.class);
     private final List<PinotColumnHandle> columnHandles;
     private List<Type> columnTypes;
 
@@ -97,7 +99,7 @@ public class PinotPageSource
     @Override
     public boolean isFinished()
     {
-        return closed || dataTableList.isEmpty();
+        return closed || (isPinotDataFetched && dataTableList.isEmpty());
     }
 
     /**
@@ -108,16 +110,20 @@ public class PinotPageSource
     @Override
     public Page getNextPage()
     {
-        if (!isPinotDataFetched) {
-            fetchPinotData();
-        }
         if (isFinished()) {
             close();
             return null;
         }
+        if (!isPinotDataFetched) {
+            fetchPinotData();
+        }
         // To reduce memory usage, remove dataTable from dataTableList once it's processed.
         if (currentDataTable != null) {
             estimatedMemoryUsageInBytes -= currentDataTable.getEstimatedSizeInBytes();
+        }
+        if (dataTableList.size() == 0) {
+            close();
+            return null;
         }
         currentDataTable = dataTableList.pop();
 
@@ -138,18 +144,22 @@ public class PinotPageSource
      */
     private void fetchPinotData()
     {
+        log.debug("Fetching data from Pinot for table %s, segment %s", split.getTableName(), split.getSegment());
         long startTimeNanos = System.nanoTime();
         Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(getPinotQuery(pinotConfig, columnHandles, split), split.getHost(), split.getSegment());
-        dataTableMap.values().stream().filter(m -> m != null).forEach(dataTable ->
-        {
-            // Store each dataTable which will later be constructed into Pages.
-            // Also update estimatedMemoryUsage, mostly represented by the size of all dataTables, using numberOfRows and fieldTypes combined as an estimate
-            int estimatedTableSizeInBytes = IntStream.rangeClosed(0, dataTable.getDataSchema().size() - 1)
-                    .map(i -> getEstimatedColumnSizeInBytes(dataTable.getDataSchema().getColumnType(i)) * dataTable.getNumberOfRows())
-                    .reduce(0, Integer::sum);
-            dataTableList.add(new PinotDataTableWithSize(dataTable, estimatedTableSizeInBytes));
-            estimatedMemoryUsageInBytes += estimatedTableSizeInBytes;
-        });
+        dataTableMap.values().stream()
+                // ignore empty tables and tables with 0 rows
+                .filter(table -> table != null && table.getNumberOfRows() > 0)
+                .forEach(dataTable ->
+                {
+                    // Store each dataTable which will later be constructed into Pages.
+                    // Also update estimatedMemoryUsage, mostly represented by the size of all dataTables, using numberOfRows and fieldTypes combined as an estimate
+                    int estimatedTableSizeInBytes = IntStream.rangeClosed(0, dataTable.getDataSchema().size() - 1)
+                            .map(i -> getEstimatedColumnSizeInBytes(dataTable.getDataSchema().getColumnType(i)) * dataTable.getNumberOfRows())
+                            .reduce(0, Integer::sum);
+                    dataTableList.add(new PinotDataTableWithSize(dataTable, estimatedTableSizeInBytes));
+                    estimatedMemoryUsageInBytes += estimatedTableSizeInBytes;
+                });
         ImmutableList.Builder<Type> types = ImmutableList.builder();
         columnHandles.stream()
                 .map(PinotColumnHandle::getColumnType)
