@@ -100,7 +100,6 @@ import com.facebook.presto.sql.planner.optimizations.ImplementIntersectAndExcept
 import com.facebook.presto.sql.planner.optimizations.IndexJoinOptimizer;
 import com.facebook.presto.sql.planner.optimizations.JsonPathPushdown;
 import com.facebook.presto.sql.planner.optimizations.LimitPushDown;
-import com.facebook.presto.sql.planner.optimizations.LimitTableScan;
 import com.facebook.presto.sql.planner.optimizations.MetadataDeleteOptimizer;
 import com.facebook.presto.sql.planner.optimizations.MetadataQueryOptimizer;
 import com.facebook.presto.sql.planner.optimizations.OptimizeMixedDistinctAggregations;
@@ -416,10 +415,6 @@ public class PlanOptimizers
 
         if (featuresConfig.isJsonPathPushDown()) {
             builder.add(new JsonPathPushdown());
-        }
-
-        if (featuresConfig.isLimitTableScan()) {
-            builder.add(new LimitTableScan());
         }
 
         builder.add(new PredicatePushDown(metadata, sqlParser)); // Run predicate push down one more time in case we can leverage new information from layouts' effective predicate

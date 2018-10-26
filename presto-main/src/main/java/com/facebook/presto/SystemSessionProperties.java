@@ -107,7 +107,6 @@ public final class SystemSessionProperties
     public static final String PRUNE_NESTED_FIELDS = "prune_nested_fields";
     public static final String QUERY_SUBMIT_USER = "query_submit_user";
     public static final String JSON_PATH_PUSHDOWN = "json_path_pushdown";
-    public static final String LIMIT_TABLE_SCAN = "limit_table_scan";
     public static final String PARTITION_FILTER = "enforce_partition_filter";
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
     public static final String REWRITE_GEOSPATIAL_QUERY = "rewrite_geospatial_query";
@@ -489,11 +488,6 @@ public final class SystemSessionProperties
                         "Prefer splitting aggregations into partial and final stages",
                         featuresConfig.isPreferPartialAggregation(),
                         false),
-                booleanSessionProperty(
-                        LIMIT_TABLE_SCAN,
-                        "limit table scan",
-                        featuresConfig.isLimitTableScan(),
-                        false),
                 integerSessionProperty(
                         MAX_GROUPING_SETS,
                         "Maximum number of grouping sets in a GROUP BY",
@@ -848,11 +842,6 @@ public final class SystemSessionProperties
     public static boolean isJsonPathPushDown(Session session)
     {
         return session.getSystemProperty(JSON_PATH_PUSHDOWN, Boolean.class);
-    }
-
-    public static boolean isLimitTableScan(Session session)
-    {
-        return session.getSystemProperty(LIMIT_TABLE_SCAN, Boolean.class);
     }
 
     public static int getMaxGroupingSets(Session session)

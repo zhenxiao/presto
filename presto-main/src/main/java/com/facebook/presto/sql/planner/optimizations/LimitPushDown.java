@@ -27,6 +27,7 @@ import com.facebook.presto.sql.planner.plan.ProjectNode;
 import com.facebook.presto.sql.planner.plan.SemiJoinNode;
 import com.facebook.presto.sql.planner.plan.SimplePlanRewriter;
 import com.facebook.presto.sql.planner.plan.SortNode;
+import com.facebook.presto.sql.planner.plan.TableScanNode;
 import com.facebook.presto.sql.planner.plan.TopNNode;
 import com.facebook.presto.sql.planner.plan.UnionNode;
 import com.facebook.presto.sql.planner.plan.ValuesNode;
@@ -107,6 +108,27 @@ public class LimitPushDown
                 rewrittenNode = new LimitNode(idAllocator.getNextId(), rewrittenNode, limit.getCount(), limit.isPartial());
             }
             return rewrittenNode;
+        }
+
+        @Override
+        public PlanNode visitTableScan(TableScanNode node, RewriteContext<LimitContext> context)
+        {
+            LimitContext limit = context.get();
+            if (limit == null) {
+                return node;
+            }
+            return new TableScanNode(
+                    node.getId(),
+                    node.getTable(),
+                    node.getOutputSymbols(),
+                    node.getAssignments(),
+                    node.getLayout(),
+                    node.getCurrentConstraint(),
+                    node.getOriginalConstraint(),
+                    node.getNestedFields(),
+                    node.getJsonPaths(),
+                    Optional.of(limit.getCount()),
+                    node.getAggregations());
         }
 
         @Override

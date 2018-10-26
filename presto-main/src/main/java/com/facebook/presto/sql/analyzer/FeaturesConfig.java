@@ -92,7 +92,6 @@ public class FeaturesConfig
     private boolean dictionaryAggregation;
     private boolean pruneNestedFields;
     private boolean jsonPathPushDown;
-    private boolean limitTableScan;
     private boolean aggregationPushDown;
 
     private boolean partitionFilteringEnforced;
@@ -833,18 +832,6 @@ public class FeaturesConfig
     public FeaturesConfig setJsonPathPushDown(boolean jsonPathPushDown)
     {
         this.jsonPathPushDown = jsonPathPushDown;
-        return this;
-    }
-
-    public boolean isLimitTableScan()
-    {
-        return limitTableScan;
-    }
-
-    @Config("optimizer.limit-table-scan")
-    public FeaturesConfig setLimitTableScan(boolean limitTableScan)
-    {
-        this.limitTableScan = limitTableScan;
         return this;
     }
 

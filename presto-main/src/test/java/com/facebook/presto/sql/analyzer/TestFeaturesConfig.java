@@ -102,7 +102,6 @@ public class TestFeaturesConfig
                 .setAggregationPushDown(false)
                 .setDereferenceExpressionPushDown(false)
                 .setJsonPathPushDown(false)
-                .setLimitTableScan(false)
                 .setMaxStages(100)
                 .setPartitionFilteringEnforced(false)
                 .setPartitionFilteringTables("")
@@ -173,7 +172,6 @@ public class TestFeaturesConfig
                 .put("optimizer.partition-filtering-enforced", "true")
                 .put("optimizer.partition-filtering-tables", "dwh.a:hdrone.b")
                 .put("optimizer.json-path-pushdown", "true")
-                .put("optimizer.limit-table-scan", "true")
                 .put("optimizer.aggregation-pushdown", "true")
                 .build();
 
@@ -237,7 +235,6 @@ public class TestFeaturesConfig
                 .setMaxGroupingSets(2047)
                 .setSpillerThreads(42)
                 .setJsonPathPushDown(true)
-                .setLimitTableScan(true)
                 .setAggregationPushDown(true)
                 .setPartitionFilteringEnforced(true)
                 .setPartitionFilteringTables("dwh.a:hdrone.b");
