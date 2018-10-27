@@ -117,7 +117,7 @@ public class LimitPushDown
             if (limit == null) {
                 return node;
             }
-            return new TableScanNode(
+            TableScanNode rewrittenNode = new TableScanNode(
                     node.getId(),
                     node.getTable(),
                     node.getOutputSymbols(),
@@ -129,6 +129,7 @@ public class LimitPushDown
                     node.getJsonPaths(),
                     Optional.of(limit.getCount()),
                     node.getAggregations());
+            return new LimitNode(idAllocator.getNextId(), rewrittenNode, limit.getCount(), limit.isPartial());
         }
 
         @Override
