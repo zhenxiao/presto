@@ -60,7 +60,8 @@ public class PinotClusterInfoFetcher
     private static final CloseableHttpClient httpClient = HttpClients.createDefault();
     private final String controllerUrl;
     private static String clusterEnv;
-    private final DynamicBrokerSelector dynamicBrokerSelector;
+    private final String zkServers;
+    private DynamicBrokerSelector dynamicBrokerSelector;
     private String instanceId = "Presto_pinot_master";
 
     @Inject
@@ -72,8 +73,7 @@ public class PinotClusterInfoFetcher
     public PinotClusterInfoFetcher(String zkUrl, String pinotCluster, String controllerUrl, String clusterEnv) throws SocketException, UnknownHostException
     {
         log.info("Trying to init PinotClusterInfoFetcher with Zookeeper: %s, PinotCluster %s, ControllerUrl: %s.", zkUrl, pinotCluster, controllerUrl);
-        String zkServers = zkUrl + "/" + pinotCluster;
-        dynamicBrokerSelector = new DynamicBrokerSelector(zkServers);
+        zkServers = zkUrl + "/" + pinotCluster;
         try {
             instanceId = instanceId + "_" + NetUtil.getHostAddress();
         }
@@ -143,6 +143,9 @@ public class PinotClusterInfoFetcher
 
     public String getBrokerHost(String table) throws Exception
     {
+        if (dynamicBrokerSelector == null) {
+            dynamicBrokerSelector = new DynamicBrokerSelector(zkServers);
+        }
         return this.dynamicBrokerSelector.selectBroker(table);
     }
 
