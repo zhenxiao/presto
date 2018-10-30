@@ -15,18 +15,22 @@ package com.facebook.presto.redirect;
 
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.server.redirect.MaxTasksRule;
-import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.server.redirect.RedirectRule;
+import com.facebook.presto.server.redirect.RedirectRulesSpec;
 import com.facebook.presto.server.testing.TestingPrestoServer;
 import com.facebook.presto.sql.parser.SqlParserOptions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HostAndPort;
+import com.google.common.net.MediaType;
 import io.airlift.http.client.HttpClient;
 import io.airlift.http.client.Request;
+import io.airlift.http.client.StringResponseHandler;
 import io.airlift.http.client.jetty.JettyHttpClient;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
+
+import javax.ws.rs.core.HttpHeaders;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -39,12 +43,16 @@ import static com.facebook.presto.SystemSessionProperties.QUERY_SUBMIT_USER;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SOURCE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_USER;
+import static com.facebook.presto.server.redirect.RedirectRulesSpec.CODEC;
 import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
+import static io.airlift.http.client.JsonBodyGenerator.jsonBodyGenerator;
 import static io.airlift.http.client.JsonResponseHandler.createJsonResponseHandler;
 import static io.airlift.http.client.Request.Builder.preparePost;
 import static io.airlift.http.client.StaticBodyGenerator.createStaticBodyGenerator;
+import static io.airlift.http.client.StringResponseHandler.createStringResponseHandler;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static javax.ws.rs.core.Response.Status.OK;
 import static org.testng.Assert.assertEquals;
 
 public class TestRedirect
@@ -103,6 +111,24 @@ public class TestRedirect
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), secondaryServer);
     }
 
+    @Test
+    public void testUpdateRedirectRule()
+    {
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), secondaryServer);
+
+        URI uri = uriBuilderFrom(primaryServer.resolve("/v1/statement/redirect")).build();
+        RedirectRulesSpec redirectRulesSpec = new RedirectRulesSpec(ImmutableList.of(), null);
+        Request request = preparePost()
+                .setUri(uri)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
+                .setBodyGenerator(jsonBodyGenerator(CODEC, redirectRulesSpec))
+                .build();
+        StringResponseHandler.StringResponse response = client.execute(request, createStringResponseHandler());
+        assertEquals(OK.getStatusCode(), response.getStatusCode());
+
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), primaryServer);
+    }
+
     private void assertQueryDestination(Map<String, String> headers, TestingPrestoServer testingPrestoServer)
     {
         assertQueryDestination(headers, primaryServer, testingPrestoServer);
@@ -131,7 +157,7 @@ public class TestRedirect
     {
         File tempFile = File.createTempFile("pattern", ".suffix");
         BufferedWriter out = new BufferedWriter(new FileWriter(tempFile));
-        out.write(RedirectManager.CODEC.toJson(new RedirectManager.RedirectRulesSpec(rules, maxTasksRule)));
+        out.write(CODEC.toJson(new RedirectRulesSpec(rules, maxTasksRule)));
         out.close();
         return new TestingPrestoServer(true, ImmutableMap.of("redirect.config-file", tempFile.getPath()), null, null, new SqlParserOptions(), ImmutableList.of());
     }

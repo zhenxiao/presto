@@ -23,6 +23,7 @@ import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.HttpRequestSessionContext;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.server.redirect.RedirectManager;
+import com.facebook.presto.server.redirect.RedirectRulesSpec;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.google.common.collect.Ordering;
@@ -34,6 +35,7 @@ import io.airlift.units.Duration;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
@@ -82,6 +84,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static javax.ws.rs.core.MediaType.TEXT_PLAIN;
 
 @Path("/v1/statement")
 public class StatementResource
@@ -125,6 +128,26 @@ public class StatementResource
     public void stop()
     {
         queryPurger.shutdownNow();
+    }
+
+    @POST
+    @Path("redirect")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(TEXT_PLAIN)
+    public Response updateRedirectRule(RedirectRulesSpec spec)
+            throws WebApplicationException
+    {
+        requireNonNull(spec, "redirect spec is null");
+        try {
+            redirectManager.reset(spec);
+        }
+        catch (Throwable e) {
+            return Response.status(Status.BAD_REQUEST)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity("Failed to update redirect rules")
+                    .build();
+        }
+        return Response.ok().build();
     }
 
     @POST
