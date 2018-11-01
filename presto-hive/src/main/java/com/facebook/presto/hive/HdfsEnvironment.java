@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 public class HdfsEnvironment
@@ -217,7 +218,11 @@ public class HdfsEnvironment
         public HdfsCallerContextSetter(HdfsContext hdfsContext)
         {
             originalContext = CallerContext.getCurrent();
-            CallerContext.setCurrent(new CallerContext.Builder(hdfsContext.toString()).build());
+            String contextStr = format("presto:qid=%s,u=%s,src=%s",
+                    hdfsContext.getQueryId().isPresent() ? hdfsContext.getQueryId().get() : "",
+                    hdfsContext.getIdentity() != null ? hdfsContext.getIdentity().getUser() : "",
+                    hdfsContext.getSource().isPresent() ? hdfsContext.getSource().get() : "");
+            CallerContext.setCurrent(new CallerContext.Builder(contextStr).build());
         }
 
         @Override
