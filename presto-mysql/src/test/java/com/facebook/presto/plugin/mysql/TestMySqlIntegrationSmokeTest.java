@@ -117,15 +117,15 @@ public class TestMySqlIntegrationSmokeTest
                 .setSchema("test_database")
                 .build();
 
-        assertFalse(getQueryRunner().tableExists(session, "test_table"));
+        assertFalse(getQueryRunner().tableExists(session, "TestTable"));
 
-        assertUpdate(session, "CREATE TABLE test_table AS SELECT 123 x", 1);
-        assertTrue(getQueryRunner().tableExists(session, "test_table"));
+        assertUpdate(session, "CREATE TABLE TestTable AS SELECT 123 x", 1);
+        assertTrue(getQueryRunner().tableExists(session, "TestTable"));
 
-        assertQuery(session, "SELECT * FROM test_table", "SELECT 123");
+        assertQuery(session, "SELECT * FROM TestTable", "SELECT 123");
 
-        assertUpdate(session, "DROP TABLE test_table");
-        assertFalse(getQueryRunner().tableExists(session, "test_table"));
+        assertUpdate(session, "DROP TABLE TestTable");
+        assertFalse(getQueryRunner().tableExists(session, "TestTable"));
     }
 
     @Test
