@@ -22,9 +22,10 @@ import static java.util.Objects.requireNonNull;
 public class QueryStatistics
 {
     private final int totalTasks;
-    private final Duration cpuTime;
-    private final Duration wallTime;
-    private final Duration queuedTime;
+    private final Duration cpuTime; // aggregate across all tasks
+    private final Duration wallTime; // aggregate across all tasks
+    private final Duration queuedTime; // aggregate across all tasks
+    private final Duration blockedTime; // aggregate across all tasks
     private final Optional<Duration> analysisTime;
     private final Optional<Duration> distributedPlanningTime;
 
@@ -55,6 +56,7 @@ public class QueryStatistics
             Duration cpuTime,
             Duration wallTime,
             Duration queuedTime,
+            Duration blockedTime,
             Optional<Duration> analysisTime,
             Optional<Duration> distributedPlanningTime,
             long peakUserMemoryBytes,
@@ -77,6 +79,7 @@ public class QueryStatistics
         this.cpuTime = requireNonNull(cpuTime, "cpuTime is null");
         this.wallTime = requireNonNull(wallTime, "wallTime is null");
         this.queuedTime = requireNonNull(queuedTime, "queuedTime is null");
+        this.blockedTime = requireNonNull(blockedTime, "blockedTime is null");
         this.analysisTime = requireNonNull(analysisTime, "analysisTime is null");
         this.distributedPlanningTime = requireNonNull(distributedPlanningTime, "distributedPlanningTime is null");
         this.peakUserMemoryBytes = peakUserMemoryBytes;
@@ -109,6 +112,11 @@ public class QueryStatistics
     public Duration getQueuedTime()
     {
         return queuedTime;
+    }
+
+    public Duration getBlockedTime()
+    {
+        return blockedTime;
     }
 
     public Optional<Duration> getAnalysisTime()

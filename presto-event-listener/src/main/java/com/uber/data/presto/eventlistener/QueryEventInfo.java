@@ -60,7 +60,9 @@ public class QueryEventInfo
     private long elapsedTime;
     private long queuedTime;
     private double memory;
-    private long cpuTime;
+    private long cpuTime; // aggregate across all tasks
+    private long wallTime; // aggregate across all tasks
+    private long blockedTime; // aggregate across all tasks
     private long analysisTime;
     private long distributedPlanningTime;
     private long totalDrivers;          // aka completedSplits
@@ -196,6 +198,8 @@ public class QueryEventInfo
         this.queuedTime = queryStatistics.getQueuedTime().toMillis();
         this.memory = queryStatistics.getCumulativeMemory();
         this.cpuTime = queryStatistics.getCpuTime().getSeconds();
+        this.wallTime = queryStatistics.getWallTime().getSeconds();
+        this.blockedTime = queryStatistics.getBlockedTime().getSeconds();
         this.analysisTime = queryStatistics.getAnalysisTime().orElse(Duration.ZERO).toMillis();
         this.distributedPlanningTime = queryStatistics.getDistributedPlanningTime().orElse(Duration.ZERO).toMillis();
         this.totalDrivers = queryStatistics.getCompletedSplits();
@@ -304,6 +308,8 @@ public class QueryEventInfo
         map.put("queuedTime", this.queuedTime);
         map.put("memory", this.memory);
         map.put("cpuTime", this.cpuTime);
+        map.put("wallTime", this.wallTime);
+        map.put("blockedTime", this.blockedTime);
         map.put("analysisTime", this.analysisTime);
         map.put("distributedPlanningTime", this.distributedPlanningTime);
         map.put("totalDrivers", this.totalDrivers);

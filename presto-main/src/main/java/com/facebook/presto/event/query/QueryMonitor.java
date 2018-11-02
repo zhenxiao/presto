@@ -233,6 +233,7 @@ public class QueryMonitor
                                     ofMillis(queryStats.getTotalCpuTime().toMillis()),
                                     ofMillis(queryStats.getTotalScheduledTime().toMillis()),
                                     ofMillis(queryStats.getQueuedTime().toMillis()),
+                                    ofMillis(queryStats.getTotalBlockedTime().toMillis()),
                                     Optional.ofNullable(queryStats.getAnalysisTime()).map(duration -> ofMillis(duration.toMillis())),
                                     Optional.ofNullable(queryStats.getDistributedPlanningTime()).map(duration -> ofMillis(duration.toMillis())),
                                     queryStats.getPeakUserMemoryReservation().toBytes(),
