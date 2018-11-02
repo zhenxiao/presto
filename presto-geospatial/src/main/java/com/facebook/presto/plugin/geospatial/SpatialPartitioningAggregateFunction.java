@@ -22,7 +22,7 @@ import com.facebook.presto.spi.function.SqlType;
 import com.facebook.presto.spi.type.StandardTypes;
 import io.airlift.slice.Slice;
 
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY_TYPE_NAME;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.plugin.geospatial.SpatialPartitioningAggregateFunction.NAME;
 
 @AggregationFunction(value = NAME, decomposable = false)

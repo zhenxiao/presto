@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.CharType.createCharType;
@@ -147,6 +148,7 @@ public final class TypeRegistry
         addType(JSON);
         addType(CODE_POINTS);
         addType(IPADDRESS);
+        addType(GEOMETRY);
         addParametricType(VarcharParametricType.VARCHAR);
         addParametricType(CharParametricType.CHAR);
         addParametricType(DecimalParametricType.DECIMAL);
@@ -607,6 +609,16 @@ public final class TypeRegistry
                         return Optional.of(JSON_PATH);
                     case CodePointsType.NAME:
                         return Optional.of(CODE_POINTS);
+                    case StandardTypes.GEOMETRY:
+                        return Optional.of(GEOMETRY);
+                    default:
+                        return Optional.empty();
+                }
+            }
+            case StandardTypes.VARBINARY: {
+                switch (resultTypeBase) {
+                    case StandardTypes.GEOMETRY:
+                        return Optional.of(GEOMETRY);
                     default:
                         return Optional.empty();
                 }
@@ -630,6 +642,8 @@ public final class TypeRegistry
                         return Optional.of(JSON_PATH);
                     case CodePointsType.NAME:
                         return Optional.of(CODE_POINTS);
+                    case StandardTypes.GEOMETRY:
+                        return Optional.of(GEOMETRY);
                     default:
                         return Optional.empty();
                 }

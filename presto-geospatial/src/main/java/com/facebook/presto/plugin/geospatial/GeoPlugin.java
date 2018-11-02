@@ -16,6 +16,8 @@ package com.facebook.presto.plugin.geospatial;
 import com.facebook.presto.plugin.geospatial.BingTileFunctions.BingTileCoordinatesFunction;
 import com.facebook.presto.plugin.geospatial.aggregation.ConvexHullAggregation;
 import com.facebook.presto.plugin.geospatial.aggregation.GeometryUnionAgg;
+import com.facebook.presto.plugin.geospatial.geoindex.AggregateGeoData;
+import com.facebook.presto.plugin.geospatial.geoindex.GeoIndexFunctions;
 import com.facebook.presto.spi.Plugin;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
@@ -24,7 +26,6 @@ import com.google.common.collect.ImmutableSet;
 import java.util.Set;
 
 import static com.facebook.presto.plugin.geospatial.BingTileType.BING_TILE;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY;
 import static com.facebook.presto.plugin.geospatial.KdbTreeType.KDB_TREE;
 import static com.facebook.presto.plugin.geospatial.SphericalGeographyType.SPHERICAL_GEOGRAPHY;
 
@@ -34,7 +35,7 @@ public class GeoPlugin
     @Override
     public Iterable<Type> getTypes()
     {
-        return ImmutableList.of(GEOMETRY, BING_TILE, KDB_TREE, SPHERICAL_GEOGRAPHY);
+        return ImmutableList.of(BING_TILE, KDB_TREE, SPHERICAL_GEOGRAPHY);
     }
 
     @Override
@@ -42,6 +43,9 @@ public class GeoPlugin
     {
         return ImmutableSet.<Class<?>>builder()
                 .add(GeoFunctions.class)
+                .add(VarcharSupportGeoFunctions.class)
+                .add(AggregateGeoData.class)
+                .add(GeoIndexFunctions.class)
                 .add(BingTileOperators.class)
                 .add(BingTileFunctions.class)
                 .add(BingTileCoordinatesFunction.class)

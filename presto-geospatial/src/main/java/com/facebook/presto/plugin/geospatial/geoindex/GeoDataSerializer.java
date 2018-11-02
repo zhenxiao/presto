@@ -11,39 +11,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.plugin.geospatial.aggregation;
+package com.facebook.presto.plugin.geospatial.geoindex;
 
-import com.facebook.presto.geospatial.serde.GeometrySerde;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
 import com.facebook.presto.spi.function.AccumulatorStateSerializer;
+import com.facebook.presto.spi.type.BigintType;
 import com.facebook.presto.spi.type.Type;
 
-import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY;
-
-public class GeometryStateSerializer
-        implements AccumulatorStateSerializer<GeometryState>
+public class GeoDataSerializer
+        implements AccumulatorStateSerializer<GeoData>
 {
     @Override
     public Type getSerializedType()
     {
-        return GEOMETRY;
+        return BigintType.BIGINT;
     }
 
     @Override
-    public void serialize(GeometryState state, BlockBuilder out)
+    public void serialize(GeoData state, BlockBuilder out)
     {
-        if (state.getGeometry() == null) {
-            out.appendNull();
-        }
-        else {
-            GEOMETRY.writeSlice(out, GeometrySerde.serialize(state.getGeometry()));
-        }
     }
 
     @Override
-    public void deserialize(Block block, int index, GeometryState state)
+    public void deserialize(Block block, int index, GeoData state)
     {
-        state.setGeometry(GeometrySerde.deserialize(GEOMETRY.getSlice(block, index)));
     }
 }

@@ -89,8 +89,8 @@ import static com.facebook.presto.geospatial.serde.GeometrySerde.deserialize;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.deserializeEnvelope;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.deserializeType;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.serialize;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY_TYPE_NAME;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.plugin.geospatial.SphericalGeographyType.SPHERICAL_GEOGRAPHY_TYPE_NAME;
 import static com.facebook.presto.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static com.facebook.presto.spi.type.StandardTypes.BIGINT;
@@ -1312,7 +1312,7 @@ public final class GeoFunctions
         }
     }
 
-    private static OGCGeometry geometryFromText(Slice input)
+    public static OGCGeometry geometryFromText(Slice input)
     {
         OGCGeometry geometry;
         try {

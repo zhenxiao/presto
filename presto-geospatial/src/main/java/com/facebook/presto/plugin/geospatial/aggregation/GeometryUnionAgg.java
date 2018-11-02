@@ -25,8 +25,8 @@ import com.facebook.presto.spi.function.OutputFunction;
 import com.facebook.presto.spi.function.SqlType;
 import io.airlift.slice.Slice;
 
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY_TYPE_NAME;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY_TYPE_NAME;
 
 /**
  * Aggregate form of ST_Union which takes a set of geometries and unions them into a single geometry using an iterative approach,

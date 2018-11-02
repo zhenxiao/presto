@@ -42,11 +42,11 @@ import java.util.Optional;
 
 import static com.facebook.presto.geospatial.KdbTree.buildKdbTree;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.serialize;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.operator.aggregation.AggregationTestUtils.createGroupByIdBlock;
 import static com.facebook.presto.operator.aggregation.AggregationTestUtils.getFinalBlock;
 import static com.facebook.presto.operator.aggregation.AggregationTestUtils.getGroupValue;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.spi.type.StandardTypes.INTEGER;
 import static com.facebook.presto.spi.type.StandardTypes.VARCHAR;
 import static com.google.common.math.DoubleMath.roundToInt;
