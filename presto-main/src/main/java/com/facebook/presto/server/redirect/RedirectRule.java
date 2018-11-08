@@ -17,6 +17,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.net.URI;
+import java.util.regex.Pattern;
 
 import static java.util.Objects.requireNonNull;
 
@@ -24,12 +25,14 @@ public class RedirectRule
 {
     private final URI hostname;
     private final String user;
+    private final Pattern pattern;
 
     @JsonCreator
     public RedirectRule(@JsonProperty("hostname") String hostname, @JsonProperty("user") String user)
     {
         this.hostname = URI.create(requireNonNull(hostname, "hostname is null"));
         this.user = requireNonNull(user, "user is null");
+        this.pattern = Pattern.compile(user);
     }
 
     @JsonProperty
@@ -42,5 +45,10 @@ public class RedirectRule
     public String getUser()
     {
         return user;
+    }
+
+    public boolean matches(String user)
+    {
+        return pattern.matcher(user).matches();
     }
 }

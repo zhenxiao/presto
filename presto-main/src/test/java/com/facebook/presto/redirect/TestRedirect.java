@@ -28,6 +28,7 @@ import io.airlift.http.client.Request;
 import io.airlift.http.client.StringResponseHandler;
 import io.airlift.http.client.jetty.JettyHttpClient;
 import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import javax.ws.rs.core.HttpHeaders;
@@ -36,7 +37,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.net.URI;
-import java.util.List;
 import java.util.Map;
 
 import static com.facebook.presto.SystemSessionProperties.QUERY_SUBMIT_USER;
@@ -66,12 +66,17 @@ public class TestRedirect
 
     private final int maxTasks = 100;
 
+    private final RedirectRulesSpec defaultRules;
+    private final RedirectRulesSpec redirectNothing;
+
     public TestRedirect()
             throws Exception
     {
         secondaryServer = new TestingPrestoServer();
         String hostname = secondaryServer.getBaseUrl().toString();
-        primaryServer = createRedirectPrestoServer(ImmutableList.of(new RedirectRule(hostname, userName)), new MaxTasksRule(hostname, maxTasks));
+        redirectNothing = new RedirectRulesSpec(ImmutableList.of(), null);
+        defaultRules = new RedirectRulesSpec(ImmutableList.of(new RedirectRule(hostname, userName)), new MaxTasksRule(hostname, maxTasks));
+        primaryServer = createRedirectPrestoServer(defaultRules);
     }
 
     @AfterClass(alwaysRun = true)
@@ -82,19 +87,22 @@ public class TestRedirect
         secondaryServer.close();
     }
 
+    @BeforeMethod
+    public void resetState()
+    {
+        updateRedirectRule(primaryServer, redirectNothing);
+    }
+
     @Test
     public void testDefault()
-            throws Exception
     {
-        TestingPrestoServer redirectPrestoServer = createRedirectPrestoServer(ImmutableList.of(), null);
-        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), redirectPrestoServer, redirectPrestoServer);
-        redirectPrestoServer.close();
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), primaryServer);
     }
 
     @Test
     public void testRedirectOnHeaders()
     {
-        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), primaryServer);
+        updateRedirectRule(primaryServer, defaultRules);
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), secondaryServer);
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy, PRESTO_SESSION, QUERY_SUBMIT_USER + "=" + userName), secondaryServer);
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy, PRESTO_SOURCE, userName), secondaryServer);
@@ -103,6 +111,7 @@ public class TestRedirect
     @Test
     public void testRedirectOnTasks()
     {
+        updateRedirectRule(primaryServer, defaultRules);
         assertEquals(primaryServer.getQueryManager().getStats().getTotalTasks(), 0);
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), primaryServer);
 
@@ -112,21 +121,30 @@ public class TestRedirect
     }
 
     @Test
-    public void testUpdateRedirectRule()
+    public void testRedirectBasedOnRegex()
     {
-        assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), secondaryServer);
+        updateRedirectRule(primaryServer, redirectNothing);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), primaryServer);
 
-        URI uri = uriBuilderFrom(primaryServer.resolve("/v1/statement/redirect")).build();
-        RedirectRulesSpec redirectRulesSpec = new RedirectRulesSpec(ImmutableList.of(), null);
+        // test redirect all but user foo
+        RedirectRulesSpec redirectEverythingButFoo = new RedirectRulesSpec(ImmutableList.of(new RedirectRule(secondaryServer.getBaseUrl().toString(), "^(?!foo).*$")), null);
+        updateRedirectRule(primaryServer, redirectEverythingButFoo);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), secondaryServer);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), secondaryServer);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, "foo"), primaryServer);
+        assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy, PRESTO_SOURCE, userName), secondaryServer);
+    }
+
+    private void updateRedirectRule(TestingPrestoServer server, RedirectRulesSpec spec)
+    {
+        URI uri = uriBuilderFrom(server.resolve("/v1/statement/redirect")).build();
         Request request = preparePost()
                 .setUri(uri)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
-                .setBodyGenerator(jsonBodyGenerator(CODEC, redirectRulesSpec))
+                .setBodyGenerator(jsonBodyGenerator(CODEC, spec))
                 .build();
         StringResponseHandler.StringResponse response = client.execute(request, createStringResponseHandler());
         assertEquals(OK.getStatusCode(), response.getStatusCode());
-
-        assertQueryDestination(ImmutableMap.of(PRESTO_USER, userName), primaryServer);
     }
 
     private void assertQueryDestination(Map<String, String> headers, TestingPrestoServer testingPrestoServer)
@@ -152,12 +170,12 @@ public class TestRedirect
         return builder.build();
     }
 
-    private TestingPrestoServer createRedirectPrestoServer(List<RedirectRule> rules, MaxTasksRule maxTasksRule)
+    private TestingPrestoServer createRedirectPrestoServer(RedirectRulesSpec spec)
             throws Exception
     {
         File tempFile = File.createTempFile("pattern", ".suffix");
         BufferedWriter out = new BufferedWriter(new FileWriter(tempFile));
-        out.write(CODEC.toJson(new RedirectRulesSpec(rules, maxTasksRule)));
+        out.write(CODEC.toJson(spec));
         out.close();
         return new TestingPrestoServer(true, ImmutableMap.of("redirect.config-file", tempFile.getPath()), null, null, new SqlParserOptions(), ImmutableList.of());
     }

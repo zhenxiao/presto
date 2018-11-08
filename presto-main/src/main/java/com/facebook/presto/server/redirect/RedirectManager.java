@@ -25,17 +25,16 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
 @ThreadSafe
 public class RedirectManager
 {
-    private AtomicReference<Map<String, URI>> redirectRules = new AtomicReference<>();
+    private AtomicReference<List<RedirectRule>> redirectRules = new AtomicReference<>();
     private AtomicReference<Optional<MaxTasksRule>> maxTasksRule = new AtomicReference<>();
 
     @Inject
@@ -78,7 +77,7 @@ public class RedirectManager
 
     public void reset(RedirectRulesSpec redirectRulesSpec)
     {
-        Map<String, URI> redirectRules = redirectRulesSpec.getRedirectRules().stream().collect(Collectors.toMap(RedirectRule::getUser, RedirectRule::getHostname));
+        List<RedirectRule> redirectRules = ImmutableList.copyOf(redirectRulesSpec.getRedirectRules());
         Optional<MaxTasksRule> clusterMaxTaskRule = Optional.ofNullable(redirectRulesSpec.getClusterMaxTaskRule());
 
         this.redirectRules.set(redirectRules);
@@ -87,7 +86,10 @@ public class RedirectManager
 
     public Optional<URI> getMatch(String user)
     {
-        return Optional.ofNullable(redirectRules.get().get(user));
+        if (user == null) {
+            return Optional.empty();
+        }
+        return redirectRules.get().stream().filter(redirectRule -> redirectRule.matches(user)).map(RedirectRule::getHostname).findFirst();
     }
 
     public Optional<URI> redirectByMaxTasks(long maxTasks)
