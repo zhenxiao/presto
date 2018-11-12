@@ -216,4 +216,10 @@
             <unpack />
         </artifact>
     </artifactSet>
+
+    <artifactSet to="plugin/uber-security">
+        <artifact id="com.uber.presto:presto-security-uber:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
 </runtime>
