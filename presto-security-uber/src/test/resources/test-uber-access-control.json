@@ -1,0 +1,81 @@
+{
+  "catalogs": [
+    {
+      "user": "presto",
+      "catalog": "jmx",
+      "allow": true
+    },
+    {
+      "catalog": "hive",
+      "allow": true
+    },
+    {
+      "catalog": "system",
+      "allow": true
+    },
+    {
+      "user" : "(alice|bob)",
+      "catalog": "elastic",
+      "allow": true
+    }
+  ],
+  "schemas": [
+    {
+      "catalog": "system",
+      "schema": "jdbc",
+      "allow": true
+    },
+    {
+      "user": "presto",
+      "catalog": "system",
+      "schema": ".*",
+      "allow": true
+    },
+    {
+      "catalog": "hive",
+      "allow": true
+    },
+    {
+      "user": "presto",
+      "catalog": "jmx",
+      "allow": true
+    },
+    {
+      "user" : "alice",
+      "catalog": "elastic",
+      "schema": "aliceschema",
+      "allow": true
+    },
+    {
+      "user" : "bob",
+      "catalog": "elastic",
+      "schema": "bobschema",
+      "allow": true
+    }
+  ],
+
+  "impersonations": [
+    {
+      "principal": "alice",
+      "user": ".*",
+      "allow": false
+    },
+    {
+      "principal": "bob",
+      "user": "alice",
+      "allow": true
+    },
+    {
+      "principal": "janus",
+      "user": ".*",
+      "allow": true
+    },
+    {
+      "principal": "presto",
+      "user": ".*",
+      "allow": true
+    }
+  ],
+
+  "kerberosRules": "RULE:[1:$1@$0](.*@CORP.UBER.COM)s/@.*//RULE:[2:$1@$0](.*@CORP.UBER.COM)s/@.*//RULE:[2:$1@$0](.*@EXAMPLE.COM)s/@.*//"
+}
