@@ -209,24 +209,26 @@ public class ElasticsearchClient
             }
         });
         for (String columnMetadata : getColumnsMetadata(null, properties)) {
-            String[] items = columnMetadata.split(":");
-            if (items.length != 2) {
+            int delimiterIndex = columnMetadata.lastIndexOf(":");
+            if (delimiterIndex == -1 || delimiterIndex == columnMetadata.length() - 1) {
                 log.debug("Invalid column path format: " + columnMetadata);
                 continue;
             }
+            String fieldName = columnMetadata.substring(0, delimiterIndex);
+            String typeName = columnMetadata.substring(delimiterIndex + 1);
 
-            if (!items[0].endsWith(".type")) {
+            if (!fieldName.endsWith(".type")) {
                 log.debug("Ignore column with no type info: " + columnMetadata);
                 continue;
             }
-            String propertyName = items[0].substring(0, items[0].lastIndexOf('.'));
+            String propertyName = fieldName.substring(0, fieldName.lastIndexOf('.'));
             String nestedName = propertyName.replaceAll("properties\\.", "");
             if (nestedName.contains(".")) {
-                fieldsMap.put(nestedName, getPrestoType(items[1]));
+                fieldsMap.put(nestedName, getPrestoType(typeName));
             }
             else {
                 if (!columns.stream().anyMatch(column -> column.getName().equalsIgnoreCase(nestedName))) {
-                    columns.add(new ElasticsearchColumn(nestedName, getPrestoType(items[1]), nestedName, items[1], arrays.contains(nestedName)));
+                    columns.add(new ElasticsearchColumn(nestedName, getPrestoType(typeName), nestedName, typeName, arrays.contains(nestedName)));
                 }
             }
         }
