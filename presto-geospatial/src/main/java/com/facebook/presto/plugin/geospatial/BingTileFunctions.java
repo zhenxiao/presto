@@ -28,8 +28,6 @@ import com.facebook.presto.spi.type.StandardTypes;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 
-import static com.esri.core.geometry.GeometryEngine.contains;
-import static com.esri.core.geometry.GeometryEngine.disjoint;
 import static com.facebook.presto.geospatial.GeometryUtils.contains;
 import static com.facebook.presto.geospatial.GeometryUtils.disjoint;
 import static com.facebook.presto.geospatial.GeometryUtils.getEnvelope;
@@ -37,8 +35,8 @@ import static com.facebook.presto.geospatial.GeometryUtils.getPointCount;
 import static com.facebook.presto.geospatial.GeometryUtils.isPointOrRectangle;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.deserialize;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.serialize;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.plugin.geospatial.BingTile.MAX_ZOOM_LEVEL;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;

@@ -71,7 +71,7 @@ import static com.facebook.presto.geospatial.serde.GeometrySerde.deserialize;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.deserializeEnvelope;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.deserializeType;
 import static com.facebook.presto.geospatial.serde.GeometrySerde.serialize;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY_TYPE_NAME;
+import static com.facebook.presto.geospatial.serde.GeometryType.GEOMETRY_TYPE_NAME;
 import static com.facebook.presto.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static com.facebook.presto.spi.type.StandardTypes.DOUBLE;
 import static com.facebook.presto.spi.type.StandardTypes.INTEGER;
@@ -543,7 +543,7 @@ public final class GeoFunctions
     @ScalarFunction("simplify_geometry")
     @SqlType(GEOMETRY_TYPE_NAME)
     public static Slice simplifyGeometry(@SqlType(GEOMETRY_TYPE_NAME) Slice input,
-                                         @SqlType(DOUBLE) double distanceTolerance)
+            @SqlType(DOUBLE) double distanceTolerance)
     {
         if (Double.isNaN(distanceTolerance)) {
             throw new PrestoException(INVALID_FUNCTION_ARGUMENT, "distanceTolerance is NaN");
@@ -893,7 +893,7 @@ public final class GeoFunctions
         }
     }
 
-    private static OGCGeometry geometryFromText(Slice input)
+    public static OGCGeometry geometryFromText(Slice input)
     {
         OGCGeometry geometry;
         try {

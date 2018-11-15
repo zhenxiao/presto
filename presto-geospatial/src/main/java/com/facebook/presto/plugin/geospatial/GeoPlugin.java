@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableSet;
 import java.util.Set;
 
 import static com.facebook.presto.plugin.geospatial.BingTileType.BING_TILE;
-import static com.facebook.presto.plugin.geospatial.GeometryType.GEOMETRY;
 
 public class GeoPlugin
         implements Plugin
@@ -30,7 +29,7 @@ public class GeoPlugin
     @Override
     public Iterable<Type> getTypes()
     {
-        return ImmutableList.of(GEOMETRY, BING_TILE);
+        return ImmutableList.of(BING_TILE);
     }
 
     @Override

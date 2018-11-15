@@ -20,6 +20,7 @@ import com.esri.core.geometry.OperatorImportFromESRIShape;
 import com.esri.core.geometry.Point;
 import com.esri.core.geometry.Polygon;
 import com.esri.core.geometry.Polyline;
+import com.esri.core.geometry.SpatialReference;
 import com.esri.core.geometry.VertexDescription;
 import com.esri.core.geometry.ogc.OGCConcreteGeometryCollection;
 import com.esri.core.geometry.ogc.OGCGeometry;
@@ -31,6 +32,7 @@ import com.esri.core.geometry.ogc.OGCMultiPolygon;
 import com.esri.core.geometry.ogc.OGCPoint;
 import com.esri.core.geometry.ogc.OGCPolygon;
 import com.facebook.presto.geospatial.GeometryType;
+import com.facebook.presto.spi.PrestoException;
 import io.airlift.slice.BasicSliceInput;
 import io.airlift.slice.DynamicSliceOutput;
 import io.airlift.slice.Slice;
@@ -39,12 +41,14 @@ import io.airlift.slice.SliceInput;
 import javax.annotation.Nullable;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.esri.core.geometry.Geometry.Type.Unknown;
 import static com.esri.core.geometry.GeometryEngine.geometryToEsriShape;
 import static com.facebook.presto.geospatial.GeometryUtils.isEsriNaN;
+import static com.facebook.presto.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static com.google.common.base.Verify.verify;
 import static java.lang.Double.NaN;
 import static java.lang.Double.isNaN;
@@ -53,6 +57,11 @@ import static java.util.Objects.requireNonNull;
 
 public class GeometrySerde
 {
+    public static final int WKID_UNKNOWN = 0;
+
+    private static final int SIZE_WKID = 4;
+    private static final int SIZE_TYPE = 1;
+
     private GeometrySerde() {}
 
     public static Slice serialize(OGCGeometry input)
@@ -374,5 +383,48 @@ public class GeometrySerde
             right.merge(left);
         }
         return right;
+    }
+
+    public static OGCGeometry geometryFromBinary(Slice shape)
+    {
+        int wkid = shape.getInt(0);
+        ByteBuffer shapeBuffer = getShapeByteBuffer(shape);
+        if (shapeBuffer.limit() < 4) {
+            return null;
+        }
+        else {
+            if (shapeBuffer.getInt(0) == Geometry.Type.Unknown.value()) {
+                return null;
+            }
+            else {
+                SpatialReference spatialReference = null;
+                if (wkid != WKID_UNKNOWN) {
+                    spatialReference = SpatialReference.create(wkid);
+                }
+                Geometry esriGeom = OperatorImportFromESRIShape.local().execute(0, Geometry.Type.Unknown, shapeBuffer);
+                OGCGeometry createdGeom = OGCGeometry.createFromEsriGeometry(esriGeom, spatialReference);
+                return createdGeom;
+            }
+        }
+    }
+
+    private static ByteBuffer getShapeByteBuffer(Slice geomref)
+    {
+        byte[] geomBytes = geomref.getBytes();
+        int offset = SIZE_WKID + SIZE_TYPE;
+        return ByteBuffer.wrap(geomBytes, offset, geomBytes.length - offset).slice().order(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static OGCGeometry geometryFromText(Slice input)
+    {
+        OGCGeometry geometry;
+        try {
+            geometry = OGCGeometry.fromText(input.toStringUtf8());
+        }
+        catch (IllegalArgumentException e) {
+            throw new PrestoException(INVALID_FUNCTION_ARGUMENT, "Invalid WKT: " + input.toStringUtf8(), e);
+        }
+        geometry.setSpatialReference(null);
+        return geometry;
     }
 }

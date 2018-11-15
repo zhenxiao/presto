@@ -42,6 +42,12 @@ public class TestVarcharSupportGeoFunctions
     }
 
     @Test
+    public void testCast()
+    {
+        assertFunction("ST_AsText(CAST(st_geometry_to_varbinary('POINT (1 4)') as GEOMETRY))", VARCHAR, "POINT (1 4)");
+    }
+
+    @Test
     public void testSTArea()
     {
         assertFunction("ST_Area(('POLYGON EMPTY'))", DOUBLE, 0.0);
