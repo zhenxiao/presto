@@ -246,11 +246,8 @@ public class ThriftHiveMetastore
                         }
                     }));
         }
-        catch (NoSuchObjectException e) {
-            return Optional.empty();
-        }
         catch (TException e) {
-            throw new PrestoException(HIVE_METASTORE_ERROR, e);
+            return Optional.empty();
         }
         catch (Exception e) {
             throw propagate(e);
@@ -275,11 +272,8 @@ public class ThriftHiveMetastore
                         }
                     }));
         }
-        catch (NoSuchObjectException e) {
-            return Optional.empty();
-        }
         catch (TException e) {
-            throw new PrestoException(HIVE_METASTORE_ERROR, e);
+            return Optional.empty();
         }
         catch (Exception e) {
             throw propagate(e);
