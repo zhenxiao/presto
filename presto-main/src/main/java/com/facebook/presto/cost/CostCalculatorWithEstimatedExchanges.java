@@ -37,7 +37,6 @@ import java.util.Optional;
 import java.util.function.IntSupplier;
 
 import static com.facebook.presto.cost.CostCalculatorUsingExchanges.currentNumberOfWorkerNodes;
-import static com.facebook.presto.cost.PlanNodeCostEstimate.ZERO_COST;
 import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.LOCAL;
 import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.REMOTE;
 import static com.facebook.presto.sql.planner.plan.ExchangeNode.Type.REPARTITION;
@@ -93,8 +92,8 @@ public class CostCalculatorWithEstimatedExchanges
         @Override
         protected PlanNodeCostEstimate visitPlan(PlanNode node, Void context)
         {
-            // TODO implement logic for other node types and return UNKNOWN_COST here (or throw)
-            return ZERO_COST;
+            // TODO implement logic for other node types and return PlanNodeCostEstimate.unknown() here (or throw)
+            return PlanNodeCostEstimate.zero();
         }
 
         @Override

@@ -125,7 +125,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.facebook.presto.connector.ConnectorId.isInternalSystemConnector;
-import static com.facebook.presto.cost.PlanNodeCostEstimate.UNKNOWN_COST;
+import static com.facebook.presto.cost.PlanNodeCostEstimate.unknown;
 import static com.facebook.presto.cost.PlanNodeStatsEstimate.UNKNOWN_STATS;
 import static com.facebook.presto.execution.StageInfo.getAllStages;
 import static com.facebook.presto.operator.PipelineExecutionStrategy.UNGROUPED_EXECUTION;
@@ -1380,7 +1380,7 @@ public class PlanPrinter
         private boolean isKnownPlanNodeStatsOrCost(PlanNode node)
         {
             return !UNKNOWN_STATS.equals(statsProvider.getStats(node))
-                    || !UNKNOWN_COST.equals(costProvider.getCumulativeCost(node));
+                    || !unknown().equals(costProvider.getCumulativeCost(node));
         }
 
         private String formatPlanNodeStatsAndCost(PlanNode node)

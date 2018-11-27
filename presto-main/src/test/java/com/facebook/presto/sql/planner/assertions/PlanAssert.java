@@ -23,7 +23,7 @@ import com.facebook.presto.sql.planner.Plan;
 import com.facebook.presto.sql.planner.iterative.Lookup;
 import com.facebook.presto.sql.planner.plan.PlanNode;
 
-import static com.facebook.presto.cost.PlanNodeCostEstimate.UNKNOWN_COST;
+import static com.facebook.presto.cost.PlanNodeCostEstimate.unknown;
 import static com.facebook.presto.sql.planner.iterative.Lookup.noLookup;
 import static com.facebook.presto.sql.planner.iterative.Plans.resolveGroupReferences;
 import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.textLogicalPlan;
@@ -46,7 +46,7 @@ public final class PlanAssert
 
     public static void assertPlan(Session session, Metadata metadata, StatsProvider statsProvider, Plan actual, Lookup lookup, PlanMatchPattern pattern)
     {
-        CostProvider costProvider = node -> UNKNOWN_COST;
+        CostProvider costProvider = node -> unknown();
         MatchResult matches = actual.getRoot().accept(new PlanMatchingVisitor(session, metadata, statsProvider, lookup), pattern);
         if (!matches.isMatch()) {
             String formattedPlan = textLogicalPlan(actual.getRoot(), actual.getTypes(), metadata.getFunctionRegistry(), statsProvider, costProvider, session, 0);

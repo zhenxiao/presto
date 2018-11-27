@@ -52,6 +52,7 @@ import com.facebook.presto.sql.planner.plan.LimitNode;
 import com.facebook.presto.sql.planner.plan.MarkDistinctNode;
 import com.facebook.presto.sql.planner.plan.OutputNode;
 import com.facebook.presto.sql.planner.plan.PlanNode;
+import com.facebook.presto.sql.planner.plan.PlanNodeId;
 import com.facebook.presto.sql.planner.plan.ProjectNode;
 import com.facebook.presto.sql.planner.plan.SampleNode;
 import com.facebook.presto.sql.planner.plan.SemiJoinNode;
@@ -154,15 +155,22 @@ public class PlanBuilder
 
     public ValuesNode values(Symbol... columns)
     {
-        return new ValuesNode(
-                idAllocator.getNextId(),
-                ImmutableList.copyOf(columns),
-                ImmutableList.of());
+        return values(idAllocator.getNextId(), columns);
+    }
+
+    public ValuesNode values(PlanNodeId id, Symbol... columns)
+    {
+        return values(id, ImmutableList.copyOf(columns), ImmutableList.of());
     }
 
     public ValuesNode values(List<Symbol> columns, List<List<Expression>> rows)
     {
-        return new ValuesNode(idAllocator.getNextId(), columns, rows);
+        return values(idAllocator.getNextId(), columns, rows);
+    }
+
+    public ValuesNode values(PlanNodeId id, List<Symbol> columns, List<List<Expression>> rows)
+    {
+        return new ValuesNode(id, columns, rows);
     }
 
     public EnforceSingleRowNode enforceSingleRow(PlanNode source)

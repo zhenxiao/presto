@@ -17,7 +17,6 @@ import com.facebook.presto.execution.QueryManagerConfig;
 import com.facebook.presto.execution.TaskManagerConfig;
 import com.facebook.presto.memory.MemoryManagerConfig;
 import com.facebook.presto.spi.PrestoException;
-import com.facebook.presto.spi.StandardErrorCode;
 import com.facebook.presto.spi.session.PropertyMetadata;
 import com.facebook.presto.sql.analyzer.FeaturesConfig;
 import com.facebook.presto.sql.analyzer.FeaturesConfig.JoinDistributionType;
@@ -33,6 +32,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
 
+import static com.facebook.presto.spi.StandardErrorCode.INVALID_SESSION_PROPERTY;
 import static com.facebook.presto.spi.session.PropertyMetadata.booleanSessionProperty;
 import static com.facebook.presto.spi.session.PropertyMetadata.integerSessionProperty;
 import static com.facebook.presto.spi.session.PropertyMetadata.stringSessionProperty;
@@ -78,6 +78,7 @@ public final class SystemSessionProperties
     public static final String CONCURRENT_LIFESPANS_PER_NODE = "concurrent_lifespans_per_task";
     public static final String REORDER_JOINS = "reorder_joins";
     public static final String JOIN_REORDERING_STRATEGY = "join_reordering_strategy";
+    public static final String MAX_REORDERED_JOINS = "max_reordered_joins";
     public static final String INITIAL_SPLITS_PER_NODE = "initial_splits_per_node";
     public static final String SPLIT_CONCURRENCY_ADJUSTMENT_INTERVAL = "split_concurrency_adjustment_interval";
     public static final String OPTIMIZE_METADATA_QUERIES = "optimize_metadata_queries";
@@ -344,6 +345,21 @@ public final class SystemSessionProperties
                         "Use faster handling of inequality join if it is possible",
                         featuresConfig.isFastInequalityJoins(),
                         false),
+                new PropertyMetadata<>(
+                        MAX_REORDERED_JOINS,
+                        "The maximum number of joins to reorder as one group in cost-based join reordering",
+                        BIGINT,
+                        Integer.class,
+                        featuresConfig.getMaxReorderedJoins(),
+                        false,
+                        value -> {
+                            int intValue = ((Number) requireNonNull(value, "value is null")).intValue();
+                            if (intValue < 2) {
+                                throw new PrestoException(INVALID_SESSION_PROPERTY, format("%s must be greater than or equal to 2: %s", MAX_REORDERED_JOINS, intValue));
+                            }
+                            return intValue;
+                        },
+                        value -> value),
                 booleanSessionProperty(
                         COLOCATED_JOIN,
                         "Experimental: Use a colocated join when possible",
@@ -370,7 +386,7 @@ public final class SystemSessionProperties
                             boolean spillEnabled = (Boolean) value;
                             if (spillEnabled && featuresConfig.getSpillerSpillPaths().isEmpty()) {
                                 throw new PrestoException(
-                                        StandardErrorCode.INVALID_SESSION_PROPERTY,
+                                        INVALID_SESSION_PROPERTY,
                                         format("%s cannot be set to true; no spill paths configured", SPILL_ENABLED));
                             }
                             return spillEnabled;
@@ -691,6 +707,11 @@ public final class SystemSessionProperties
         return session.getSystemProperty(JOIN_REORDERING_STRATEGY, JoinReorderingStrategy.class);
     }
 
+    public static int getMaxReorderedJoins(Session session)
+    {
+        return session.getSystemProperty(MAX_REORDERED_JOINS, Integer.class);
+    }
+
     public static boolean isColocatedJoinEnabled(Session session)
     {
         return session.getSystemProperty(COLOCATED_JOIN, Boolean.class);
@@ -854,7 +875,7 @@ public final class SystemSessionProperties
         int intValue = ((Number) requireNonNull(value, "value is null")).intValue();
         if (Integer.bitCount(intValue) != 1) {
             throw new PrestoException(
-                    StandardErrorCode.INVALID_SESSION_PROPERTY,
+                    INVALID_SESSION_PROPERTY,
                     format("%s must be a power of 2: %s", property, intValue));
         }
         return intValue;

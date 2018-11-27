@@ -67,7 +67,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.facebook.presto.cost.PlanNodeCostEstimate.UNKNOWN_COST;
+import static com.facebook.presto.cost.PlanNodeCostEstimate.unknown;
 import static com.facebook.presto.cost.PlanNodeStatsEstimate.UNKNOWN_STATS;
 import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.getColumnPredicates;
 import static com.facebook.presto.sql.planner.planPrinter.PlanPrinter.textDistributedPlan;
@@ -205,7 +205,7 @@ public class QueryMonitor
                             queryInfo.getOutputStage().get(),
                             functionRegistry,
                             (node, sourceStats, lookup, session, types) -> UNKNOWN_STATS,
-                            (node, stats, lookup, session, types) -> UNKNOWN_COST,
+                            (node, stats, lookup, session, types) -> unknown(),
                             queryInfo.getSession().toSession(sessionPropertyManager),
                             false));
                     for (PlanPrinter.ColumnPredicate columnPredicate : getColumnPredicates(queryInfo.getOutputStage().get(), functionRegistry, queryInfo.getSession().toSession(sessionPropertyManager))) {

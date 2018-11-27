@@ -46,6 +46,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class IterativeOptimizer
         implements PlanOptimizer
@@ -125,9 +126,7 @@ public class IterativeOptimizer
         boolean progress = false;
 
         while (!done) {
-            if (isTimeLimitExhausted(context)) {
-                throw new PrestoException(OPTIMIZER_TIMEOUT, format("The optimizer exhausted the time limit of %d ms", context.timeoutInMilliseconds));
-            }
+            context.checkTimeoutNotExhausted();
 
             done = true;
             Iterator<Rule<?>> possiblyMatchingRules = ruleIndex.getCandidates(node).iterator();
@@ -175,11 +174,6 @@ public class IterativeOptimizer
         stats.record(rule, duration, !result.isEmpty());
 
         return result;
-    }
-
-    private boolean isTimeLimitExhausted(Context context)
-    {
-        return ((System.nanoTime() - context.startTimeInNanos) / 1_000_000) >= context.timeoutInMilliseconds;
     }
 
     private boolean exploreChildren(int group, Context context, Matcher matcher)
@@ -240,6 +234,12 @@ public class IterativeOptimizer
             {
                 return costProvider;
             }
+
+            @Override
+            public void checkTimeoutNotExhausted()
+            {
+                context.checkTimeoutNotExhausted();
+            }
         };
     }
 
@@ -271,6 +271,13 @@ public class IterativeOptimizer
             this.startTimeInNanos = startTimeInNanos;
             this.timeoutInMilliseconds = timeoutInMilliseconds;
             this.session = session;
+        }
+
+        public void checkTimeoutNotExhausted()
+        {
+            if ((NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos)) >= timeoutInMilliseconds) {
+                throw new PrestoException(OPTIMIZER_TIMEOUT, format("The optimizer exhausted the time limit of %d ms", timeoutInMilliseconds));
+            }
         }
     }
 }

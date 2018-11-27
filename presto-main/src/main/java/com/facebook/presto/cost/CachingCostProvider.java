@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static com.facebook.presto.cost.PlanNodeCostEstimate.ZERO_COST;
 import static com.facebook.presto.sql.planner.iterative.Lookup.noLookup;
 import static com.google.common.base.Verify.verify;
 import static java.util.Objects.requireNonNull;
@@ -100,7 +99,7 @@ public class CachingCostProvider
 
         PlanNodeCostEstimate sourcesCost = node.getSources().stream()
                 .map(this::getCumulativeCost)
-                .reduce(ZERO_COST, PlanNodeCostEstimate::add);
+                .reduce(PlanNodeCostEstimate.zero(), PlanNodeCostEstimate::add);
 
         PlanNodeCostEstimate cumulativeCost = localCosts.add(sourcesCost);
         return cumulativeCost;
