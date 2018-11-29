@@ -1221,4 +1221,15 @@ public class TestGeoFunctions
     {
         assertFunction(format("ST_AsText(ST_GeomFromBinary(ST_AsBinary(ST_GeometryFromText('%s'))))", wkt), VARCHAR, wkt);
     }
+
+    @Test
+    public void testSTGeoHash()
+            throws Exception
+    {
+        assertFunction("st_geohash(-126, 48)", VARCHAR, "c0w3hf1s70w3");
+        assertFunction("st_geohash(-126, 48, 5)", VARCHAR, "c0w3h");
+        assertFunction("st_geohash(st_point(-126, 48))", VARCHAR, "c0w3hf1s70w3");
+        assertFunction("st_geohash(st_point(-126, 48), 5)", VARCHAR, "c0w3h");
+        assertInvalidFunction("st_geohash(ST_LineFromText('linestring(8 4, 4 8, 5 6)'), 4)", "st_geoHash only applies to POINT. Input type is: LINE_STRING");
+    }
 }
