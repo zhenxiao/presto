@@ -71,12 +71,7 @@ public final class MetadataUtil
     {
         checkLowerCase(catalogName, "catalogName");
         checkLowerCase(schemaName, "schemaName");
-        try {
-            checkLowerCase(objectName, "objectName");
-        }
-        catch (IllegalArgumentException e) {
-            // Support case-sensitive table names for MySQL, etc. Surface other errors correctly.
-        }
+        checkLowerCase(objectName, "objectName");
     }
 
     public static String checkLowerCase(String value, String name)
