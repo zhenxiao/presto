@@ -13,11 +13,15 @@
  */
 package com.facebook.presto.operator;
 
+import com.facebook.presto.util.Mergeable;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableMap;
+
+import java.util.Map;
 
 public class SplitOperatorInfo
-        implements OperatorInfo
+        implements Mergeable<SplitOperatorInfo>, OperatorInfo
 {
     // NOTE: this deserializes to a map instead of the expected type
     private final Object splitInfo;
@@ -39,5 +43,24 @@ public class SplitOperatorInfo
     public Object getSplitInfo()
     {
         return splitInfo;
+    }
+
+    @Override
+    public SplitOperatorInfo mergeWith(SplitOperatorInfo other)
+    {
+        if (splitInfo instanceof Map && other.splitInfo instanceof Map) {
+            Map splitInfoMap = (Map) splitInfo;
+            Map otherSplitInfoMap = (Map) other.splitInfo;
+
+            if (checkEqual(splitInfoMap, otherSplitInfoMap, "database") && checkEqual(splitInfoMap, otherSplitInfoMap, "table")) {
+                return new SplitOperatorInfo(ImmutableMap.of("database", splitInfoMap.get("database"), "table", splitInfoMap.get("table")));
+            }
+        }
+        return null;
+    }
+
+    private boolean checkEqual(Map map1, Map map2, String key)
+    {
+        return map1.containsKey(key) && map2.containsKey(key) && map1.get(key).equals(map2.get(key));
     }
 }
