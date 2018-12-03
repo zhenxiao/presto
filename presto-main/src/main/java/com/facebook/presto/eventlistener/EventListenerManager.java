@@ -44,6 +44,9 @@ public class EventListenerManager
     private static final Logger log = Logger.get(EventListenerManager.class);
     private static final File EVENT_LISTENER_CONFIGURATION = new File("etc/event-listener.properties");
     private static final String EVENT_LISTENER_PROPERTY_NAME = "event-listener.name";
+    private static final File NODE_PROPERTIES = new File("etc/node.properties");
+    private static final String NODE_PROPERTY_ENVIRONMENT = "node.environment";
+    private static final String EVENT_LISTENER_PROPERTY_CLUSTER = "event-listener.cluster";
 
     private final Map<String, EventListenerFactory> eventListenerFactories = new ConcurrentHashMap<>();
     private final AtomicReference<Optional<EventListener>> configuredEventListener = new AtomicReference<>(Optional.empty());
@@ -74,6 +77,12 @@ public class EventListenerManager
             String eventListenerName = properties.remove(EVENT_LISTENER_PROPERTY_NAME);
             checkArgument(!isNullOrEmpty(eventListenerName),
                     "Access control configuration %s does not contain %s", EVENT_LISTENER_CONFIGURATION.getAbsoluteFile(), EVENT_LISTENER_PROPERTY_NAME);
+
+            // Add/overwrite event-listener.cluster property with node.environment
+            if (NODE_PROPERTIES.exists()) {
+                Map<String, String> nodeProperties = new HashMap<>(loadProperties(NODE_PROPERTIES));
+                properties.put(EVENT_LISTENER_PROPERTY_CLUSTER, nodeProperties.get(NODE_PROPERTY_ENVIRONMENT));
+            }
 
             setConfiguredEventListener(eventListenerName, properties);
         }
