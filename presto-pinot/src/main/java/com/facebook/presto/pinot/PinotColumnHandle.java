@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
@@ -31,18 +32,21 @@ public final class PinotColumnHandle
     private final String columnName;
     private final Type columnType;
     private final int ordinalPosition;
+    private Optional<String> aggregationType;
 
     @JsonCreator
     public PinotColumnHandle(
             @JsonProperty("connectorId") String connectorId,
             @JsonProperty("columnName") String columnName,
             @JsonProperty("columnType") Type columnType,
-            @JsonProperty("ordinalPosition") int ordinalPosition)
+            @JsonProperty("ordinalPosition") int ordinalPosition,
+            @JsonProperty("aggregation") Optional<String> aggregationType)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null");
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
         this.ordinalPosition = ordinalPosition;
+        this.aggregationType = requireNonNull(aggregationType, "aggregationType is null");
     }
 
     @JsonProperty
@@ -67,6 +71,17 @@ public final class PinotColumnHandle
     public int getOrdinalPosition()
     {
         return ordinalPosition;
+    }
+
+    @JsonProperty
+    public Optional<String> getAggregationType()
+    {
+        return aggregationType;
+    }
+
+    public void setAggregationType(Optional<String> aggregationType)
+    {
+        this.aggregationType = requireNonNull(aggregationType, "aggregationType is null");
     }
 
     public ColumnMetadata getColumnMetadata()
@@ -102,6 +117,6 @@ public final class PinotColumnHandle
     @Override
     public String toString()
     {
-        return toStringHelper(this).add("connectorId", connectorId).add("columnName", columnName).add("columnType", columnType).add("ordinalPosition", ordinalPosition).toString();
+        return toStringHelper(this).add("connectorId", connectorId).add("columnName", columnName).add("columnType", columnType).add("ordinalPosition", ordinalPosition).add("aggregation", aggregationType).toString();
     }
 }

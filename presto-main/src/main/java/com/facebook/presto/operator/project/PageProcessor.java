@@ -83,6 +83,12 @@ public class PageProcessor
             return EMPTY_PAGE_PROCESSOR_OUTPUT;
         }
 
+        if (page.isAggregated()) {
+            // For pre-aggregated Pages, skip the filtering since it's applied in the aggregation layer.
+            PositionsPageProcessorIterator pages = new PositionsPageProcessorIterator(session, yieldSignal, page, positionsRange(0, page.getPositionCount()));
+            return new PageProcessorOutput(pages::getRetainedSizeInBytes, pages);
+        }
+
         if (filter.isPresent()) {
             SelectedPositions selectedPositions = filter.get().filter(session, filter.get().getInputChannels().getInputChannels(page));
             if (selectedPositions.isEmpty()) {
@@ -285,7 +291,7 @@ public class PageProcessor
 
                 pageSize += blocks[i].getSizeInBytes();
             }
-            return ProcessBatchResult.processBatchSuccess(new Page(positionsBatch.size(), blocks));
+            return ProcessBatchResult.processBatchSuccess(new Page(positionsBatch.size(), page.isAggregated(), blocks));
         }
     }
 

@@ -32,6 +32,8 @@ public class PinotConfig
 
     private static final int DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN = 20;
 
+    private static final boolean DEFAULT_IS_AGGREGATION_PUSHDOWN_ENABLED = true;
+
     private String zkUrl;
     private String pinotCluster;
     private String pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
@@ -47,6 +49,7 @@ public class PinotConfig
     private int maxBacklogPerServer = DEFAULT_MAX_BACKLOG_PER_SERVER;
     private long idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
     private int estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
+    private boolean isAggregationPushdownEnabled = DEFAULT_IS_AGGREGATION_PUSHDOWN_ENABLED;
 
     @NotNull
     public String getZkUrl()
@@ -103,6 +106,24 @@ public class PinotConfig
     public PinotConfig setControllerUrl(String controllerUrl)
     {
         this.controllerUrl = controllerUrl;
+        return this;
+    }
+
+    @NotNull
+    public boolean getIsAggregationPushdownEnabled()
+    {
+        return isAggregationPushdownEnabled;
+    }
+
+    @Config("aggregation-pushdown.enabled")
+    public PinotConfig setIsAggregationPushdownEnabled(String isAggregationPushdownEnabled)
+    {
+        try {
+            this.isAggregationPushdownEnabled = Boolean.valueOf(isAggregationPushdownEnabled);
+        }
+        catch (Exception e) {
+            this.isAggregationPushdownEnabled = DEFAULT_IS_AGGREGATION_PUSHDOWN_ENABLED;
+        }
         return this;
     }
 

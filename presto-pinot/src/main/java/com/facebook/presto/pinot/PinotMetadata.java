@@ -177,7 +177,7 @@ public class PinotMetadata
             ImmutableMap.Builder<String, ColumnHandle> columnHandles = ImmutableMap.builder();
             int index = 0;
             for (ColumnMetadata column : table.getColumnsMetadata()) {
-                columnHandles.put(column.getName().toLowerCase(), new PinotColumnHandle(connectorId, ((PinotColumnMetadata) column).getPinotName(), column.getType(), index));
+                columnHandles.put(column.getName().toLowerCase(), new PinotColumnHandle(connectorId, ((PinotColumnMetadata) column).getPinotName(), column.getType(), index, Optional.empty()));
                 index++;
             }
             return columnHandles.build();

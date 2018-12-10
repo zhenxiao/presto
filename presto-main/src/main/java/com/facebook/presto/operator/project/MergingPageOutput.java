@@ -146,6 +146,12 @@ public class MergingPageOutput
     {
         requireNonNull(page, "page is null");
 
+        // Directly add the page if page is aggregated.
+        if (page.isAggregated()) {
+            outputQueue.add(page);
+            return;
+        }
+
         // avoid memory copying for pages that are big enough
         if (page.getSizeInBytes() >= minPageSizeInBytes || page.getPositionCount() >= minRowCount) {
             flush();

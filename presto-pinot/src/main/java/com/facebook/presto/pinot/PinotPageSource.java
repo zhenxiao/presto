@@ -28,13 +28,16 @@ import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNSUPPORTED_COLUMN_TYPE;
 import static com.facebook.presto.pinot.PinotQueryGenerator.getPinotQuery;
+import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -48,8 +51,8 @@ import static java.util.Objects.requireNonNull;
 public class PinotPageSource
         implements ConnectorPageSource
 {
+    private List<PinotColumnHandle> columnHandles;
     private static final Logger log = Logger.get(PinotPageSource.class);
-    private final List<PinotColumnHandle> columnHandles;
     private List<Type> columnTypes;
 
     private PinotConfig pinotConfig;
@@ -65,6 +68,9 @@ public class PinotPageSource
 
     private boolean closed;
     private boolean isPinotDataFetched;
+    private boolean isAggregationPushdownEnabled;
+    // Stores the mapping between pinot column name and the column index
+    Map<String, Integer> pinotColumnNameIndexMap = new HashMap<>();
 
     public PinotPageSource(PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient, PinotSplit split, List<PinotColumnHandle> columnHandles)
     {
@@ -130,13 +136,27 @@ public class PinotPageSource
         PageBuilder pageBuilder = new PageBuilder(columnTypes);
         // Note that declared positions in the Page should be the same with number of rows in each Block
         pageBuilder.declarePositions(currentDataTable.getDataTable().getNumberOfRows());
-        for (int column = 0; column < columnTypes.size(); column++) {
-            BlockBuilder blockBuilder = pageBuilder.getBlockBuilder(column);
-            Type columnType = columnTypes.get(column);
-            writeBlock(blockBuilder, columnType, column);
+        for (int columnHandleIdx = 0; columnHandleIdx < columnHandles.size(); columnHandleIdx++) {
+            BlockBuilder blockBuilder = pageBuilder.getBlockBuilder(columnHandleIdx);
+            Type columnType = columnTypes.get(columnHandleIdx);
+            // Write a block for each column in the original order.
+            if (isAggregationPushdownEnabled && !split.getAggregations().containsKey(columnHandles.get(columnHandleIdx).getColumnName().toLowerCase())) {
+                // When aggregation pushdown is enabled, some columns not being aggregated on may still be requested by Presto for post-filtering.
+                // Write an empty block for those non-aggregated columns as placeholder.
+                blockBuilder.appendNull();
+            }
+            else {
+                writeBlock(blockBuilder, columnType, pinotColumnNameIndexMap.get(columnHandles.get(columnHandleIdx).getColumnName()));
+            }
         }
+        pageBuilder.declareIsAgregated(isAggregationPushdownEnabled);
         Page page = pageBuilder.build();
         return page;
+    }
+
+    void setAggregationPushdownEnabled(boolean aggregationPushdownEnabled)
+    {
+        this.isAggregationPushdownEnabled = aggregationPushdownEnabled;
     }
 
     /**
@@ -146,7 +166,25 @@ public class PinotPageSource
     {
         log.debug("Fetching data from Pinot for table %s, segment %s", split.getTableName(), split.getSegment());
         long startTimeNanos = System.nanoTime();
-        Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(getPinotQuery(pinotConfig, columnHandles, split), split.getHost(), split.getSegment());
+        setAggregationPushdownEnabled(shouldPushAggregation(split.getAggregations()));
+        int idx = 0;
+        for (PinotColumnHandle columnHandle : columnHandles) {
+            if (isAggregationPushdownEnabled) {
+                // For aggregation pushdown, only select the values to aggregate on
+                if (split.getAggregations().containsKey(columnHandle.getColumnName().toLowerCase())) {
+                    columnHandle.setAggregationType(Optional.of(split.getAggregations().get(columnHandle.getColumnName().toLowerCase()).get(0)));
+                    // Record the mapping between column name and column index. We use this later to write the block in the correct order.
+                    // Originally tried to infer from the dataSchema returned from Pinot, but for aggregated columns, it would return
+                    //   column names like "count_star", without revealing the actual column being aggregated on.
+                    pinotColumnNameIndexMap.put(columnHandle.getColumnName(), idx++);
+                }
+            }
+            else {
+                pinotColumnNameIndexMap.put(columnHandle.getColumnName(), idx++);
+            }
+        }
+        String pinotQuery = getPinotQuery(pinotConfig, columnHandles, isAggregationPushdownEnabled, split.getPinotFilter(), split.getTimeFilter(), split.getTableName(), split.getLimit());
+        Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(pinotQuery, split.getHost(), split.getSegment());
         dataTableMap.values().stream()
                 // ignore empty tables and tables with 0 rows
                 .filter(table -> table != null && table.getNumberOfRows() > 0)
@@ -161,8 +199,9 @@ public class PinotPageSource
                     estimatedMemoryUsageInBytes += estimatedTableSizeInBytes;
                 });
         ImmutableList.Builder<Type> types = ImmutableList.builder();
-        columnHandles.stream()
-                .map(PinotColumnHandle::getColumnType)
+        columnHandles
+                .stream()
+                .map(columnHandle -> getTypeForBlock(isAggregationPushdownEnabled, split.getAggregations(), columnHandle))
                 .forEach(types::add);
         this.columnTypes = types.build();
         readTimeNanos = System.nanoTime() - startTimeNanos;
@@ -196,10 +235,10 @@ public class PinotPageSource
         if (javaType.equals(boolean.class)) {
             writeBooleanBlock(blockBuilder, columnType, columnIdx);
         }
-        else if (pinotColumnType.isInteger()) {
+        else if (javaType.equals(long.class)) {
             writeLongBlock(blockBuilder, columnType, columnIdx, pinotColumnType);
         }
-        else if (pinotColumnType.equals(DataType.DOUBLE) || pinotColumnType.equals(DataType.FLOAT)) {
+        else if (javaType.equals(double.class)) {
             writeDoubleBlock(blockBuilder, columnType, columnIdx, pinotColumnType);
         }
         else if (javaType.equals(Slice.class)) {
@@ -271,8 +310,8 @@ public class PinotPageSource
         if (dataType.equals(DataType.DOUBLE)) {
             return (long) currentDataTable.getDataTable().getDouble(rowIdx, colIdx);
         }
-        if (getType(colIdx).equals(INTEGER)) {
-            return currentDataTable.getDataTable().getInt(rowIdx, colIdx);
+        if (dataType.equals(DataType.INT)) {
+            return (long) currentDataTable.getDataTable().getInt(rowIdx, colIdx);
         }
         else {
             return currentDataTable.getDataTable().getLong(rowIdx, colIdx);
@@ -321,6 +360,26 @@ public class PinotPageSource
     }
 
     /**
+     * Decides whether to push aggregation functions down to Pinot, or just fetch raw data from Pinot.
+     *
+     * @param aggregations Aggregation Hints
+     * @return whether or not to push aggregation functions down to Pinot
+     */
+    boolean shouldPushAggregation(Map<String, List<String>> aggregations)
+    {
+        if (!pinotConfig.getIsAggregationPushdownEnabled() || aggregations.isEmpty()) {
+            return false;
+        }
+        for (List<String> aggregation : aggregations.values()) {
+            // Do not support multiple aggregations on the same column at this time.
+            if (aggregation.size() > 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Get estimated size in bytes for the Pinot column.
      * Deterministic for numeric fields; use estimate for other types to save calculation.
      *
@@ -341,6 +400,28 @@ public class PinotPageSource
     {
         Type actual = getType(colIdx);
         checkArgument(actual.equals(expected), "Expected column %s to be type %s but is %s", colIdx, expected, actual);
+    }
+
+    Type getTypeForBlock(boolean shouldPushAggregation, Map<String, List<String>> aggregations, PinotColumnHandle pinotColumnHandle)
+    {
+        if (pinotColumnHandle.getColumnType().equals(INTEGER)) {
+            return BIGINT;
+        }
+        else {
+            String columnNameLower = pinotColumnHandle.getColumnName().toLowerCase();
+            if (shouldPushAggregation) {
+                // When we need to do COUNT on a non-numeric column (e.g. COUNT(trip_uuid)), type of the block should be converted to BIGINT
+                if (aggregations.containsKey(columnNameLower) && "count".equals(aggregations.get(columnNameLower).get(0))) {
+                    return BIGINT;
+                }
+                else {
+                    return pinotColumnHandle.getColumnType();
+                }
+            }
+            else {
+                return pinotColumnHandle.getColumnType();
+            }
+        }
     }
 
     private class PinotDataTableWithSize

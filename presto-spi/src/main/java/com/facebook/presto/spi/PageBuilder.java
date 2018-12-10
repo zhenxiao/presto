@@ -34,6 +34,7 @@ public class PageBuilder
     private final List<Type> types;
     private PageBuilderStatus pageBuilderStatus;
     private int declaredPositions;
+    private boolean isAggregated;
 
     public PageBuilder(List<? extends Type> types)
     {
@@ -110,6 +111,11 @@ public class PageBuilder
         declaredPositions += positions;
     }
 
+    public void declareIsAgregated(boolean isAggregated)
+    {
+        this.isAggregated = isAggregated;
+    }
+
     public boolean isFull()
     {
         return declaredPositions == Integer.MAX_VALUE || pageBuilderStatus.isFull();
@@ -155,7 +161,7 @@ public class PageBuilder
             }
         }
 
-        return new Page(blocks);
+        return new Page(isAggregated, blocks);
     }
 
     private static void checkArgument(boolean expression, String errorMessage)

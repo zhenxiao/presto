@@ -40,15 +40,27 @@ public class Page
     private final int positionCount;
     private final AtomicLong sizeInBytes = new AtomicLong(-1);
     private final AtomicLong retainedSizeInBytes = new AtomicLong(-1);
+    private boolean isAggregated;   // Page is not aggregated by default
 
     public Page(Block... blocks)
     {
-        this(determinePositionCount(blocks), blocks);
+        this(determinePositionCount(blocks), false, blocks);
+    }
+
+    public Page(boolean isAggregated, Block... blocks)
+    {
+        this(determinePositionCount(blocks), isAggregated, blocks);
     }
 
     public Page(int positionCount, Block... blocks)
     {
+        this(positionCount, false, blocks);
+    }
+
+    public Page(int positionCount, boolean isAggregated, Block... blocks)
+    {
         requireNonNull(blocks, "blocks is null");
+        this.isAggregated = isAggregated;
         this.blocks = Arrays.copyOf(blocks, blocks.length);
         this.positionCount = positionCount;
     }
@@ -126,6 +138,16 @@ public class Page
         Block[] newBlocks = Arrays.copyOf(blocks, blocks.length + 1);
         newBlocks[blocks.length] = block;
         return new Page(newBlocks);
+    }
+
+    public void setIsAggregated(boolean isAggregated)
+    {
+        this.isAggregated = isAggregated;
+    }
+
+    public boolean isAggregated()
+    {
+        return isAggregated;
     }
 
     public void compact()

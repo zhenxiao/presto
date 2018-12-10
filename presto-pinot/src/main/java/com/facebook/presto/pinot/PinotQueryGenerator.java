@@ -13,11 +13,9 @@
  */
 package com.facebook.presto.pinot;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.airlift.log.Logger;
 
 import java.util.List;
-import java.util.Map;
 import java.util.StringJoiner;
 
 import static java.util.Objects.requireNonNull;
@@ -51,41 +49,29 @@ public final class PinotQueryGenerator
      *
      * @return the constructed Pinot Query
      */
-    static String getPinotQuery(PinotConfig pinotConfig, List<PinotColumnHandle> columnHandles, PinotSplit split)
+    static String getPinotQuery(PinotConfig pinotConfig, List<PinotColumnHandle> columnHandles, boolean shouldPushAggregation, String pinotFilter, String timeFilter, String tableName, long splitLimit)
     {
         requireNonNull(pinotConfig, "pinotConfig is null");
-        requireNonNull(columnHandles, "columnHandles is null");
-        requireNonNull(split, "split is null");
-
         StringJoiner fieldsJoiner = new StringJoiner(", ");
-        if (!shouldPushAggregation(split.getAggregations())) {
-            // Aggregation pushdown disabled.
-            // Select the requested columns from Pinot.
-            for (PinotColumnHandle columnHandle : columnHandles) {
+        for (PinotColumnHandle columnHandle : columnHandles) {
+            // No aggregation pushdown
+            if (!shouldPushAggregation) {
                 fieldsJoiner.add(columnHandle.getColumnName());
             }
-        }
-        else {
-            // Aggregation pushdown enabled.
-            // Get aggregated values for the requested columns.
-            // Note that column names passed in aggregation hints are in lowercase
-            for (PinotColumnHandle columnHandle : columnHandles) {
-                String columnName = columnHandle.getColumnName();
-                // Add the columns in order from the aggregation
-                if (split.getAggregations().containsKey(columnName.toLowerCase())) {
-                    String field = String.format(FIELD_AGGREGATION_TEMPLATE, split.getAggregations().get(columnName.toLowerCase()).get(0), columnName);
-                    fieldsJoiner.add(field);
-                }
+            else if (columnHandle.getAggregationType().isPresent()) {
+                // Add columns for aggregation pushdown
+                String field = String.format(FIELD_AGGREGATION_TEMPLATE, columnHandle.getAggregationType().get(), columnHandle.getColumnName());
+                fieldsJoiner.add(field);
             }
         }
 
         // Add predicates
         StringJoiner predicatesJoiner = new StringJoiner(" AND ");
-        if (!split.getPinotFilter().isEmpty()) {
-            predicatesJoiner.add(String.format("(%s)", split.getPinotFilter()));
+        if (!pinotFilter.isEmpty()) {
+            predicatesJoiner.add(String.format("(%s)", pinotFilter));
         }
-        if (!split.getTimeFilter().isEmpty()) {
-            predicatesJoiner.add(String.format("(%s)", split.getTimeFilter()));
+        if (!timeFilter.isEmpty()) {
+            predicatesJoiner.add(String.format("(%s)", timeFilter));
         }
 
         // Note pinotPredicate is optional. It would be empty when no predicates are pushed down.
@@ -94,27 +80,10 @@ public final class PinotQueryGenerator
             pinotPredicate = "WHERE " + predicatesJoiner.toString();
         }
 
-        long limit = split.getLimit() > 0 ? split.getLimit() : pinotConfig.getLimitAll();
+        long limit = splitLimit > 0 ? splitLimit : pinotConfig.getLimitAll();
 
-        final String finalQuery = String.format(QUERY_TEMPLATE, fieldsJoiner.toString(), split.getTableName(), pinotPredicate, limit);
+        final String finalQuery = String.format(QUERY_TEMPLATE, fieldsJoiner.toString(), tableName, pinotPredicate, limit);
         log.debug("Plan to send PQL : %s", finalQuery);
         return finalQuery;
-    }
-
-    /**
-     * Decides whether to push aggregation functions down to Pinot, or just fetch raw data from Pinot.
-     *
-     * @param aggregations Aggregation Hints
-     * @return whether or not to push aggregation functions down to Pinot
-     */
-    @VisibleForTesting
-    static boolean shouldPushAggregation(Map<String, List<String>> aggregations)
-    {
-        /**
-         * Right now aggregation pushdown is disabled, as it has always been.
-         *
-         * TODO: refine the logic once presto predicates are properly interpreted.
-         */
-        return false;
     }
 }

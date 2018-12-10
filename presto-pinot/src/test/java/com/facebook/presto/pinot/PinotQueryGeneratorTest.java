@@ -18,10 +18,8 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static com.facebook.presto.pinot.PinotQueryGenerator.getPinotQuery;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
@@ -32,44 +30,48 @@ import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 
 public class PinotQueryGeneratorTest
 {
-    final List<PinotColumnHandle> columnHandles = new ArrayList<>();
-    final Map<String, List<String>> aggregations = new HashMap<>();
-    final int queryLimit = 10;
+    final List<PinotColumnHandle> columnHandlesNoAgg = new ArrayList<>();
+    final List<PinotColumnHandle> columnHandlesWithAgg = new ArrayList<>();
 
     @BeforeTest
     void init()
     {
-        aggregations.put("secondsSinceEpoch", Arrays.asList("max"));
+        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "varchar", VARCHAR, 0, Optional.empty()));
+        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "int", INTEGER, 1, Optional.empty()));
+        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "secondsSinceEpoch", BIGINT, 2, Optional.empty()));
+        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "boolean", BOOLEAN, 3, Optional.empty()));
+        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "double", DOUBLE, 4, Optional.empty()));
 
-        columnHandles.add(new PinotColumnHandle("pinot", "varchar", VARCHAR, 0));
-        columnHandles.add(new PinotColumnHandle("pinot", "int", INTEGER, 1));
-        columnHandles.add(new PinotColumnHandle("pinot", "secondsSinceEpoch", BIGINT, 2));
-        columnHandles.add(new PinotColumnHandle("pinot", "boolean", BOOLEAN, 3));
-        columnHandles.add(new PinotColumnHandle("pinot", "double", DOUBLE, 4));
+        columnHandlesWithAgg.add(new PinotColumnHandle("pinot", "varchar", VARCHAR, 0, Optional.of("count")));
+        columnHandlesWithAgg.add(new PinotColumnHandle("pinot", "int", INTEGER, 1, Optional.of("max")));
+        columnHandlesWithAgg.add(new PinotColumnHandle("pinot", "boolean", INTEGER, 1, Optional.empty()));
     }
 
     @Test
     public void testGetPinotQuerySelectAll()
     {
-        PinotSplit splitNoAggregation = new PinotSplit(
-                "pinot", "table", "host", "segment", new PinotColumn("secondsSinceEpoch", INTEGER),
-                "",
-                "",
-                queryLimit, new HashMap<>());
         String expectedQuery = "SELECT varchar, int, secondsSinceEpoch, boolean, double FROM table  LIMIT 10";
-        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandles, splitNoAggregation));
+        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesNoAgg, false, "", "", "table", 10));
     }
 
     @Test
     public void testGetPinotQueryWithPredicate()
     {
-        PinotSplit splitWithAggregation = new PinotSplit(
-                "pinot", "table", "host", "segment", new PinotColumn("secondsSinceEpoch", INTEGER),
-                "secondsSinceEpoch > 10000",
-                "int > 3",
-                queryLimit,
-                aggregations);
-        String expectedQuery = "SELECT varchar, int, secondsSinceEpoch, boolean, double FROM table WHERE (int > 3) AND (secondsSinceEpoch > 10000) LIMIT 10";
-        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandles, splitWithAggregation));
+        String expectedQuery = "SELECT varchar, int, secondsSinceEpoch, boolean, double FROM table WHERE ((int > 3)) AND ((secondsSinceEpoch > 10000)) LIMIT 10";
+        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesNoAgg, false, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", 10));
+    }
+
+    @Test
+    public void testGetPinotQueryWithAggregationDisabled()
+    {
+        String expectedQuery = "SELECT varchar, int, boolean FROM table WHERE ((int > 3)) AND ((secondsSinceEpoch > 10000)) LIMIT 10";
+        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesWithAgg, false, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", 10));
+    }
+
+    @Test
+    public void testGetPinotQueryWithAggregation()
+    {
+        String expectedQuery = "SELECT count(varchar), max(int) FROM table WHERE ((int > 3)) AND ((secondsSinceEpoch > 10000)) LIMIT 10";
+        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesWithAgg, true, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", 10));
     }
 }

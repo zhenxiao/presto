@@ -181,17 +181,19 @@ public class AggregationOperator
     {
         private final Accumulator aggregation;
         private final Step step;
-        private final int intermediateChannel;
+        private final List<Integer> inputChannels;
+        private int intermediateChannel;
 
         private Aggregator(AccumulatorFactory accumulatorFactory, Step step)
         {
+            this.inputChannels = accumulatorFactory.getInputChannels();
             if (step.isInputRaw()) {
                 intermediateChannel = -1;
                 aggregation = accumulatorFactory.createAccumulator();
             }
             else {
-                checkArgument(accumulatorFactory.getInputChannels().size() == 1, "expected 1 input channel for intermediate aggregation");
-                intermediateChannel = accumulatorFactory.getInputChannels().get(0);
+                checkArgument(inputChannels.size() == 1, "expected 1 input channel for intermediate aggregation");
+                intermediateChannel = inputChannels.get(0);
                 aggregation = accumulatorFactory.createIntermediateAccumulator();
             }
             this.step = step;
@@ -210,7 +212,17 @@ public class AggregationOperator
         public void processPage(Page page)
         {
             if (step.isInputRaw()) {
-                aggregation.addInput(page);
+                if (page.isAggregated()) {
+                    checkArgument(inputChannels.size() == 1, "expected 1 input channel for aggregated block");
+                    // If the step is raw, intermediateChannel would be initialized as -1.
+                    // When the page is aggregated in this case, we should assign it to a valid value.
+                    intermediateChannel = inputChannels.get(0);
+                    aggregation.addIntermediate(page.getBlock(intermediateChannel));
+                }
+                else {
+                    // If the step is raw and page is not aggregated, process it as raw records
+                    aggregation.addInput(page);
+                }
             }
             else {
                 aggregation.addIntermediate(page.getBlock(intermediateChannel));

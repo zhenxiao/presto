@@ -42,7 +42,7 @@ import static java.util.Objects.requireNonNull;
 public class AggregationPushDown
         implements PlanOptimizer
 {
-    public static final Set<String> PUSHDOWN_AGGREGATIONS = ImmutableSet.of("sum", "max", "min");
+    public static final Set<String> PUSHDOWN_AGGREGATIONS = ImmutableSet.of("sum", "max", "min", "count");
 
     @Override
     public PlanNode optimize(PlanNode plan, Session session, Map<Symbol, Type> types, SymbolAllocator symbolAllocator, PlanNodeIdAllocator idAllocator)
