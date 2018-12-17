@@ -2002,7 +2002,9 @@ public class HiveMetadata
     private static HiveStorageFormat extractHiveStorageFormat(Table table)
     {
         StorageFormat storageFormat = table.getStorage().getStorageFormat();
-        String outputFormat = storageFormat.getOutputFormat();
+
+        // output format could be null if the table is StorageHandler type table. Use the null-safe way to get the output format
+        String outputFormat = storageFormat.getOutputFormatNullable();
         String serde = storageFormat.getSerDe();
 
         for (HiveStorageFormat format : HiveStorageFormat.values()) {
