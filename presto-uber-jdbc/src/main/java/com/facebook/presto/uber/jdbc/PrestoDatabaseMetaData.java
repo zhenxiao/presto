@@ -1451,9 +1451,15 @@ public class PrestoDatabaseMetaData
     }
 
     private static void optionalStringLikeFilter(List<String> filters, String columnName, String value)
+            throws SQLException
     {
         if (value != null) {
-            filters.add(stringColumnLike(columnName, value));
+            if (isPattern(value)) {
+                filters.add(stringColumnLike(columnName, value));
+            }
+            else {
+                filters.add(stringColumnEquals(columnName, removeEscapesFromPattern(value)));
+            }
         }
     }
 
@@ -1470,13 +1476,17 @@ public class PrestoDatabaseMetaData
     }
 
     private static void emptyStringLikeFilter(List<String> filters, String columnName, String value)
+            throws SQLException
     {
         if (value != null) {
             if (value.isEmpty()) {
                 filters.add(columnName + " IS NULL");
             }
-            else {
+            else if (isPattern(value)) {
                 filters.add(stringColumnLike(columnName, value));
+            }
+            else {
+                filters.add(stringColumnEquals(columnName, removeEscapesFromPattern(value)));
             }
         }
     }
@@ -1510,5 +1520,41 @@ public class PrestoDatabaseMetaData
             }
         }
         out.append('\'');
+    }
+
+    private static boolean isPattern(String stringPattern)
+            throws SQLException
+    {
+        char escapeChar = SEARCH_STRING_ESCAPE.charAt(0);
+        boolean escaped = false;
+        boolean isLikePattern = false;
+        for (int currentChar : stringPattern.codePoints().toArray()) {
+            if (!escaped && (currentChar == escapeChar)) {
+                escaped = true;
+            }
+            else if (escaped) {
+                checkEscape(currentChar == '%' || currentChar == '_' || currentChar == escapeChar, stringPattern);
+                escaped = false;
+            }
+            else if ((currentChar == '%') || (currentChar == '_')) {
+                isLikePattern = true;
+            }
+        }
+        checkEscape(!escaped, stringPattern);
+        return isLikePattern;
+    }
+
+    // helper method to remove the escape characters from a pattern string
+    private static String removeEscapesFromPattern(String stringPattern)
+    {
+        return stringPattern.replace(SEARCH_STRING_ESCAPE, "");
+    }
+
+    private static void checkEscape(boolean condition, String stringPattern)
+            throws SQLException
+    {
+        if (!condition) {
+            throw new SQLException(String.format("Invalid pattern (%s): Escape character must be followed by '%', '_' or the escape character itself", stringPattern));
+        }
     }
 }
