@@ -83,7 +83,7 @@ public class TestPrestoDatabaseMetaData
         DatabaseMetaData metaData = connection.getMetaData();
 
         Set<String> queries = captureQueries(() -> {
-            String schemaPattern = "defau" + metaData.getSearchStringEscape() + "_t";
+            String schemaPattern = "defa%u" + metaData.getSearchStringEscape() + "_t";
             try (ResultSet resultSet = metaData.getColumns("blackhole", schemaPattern, null, null)) {
                 assertFalse(resultSet.next(), "There should be no results");
             }
@@ -94,6 +94,47 @@ public class TestPrestoDatabaseMetaData
         String query = getOnlyElement(queries);
 
         assertContains(query, "_t' ESCAPE '", "Metadata query does not contain ESCAPE");
+    }
+
+    @Test
+    public void testOptimizeLikePatternForSchema()
+            throws Exception
+    {
+        DatabaseMetaData metaData = connection.getMetaData();
+
+        Set<String> queries = captureQueries(() -> {
+            String schemaPattern = "defa'ut";
+            try (ResultSet resultSet = metaData.getColumns("blackhole", schemaPattern, null, null)) {
+                assertFalse(resultSet.next(), "There should be no results");
+            }
+            return null;
+        });
+
+        assertEquals(queries.size(), 1, "Expected exactly one query, got " + queries.size());
+        String query = getOnlyElement(queries);
+
+        assertContains(query, "TABLE_SCHEM = 'defa''ut'", "Metadata query does not contain equal filters");
+    }
+
+    @Test
+    public void testOptimizeLikePatternForSchemaAndTable()
+            throws Exception
+    {
+        DatabaseMetaData metaData = connection.getMetaData();
+
+        Set<String> queries = captureQueries(() -> {
+            String schemaPattern = "default";
+            String tablePattern = "table";
+            try (ResultSet resultSet = metaData.getColumns("blackhole", schemaPattern, tablePattern, null)) {
+                assertFalse(resultSet.next(), "There should be no results");
+            }
+            return null;
+        });
+
+        assertEquals(queries.size(), 1, "Expected exactly one query, got " + queries.size());
+        String query = getOnlyElement(queries);
+
+        assertContains(query, "TABLE_SCHEM = 'default' AND TABLE_NAME = 'table'", "Metadata query does not contain equal filters");
     }
 
     @Test
