@@ -218,7 +218,8 @@ public class ElasticsearchRecordCursor
         return fields.get(field);
     }
 
-    private void extractFromSource(SearchHit hit) {
+    private void extractFromSource(SearchHit hit)
+    {
         Map<String, Object> originalMap = hit.getSourceAsMap();
         String separator = Pattern.quote(".");
         //loop on all the fields and try to extract their value
@@ -234,10 +235,11 @@ public class ElasticsearchRecordCursor
                 //if we reached the final part of the fieldName and we have a full match then we can assign and stop
                 if (i == fieldNameParts.length - 1) {
                     setFieldIfExists(fieldName, value);
-                } else { //let's check the value type if it's a map we can go deeper
+                }
+                else { //let's check the value type if it's a map we can go deeper
                     if (value instanceof Map<?, ?>) {
                         //we have a new map to explore
-                        map = (Map<String, Object>)value ;
+                        map = (Map<String, Object>) value;
                     }
                     else {
                         map = null;
