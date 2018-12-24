@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static com.facebook.presto.elasticsearch.ElasticsearchErrorCode.ELASTICSEARCH_MAX_HITS_EXCEEDED;
 import static com.facebook.presto.elasticsearch.ElasticsearchUtils.serializeObject;
@@ -217,14 +218,32 @@ public class ElasticsearchRecordCursor
         return fields.get(field);
     }
 
-    private void extractFromSource(SearchHit hit)
-    {
-        Map<String, Object> map = hit.getSourceAsMap();
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String jsonPath = entry.getKey();
-            Object entryValue = entry.getValue();
-
-            setFieldIfExists(jsonPath, entryValue);
+    private void extractFromSource(SearchHit hit) {
+        Map<String, Object> originalMap = hit.getSourceAsMap();
+        String separator = Pattern.quote(".");
+        //loop on all the fields and try to extract their value
+        for (String fieldName : jsonPathToIndex.keySet()) {
+            //fieldName can have jsonpath nested structure like this <partA>.<partsB>.<partC>
+            String[] fieldNameParts = fieldName.split(separator);
+            Map<String, Object> map = originalMap;
+            //if we find match between structure and part A then we can go to the next part B and dig deeper in the structure
+            // until we reach either the last field name part or the end of the structure
+            for (int i = 0; i < fieldNameParts.length && map != null && map.containsKey(fieldNameParts[i]); i++) {
+                //extract the value
+                Object value = map.get(fieldNameParts[i]);
+                //if we reached the final part of the fieldName and we have a full match then we can assign and stop
+                if (i == fieldNameParts.length - 1) {
+                    setFieldIfExists(fieldName, value);
+                } else { //let's check the value type if it's a map we can go deeper
+                    if (value instanceof Map<?, ?>) {
+                        //we have a new map to explore
+                        map = (Map<String, Object>)value ;
+                    }
+                    else {
+                        map = null;
+                    }
+                }
+            }
         }
     }
 }
