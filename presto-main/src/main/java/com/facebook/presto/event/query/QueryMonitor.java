@@ -250,7 +250,8 @@ public class QueryMonitor
                                     queryStats.getCompletedDrivers(),
                                     queryInfo.isCompleteInfo(),
                                     getCpuDistributions(queryInfo),
-                                    operatorSummaries.build()),
+                                    operatorSummaries.build(),
+                                    queryInfo.getMemoryPool()),
                             new QueryContext(
                                     queryInfo.getSession().getUser(),
                                     queryInfo.getSession().getPrincipal(),

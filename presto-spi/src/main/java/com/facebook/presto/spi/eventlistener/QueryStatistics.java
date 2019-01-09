@@ -13,6 +13,8 @@
  */
 package com.facebook.presto.spi.eventlistener;
 
+import com.facebook.presto.spi.memory.MemoryPoolId;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +41,8 @@ public class QueryStatistics
     private final long outputRows;
     private final long writtenBytes;
     private final long writtenRows;
+
+    private final MemoryPoolId memoryPoolId;
 
     private final double cumulativeMemory;
 
@@ -73,7 +77,8 @@ public class QueryStatistics
             int completedSplits,
             boolean complete,
             List<StageCpuDistribution> cpuTimeDistribution,
-            List<String> operatorSummaries)
+            List<String> operatorSummaries,
+            MemoryPoolId memoryPoolId)
     {
         this.totalTasks = totalTasks;
         this.cpuTime = requireNonNull(cpuTime, "cpuTime is null");
@@ -97,6 +102,7 @@ public class QueryStatistics
         this.complete = complete;
         this.cpuTimeDistribution = requireNonNull(cpuTimeDistribution, "cpuTimeDistribution is null");
         this.operatorSummaries = requireNonNull(operatorSummaries, "operatorSummaries is null");
+        this.memoryPoolId = requireNonNull(memoryPoolId, "memoryPoolId is null");
     }
 
     public Duration getCpuTime()
@@ -207,5 +213,10 @@ public class QueryStatistics
     public int getTotalTasks()
     {
         return totalTasks;
+    }
+
+    public MemoryPoolId getMemoryPoolId()
+    {
+        return memoryPoolId;
     }
 }

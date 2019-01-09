@@ -76,6 +76,7 @@ public class QueryEventInfo
     private List<Map<String, Object>> columnAccess;
     private List<String> predicates;
     private List<String> operatorSummaries;
+    private String memoryPool;
 
     private class ColumnAccessEntry
     {
@@ -215,6 +216,8 @@ public class QueryEventInfo
 
         this.operatorSummaries = queryStatistics.getOperatorSummaries();
 
+        this.memoryPool = queryStatistics.getMemoryPoolId().getId();
+
         // Failure related
         if (queryCompletedEvent.getFailureInfo().isPresent()) {
             QueryFailureInfo queryFailureInfo = queryCompletedEvent.getFailureInfo().get();
@@ -328,6 +331,7 @@ public class QueryEventInfo
         map.put("totalStages", this.totalStages);
         map.put("predicates", this.predicates);
         map.put("operatorSummaries", this.operatorSummaries);
+        map.put("memorypool", this.memoryPool);
         return map;
     }
 }
