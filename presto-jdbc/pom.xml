@@ -80,6 +80,12 @@
             <groupId>com.facebook.presto</groupId>
             <artifactId>presto-main</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>jdk.tools</groupId>
+                    <artifactId>jdk.tools</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -253,6 +259,9 @@
             <plugin>
                 <groupId>org.basepom.maven</groupId>
                 <artifactId>duplicate-finder-maven-plugin</artifactId>
+                <goals>
+                    <goal>check</goal>
+                </goals>
                 <configuration>
                     <ignoredResourcePatterns>
                         <ignoredResourcePattern>parquet.thrift</ignoredResourcePattern>
@@ -262,6 +271,79 @@
                         <ignoredClassPattern>shaded.parquet.it.unimi.dsi.fastutil.*</ignoredClassPattern>
                         <ignoredClassPattern>module-info</ignoredClassPattern>
                     </ignoredClassPatterns>
+                    <exceptions>
+                        <exception>
+                            <conflictingDependencies>
+                                <dependency>
+                                    <groupId>com.facebook.presto.hive</groupId>
+                                    <artifactId>hive-apache</artifactId>
+                                    <version>1.2.2-2</version>
+                                </dependency>
+                                <dependency>
+                                    <groupId>org.apache.avro</groupId>
+                                    <artifactId>avro</artifactId>
+                                    <version>1.7.7</version>
+                                </dependency>
+                            </conflictingDependencies>
+                            <packages>
+                                <package>org.apache.avro</package>
+                            </packages>
+                            <resources>
+                                <resource>org/apache/avro/data/Json.avsc</resource>
+                            </resources>
+                        </exception>
+                        <exception>
+                            <conflictingDependencies>
+                                <dependency>
+                                    <groupId>com.facebook.presto.hive</groupId>
+                                    <artifactId>hive-apache</artifactId>
+                                    <version>1.2.2-2</version>
+                                </dependency>
+                                <dependency>
+                                    <groupId>org.apache.avro</groupId>
+                                    <artifactId>avro-mapred</artifactId>
+                                    <version>1.7.7</version>
+                                </dependency>
+                            </conflictingDependencies>
+                            <packages>
+                                <package>org.apache.avro</package>
+                            </packages>
+                        </exception>
+                        <exception>
+                            <conflictingDependencies>
+                                <dependency>
+                                    <groupId>commons-beanutils</groupId>
+                                    <artifactId>commons-beanutils</artifactId>
+                                </dependency>
+                                <dependency>
+                                    <groupId>commons-beanutils</groupId>
+                                    <artifactId>commons-beanutils-core</artifactId>
+                                </dependency>
+                                <dependency>
+                                    <groupId>commons-collections</groupId>
+                                    <artifactId>commons-collections</artifactId>
+                                </dependency>
+                            </conflictingDependencies>
+                            <packages>
+                                <package>org.apache.commons.collections</package>
+                            </packages>
+                        </exception>
+                        <exception>
+                            <conflictingDependencies>
+                                <dependency>
+                                    <groupId>commons-beanutils</groupId>
+                                    <artifactId>commons-beanutils</artifactId>
+                                </dependency>
+                                <dependency>
+                                    <groupId>commons-beanutils</groupId>
+                                    <artifactId>commons-beanutils-core</artifactId>
+                                </dependency>
+                            </conflictingDependencies>
+                            <packages>
+                                <package>org.apache.commons.beanutils</package>
+                            </packages>
+                        </exception>
+                    </exceptions>
                 </configuration>
             </plugin>
         </plugins>
