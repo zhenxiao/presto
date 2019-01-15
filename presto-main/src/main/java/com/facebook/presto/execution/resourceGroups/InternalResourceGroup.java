@@ -15,6 +15,7 @@ package com.facebook.presto.execution.resourceGroups;
 
 import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.execution.QueryState;
+import com.facebook.presto.execution.QueryStats;
 import com.facebook.presto.execution.resourceGroups.WeightedFairQueue.Usage;
 import com.facebook.presto.server.QueryStateInfo;
 import com.facebook.presto.server.ResourceGroupInfo;
@@ -25,6 +26,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroupState;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import com.google.common.collect.ImmutableList;
 import io.airlift.stats.CounterStat;
+import io.airlift.stats.TimeStat;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 import org.weakref.jmx.Managed;
@@ -43,6 +45,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static com.facebook.presto.SystemSessionProperties.getQueryPriority;
@@ -61,9 +65,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.airlift.units.DataSize.Unit.BYTE;
+import static io.airlift.units.Duration.succinctNanos;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * Resource groups form a tree, and all access to a group is guarded by the root of the tree.
@@ -138,6 +144,10 @@ public class InternalResourceGroup
     private long lastStartMillis;
     @GuardedBy("root")
     private CounterStat timeBetweenStartsSec = new CounterStat();
+    @GuardedBy("root")
+    private final TimeStat queuedTime = new TimeStat(MILLISECONDS);
+    @GuardedBy("root")
+    private final TimeStat runningTime = new TimeStat(MILLISECONDS);
 
     protected InternalResourceGroup(Optional<InternalResourceGroup> parent, String name, BiConsumer<InternalResourceGroup, Boolean> jmxExportListener, Executor executor)
     {
@@ -472,6 +482,20 @@ public class InternalResourceGroup
         return timeBetweenStartsSec;
     }
 
+    @Managed
+    @Nested
+    public TimeStat getQueuedTime()
+    {
+        return queuedTime;
+    }
+
+    @Managed
+    @Nested
+    public TimeStat getRunningTime()
+    {
+        return runningTime;
+    }
+
     @Override
     public int getSchedulingWeight()
     {
@@ -748,7 +772,7 @@ public class InternalResourceGroup
     }
 
     // Memory usage stats are expensive to maintain, so this method must be called periodically to update them
-    protected void internalRefreshStats()
+    protected void internalRefreshStats(long lastStatUpdatedNanos, boolean updateRunTimeQueueTimeStats)
     {
         checkState(Thread.holdsLock(root), "Must hold lock to refresh stats");
         synchronized (root) {
@@ -757,13 +781,32 @@ public class InternalResourceGroup
                 for (QueryExecution query : runningQueries) {
                     cachedMemoryUsageBytes += query.getUserMemoryReservation();
                 }
+                if (updateRunTimeQueueTimeStats) {
+                    /*
+                     * TODO Next iteration look into covering runtimes and queuedtimes for queries that start and end
+                     * within the last interval
+                     */
+                    Duration elapsedTimeSinceLastStatUpdate = Duration.nanosSince(lastStatUpdatedNanos);
+                    QueryStats queryStats;
+                    for (QueryExecution query : runningQueries) {
+                        queryStats = query.getQueryInfo().getQueryStats();
+                        runningTime.add(getRunningTimesStat(queryStats, elapsedTimeSinceLastStatUpdate));
+
+                        // We need to address the queue time of all queries that started after we last checked stats.
+                        queuedTime.add(getQueueingTimesStat(queryStats, elapsedTimeSinceLastStatUpdate));
+                    }
+                    for (QueryExecution query : queuedQueries) {
+                        queryStats = query.getQueryInfo().getQueryStats();
+                        queuedTime.add(getQueueingTimesStat(queryStats, elapsedTimeSinceLastStatUpdate));
+                    }
+                }
             }
             else {
                 for (Iterator<InternalResourceGroup> iterator = dirtySubGroups.iterator(); iterator.hasNext(); ) {
                     InternalResourceGroup subGroup = iterator.next();
                     long oldMemoryUsageBytes = subGroup.cachedMemoryUsageBytes;
                     cachedMemoryUsageBytes -= oldMemoryUsageBytes;
-                    subGroup.internalRefreshStats();
+                    subGroup.internalRefreshStats(lastStatUpdatedNanos, updateRunTimeQueueTimeStats);
                     cachedMemoryUsageBytes += subGroup.cachedMemoryUsageBytes;
                     if (!subGroup.isDirty()) {
                         iterator.remove();
@@ -772,6 +815,62 @@ public class InternalResourceGroup
                         subGroup.updateEligibility();
                     }
                 }
+            }
+        }
+    }
+
+    Duration getRunningTimesStat(QueryStats queryStats, Duration elapsedTimeSinceLastUpdate)
+    {
+        double elapsedTimeSinceLastUpdateNanos = elapsedTimeSinceLastUpdate.getValue(NANOSECONDS);
+        Duration queryExecutionTime = queryStats.getExecutionTime(); // Total run time of the query, excluding planning, queueing etc.
+        if (queryStats.getElapsedTime().getValue(NANOSECONDS) < elapsedTimeSinceLastUpdateNanos) {
+            // Refers to a NEW query that came in after we checked stats last time.
+            return queryExecutionTime;
+        }
+        else {
+            // Refers to a currently running OLD query that was seen last time when we checked stats.
+            if (queryExecutionTime.getValue(NANOSECONDS) > elapsedTimeSinceLastUpdateNanos) {
+                /*
+                 * Refers to a query which moved to running state before last time we checked stats. In this case get
+                 * only delta running time which is same as elapsed time since last stat update.
+                 */
+                return elapsedTimeSinceLastUpdate;
+            }
+            else {
+                // Refers to a query that moved to Running state after we check stats last time.
+                return queryExecutionTime;
+            }
+        }
+    }
+
+    Duration getQueueingTimesStat(QueryStats queryStats, Duration elapsedTimeSinceLastUpdate)
+    {
+        double queryExecutionTimeNanos = queryStats.getExecutionTime().getValue(NANOSECONDS);
+        double elapsedTimeSinceLastUpdateNanos = elapsedTimeSinceLastUpdate.getValue(NANOSECONDS);
+        double queryElapsedTimeNanos = queryStats.getElapsedTime().getValue(NANOSECONDS);
+        double queryQueuedTimeNanos = queryStats.getQueuedTime().getValue(NANOSECONDS);
+        if (queryExecutionTimeNanos > elapsedTimeSinceLastUpdateNanos) {
+            // Refers to query that was running when we checked last time as well.
+            return new Duration(0, TimeUnit.NANOSECONDS);
+        }
+        else {
+            if (queryElapsedTimeNanos > elapsedTimeSinceLastUpdateNanos) {
+                /*
+                 * Refers to a OLD query that is either:
+                 * 1) still queued currently (OR)
+                 * 2) moved to running state after we checked last time for stats.
+                 *
+                 * In either of these cases get the delta queued time for the query.
+                 */
+                return succinctNanos(Math.max(0, (long) elapsedTimeSinceLastUpdateNanos - (long) queryExecutionTimeNanos));
+            }
+            else {
+                /*
+                 * Refers to a NEW query that came in after we checked last time. The query can be:
+                 * 1) in queued state. (OR)
+                 * 2) in running state
+                 */
+                return succinctNanos(Math.max(0, (long) queryQueuedTimeNanos));
             }
         }
     }
@@ -988,6 +1087,9 @@ public class InternalResourceGroup
     public static final class RootInternalResourceGroup
             extends InternalResourceGroup
     {
+        private static final AtomicReference<Long> lastStatRefreshNanos = new AtomicReference<>();
+        private static final AtomicReference<Boolean> updateRunTimeQueueTimeStats = new AtomicReference<>(false);
+
         public RootInternalResourceGroup(String name, BiConsumer<InternalResourceGroup, Boolean> jmxExportListener, Executor executor)
         {
             super(Optional.empty(), name, jmxExportListener, executor);
@@ -995,7 +1097,20 @@ public class InternalResourceGroup
 
         public synchronized void processQueuedQueries()
         {
-            internalRefreshStats();
+            long currentRefreshNanos = System.nanoTime();
+            lastStatRefreshNanos.compareAndSet(null, currentRefreshNanos); //Very first time
+            long elapsedSeconds = NANOSECONDS.toSeconds(currentRefreshNanos - lastStatRefreshNanos.get());
+
+            // Update runtime queue time stats once every 30 seconds.gs
+            if (elapsedSeconds > 30) {
+                updateRunTimeQueueTimeStats.set(true);
+                internalRefreshStats(lastStatRefreshNanos.get(), updateRunTimeQueueTimeStats.get());
+                lastStatRefreshNanos.set(currentRefreshNanos);
+            }
+            else {
+                updateRunTimeQueueTimeStats.set(false);
+                internalRefreshStats(lastStatRefreshNanos.get(), updateRunTimeQueueTimeStats.get());
+            }
             enforceTimeLimits();
             while (internalStartNext()) {
                 // start all the queries we can

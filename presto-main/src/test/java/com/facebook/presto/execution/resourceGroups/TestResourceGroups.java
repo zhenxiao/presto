@@ -14,6 +14,7 @@
 package com.facebook.presto.execution.resourceGroups;
 
 import com.facebook.presto.execution.MockQueryExecution;
+import com.facebook.presto.execution.QueryStats;
 import com.facebook.presto.execution.resourceGroups.InternalResourceGroup.RootInternalResourceGroup;
 import com.facebook.presto.server.QueryStateInfo;
 import com.facebook.presto.server.ResourceGroupInfo;
@@ -24,9 +25,11 @@ import org.apache.commons.math3.distribution.BinomialDistribution;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -51,7 +54,10 @@ import static io.airlift.units.DataSize.Unit.GIGABYTE;
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.Collections.reverse;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
@@ -804,5 +810,142 @@ public class TestResourceGroups
                 Objects.equals(actual.getRunningTimeLimit(), expected.getRunningTimeLimit()) &&
                 Objects.equals(actual.getQueuedTimeLimit(), expected.getQueuedTimeLimit()) &&
                 Objects.equals(actual.getMemoryUsage(), expected.getMemoryUsage()));
+    }
+
+    private Map<RootInternalResourceGroup, Set<MockQueryExecution>> setUpForQueueTimeRunTimeStats()
+    {
+        RootInternalResourceGroup root = new RootInternalResourceGroup("root", (group, export) -> {}, directExecutor());
+        root.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        root.setMaxQueuedQueries(1);
+        // Start with zero capacity, so that nothing starts running until we've added all the queries
+        root.setHardConcurrencyLimit(0);
+
+        InternalResourceGroup rootA = root.getOrCreateSubGroup("a");
+        rootA.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        rootA.setMaxQueuedQueries(1);
+        rootA.setHardConcurrencyLimit(2);
+
+        Set<MockQueryExecution> queries = fillGroupTo(rootA, ImmutableSet.of(), 1, false);
+        Map<RootInternalResourceGroup, Set<MockQueryExecution>> result = new HashMap<>();
+        result.put(root, queries);
+
+        ResourceGroupInfo info = root.getInfo();
+        assertEquals(info.getNumRunningQueries(), 0);
+        assertEquals(info.getNumQueuedQueries(), 1);
+
+        return result;
+    }
+
+    private QueryStats getMockedQueryStats(Optional<Duration> queryElapsedTime, Optional<Duration> queryExecutionTime, Optional<Duration> queryQueuedTime)
+    {
+        QueryStats queryStats = mock(QueryStats.class);
+        Duration defaultDuration = new Duration(0, SECONDS);
+        Duration elapsedTime = queryElapsedTime.isPresent() ? queryElapsedTime.get() : defaultDuration;
+        when(queryStats.getElapsedTime()).thenReturn(elapsedTime);
+        Duration executionTime = queryExecutionTime.isPresent() ? queryExecutionTime.get() : defaultDuration;
+        when(queryStats.getExecutionTime()).thenReturn(executionTime);
+        Duration queuedTime = queryQueuedTime.isPresent() ? queryQueuedTime.get() : defaultDuration;
+        when(queryStats.getQueuedTime()).thenReturn(queuedTime);
+        return queryStats;
+    }
+
+    private void queuedTimeStatsAssertion(Duration elapsedTimeSinceLastUpdate, QueryStats mockedQueryStats, Duration expectedValue)
+    {
+        Map<RootInternalResourceGroup, Set<MockQueryExecution>> result = setUpForQueueTimeRunTimeStats();
+        for (Map.Entry<RootInternalResourceGroup, Set<MockQueryExecution>> entry : result.entrySet()) {
+            for (MockQueryExecution query : entry.getValue()) {
+                assertEquals(entry.getKey().getQueueingTimesStat(mockedQueryStats, elapsedTimeSinceLastUpdate), expectedValue);
+            }
+        }
+    }
+
+    @Test
+    public void assertQueuedTimeStatsForARunningQuery()
+    {
+        /*
+         * Asserts that for a query that has been running for a long time, the delta queued time is zero. This happens
+         * when the run time of the query is longer than the elapsed time since last stat check.
+         */
+        Duration elapsedTimeSinceLastUpdate = new Duration(10, SECONDS);
+        QueryStats mockQueryStats = getMockedQueryStats(Optional.empty(), Optional.of(new Duration(15, SECONDS)), Optional.empty());
+        Duration expectedValue = new Duration(0, NANOSECONDS).convertToMostSuccinctTimeUnit();
+        queuedTimeStatsAssertion(elapsedTimeSinceLastUpdate, mockQueryStats, expectedValue);
+    }
+
+    @Test
+    public void assertQueuedTimeStatsForOldQuery()
+    {
+        /*
+         * Asserts that for a query that started long time back (before last stat update), the delta queued time is the
+         * difference between the elapsed time since last update and actual query running time.
+         */
+        Duration elapsedTimeSinceLastUpdate = new Duration(23, SECONDS);
+        QueryStats mockQueryStats = getMockedQueryStats(Optional.of(new Duration(35, SECONDS)), Optional.of(new Duration(15, SECONDS)), Optional.empty());
+        Duration expectedValue = new Duration(8, SECONDS).convertTo(NANOSECONDS).convertToMostSuccinctTimeUnit();
+        queuedTimeStatsAssertion(elapsedTimeSinceLastUpdate, mockQueryStats, expectedValue);
+    }
+
+    @Test
+    public void assertQueuedTimeStatsForNewQuery()
+    {
+        /*
+         * Asserts that for a query that started recently (after last stat update), the delta queued time is the same as
+         * actual queued time of the query.
+         */
+        Duration elapsedTimeSinceLastUpdate = new Duration(23, SECONDS);
+        QueryStats mockQueryStats = getMockedQueryStats(Optional.of(new Duration(15, SECONDS)), Optional.empty(), Optional.of(new Duration(11, SECONDS)));
+        Duration expectedValue = new Duration(11, SECONDS).convertTo(NANOSECONDS).convertToMostSuccinctTimeUnit();
+        queuedTimeStatsAssertion(elapsedTimeSinceLastUpdate, mockQueryStats, expectedValue);
+    }
+
+    private void runTimeStatsAssertion(Duration elapsedTimeSinceLastUpdate, QueryStats mockedQueryStats, Duration expectedValue)
+    {
+        Map<RootInternalResourceGroup, Set<MockQueryExecution>> result = setUpForQueueTimeRunTimeStats();
+        for (Map.Entry<RootInternalResourceGroup, Set<MockQueryExecution>> entry : result.entrySet()) {
+            for (MockQueryExecution query : entry.getValue()) {
+                assertEquals(entry.getKey().getRunningTimesStat(mockedQueryStats, elapsedTimeSinceLastUpdate).convertToMostSuccinctTimeUnit(),
+                        expectedValue);
+            }
+        }
+    }
+
+    @Test
+    public void assertRunningTimeStatsForNewQuery()
+    {
+        /*
+         * Asserts that for a query that started recently (after last stat update), the delta running time is the same
+         * as actual execution time of the query.
+         */
+        Duration elapsedTimeSinceLastUpdate = new Duration(10, SECONDS);
+        QueryStats mockQueryStats = getMockedQueryStats(Optional.of(new Duration(9, SECONDS)), Optional.of(new Duration(7, SECONDS)), Optional.empty());
+        Duration expectedValue = new Duration(7, SECONDS).convertToMostSuccinctTimeUnit();
+        runTimeStatsAssertion(elapsedTimeSinceLastUpdate, mockQueryStats, expectedValue);
+    }
+
+    @Test
+    public void assertDeltaRunningTimeStatsForOldQuery1()
+    {
+        /*
+         * This asserts the delta running time for a query which moved to running state prior to the last stat refresh
+         * update. In this case we expect the delta running time to be elapsed time since last stat update
+         */
+        Duration elapsedTimeSinceLastUpdate = new Duration(13, SECONDS);
+        QueryStats mockQueryStats = getMockedQueryStats(Optional.of(new Duration(20, SECONDS)), Optional.of(new Duration(19, SECONDS)), Optional.empty());
+        Duration expectedValue = new Duration(13, SECONDS).convertToMostSuccinctTimeUnit();
+        runTimeStatsAssertion(elapsedTimeSinceLastUpdate, mockQueryStats, expectedValue);
+    }
+
+    @Test
+    public void assertDeltaRunningTimeStatsForOldQuery2()
+    {
+        /*
+         * This asserts the delta running time for a query which started prior to the last stat refresh update. But
+         * moved to running state only after the last stat update. In this case we expect the actual query execution
+         * time to be returned.
+         */
+        Duration elapsedTimeSinceLastUpdate = new Duration(13, SECONDS);
+        QueryStats mockQueryStats = getMockedQueryStats(Optional.of(new Duration(20, SECONDS)), Optional.of(new Duration(9, SECONDS)), Optional.empty());
+        Duration expectedValue = new Duration(9, SECONDS).convertToMostSuccinctTimeUnit();
+        runTimeStatsAssertion(elapsedTimeSinceLastUpdate, mockQueryStats, expectedValue);
     }
 }
