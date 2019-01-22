@@ -52,6 +52,10 @@ public class PagesIndexOrdering
     @SuppressWarnings("InnerAssignment")
     private void quickSort(PagesIndex pagesIndex, int from, int to)
     {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new RuntimeException("Sort is interrupted");
+        }
+
         int len = to - from;
         // Insertion sort on smallest arrays
         if (len < SMALL) {
