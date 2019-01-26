@@ -14,12 +14,17 @@
 package com.facebook.presto.pinot;
 
 import io.airlift.configuration.Config;
+import io.airlift.units.Duration;
+import io.airlift.units.MinDuration;
 
 import javax.validation.constraints.NotNull;
 
+import java.util.concurrent.TimeUnit;
+
 public class PinotConfig
 {
-    private static final long DEFAULT_IDLE_TIMEOUT_MS = 6 * 60L * 60 * 1000L; // 6 hours
+    private static final long DEFAULT_IDLE_TIMEOUT_MINUTE = 5L; // 5 minutes
+    private static final long DEFAULT_CONNECTION_TIMEOUT_MINUTE = 1L; // 1 minute
     private static final int DEFAULT_MIN_CONNECTIONS_PER_SERVER = 10;
     private static final int DEFAULT_MAX_CONNECTIONS_PER_SERVER = 30;
     private static final int DEFAULT_MAX_BACKLOG_PER_SERVER = 30;
@@ -43,11 +48,13 @@ public class PinotConfig
     private long limitLarge = DEFAULT_LIMIT_LARGE;
     private long limitMedium = DEFAULT_LIMIT_MEDIUM;
 
+    private Duration idleTimeout = new Duration(DEFAULT_IDLE_TIMEOUT_MINUTE, TimeUnit.MINUTES);
+    private Duration connectionTimeout = new Duration(DEFAULT_CONNECTION_TIMEOUT_MINUTE, TimeUnit.MINUTES);
+
     private int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
     private int minConnectionsPerServer = DEFAULT_MIN_CONNECTIONS_PER_SERVER;
     private int maxConnectionsPerServer = DEFAULT_MAX_CONNECTIONS_PER_SERVER;
     private int maxBacklogPerServer = DEFAULT_MAX_BACKLOG_PER_SERVER;
-    private long idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
     private int estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
     private boolean isAggregationPushdownEnabled = DEFAULT_IS_AGGREGATION_PUSHDOWN_ENABLED;
 
@@ -253,21 +260,31 @@ public class PinotConfig
         return this;
     }
 
+    @MinDuration("15s")
     @NotNull
-    public long getIdleTimeoutMs()
+    public Duration getIdleTimeout()
     {
-        return idleTimeoutMs;
+        return idleTimeout;
     }
 
-    @Config("idle-timeout-ms")
-    public PinotConfig setIdleTimeoutMs(String idleTimeoutMs)
+    @Config("idle-timeout")
+    public PinotConfig setIdleTimeout(Duration idleTimeout)
     {
-        try {
-            this.idleTimeoutMs = Long.valueOf(idleTimeoutMs);
-        }
-        catch (Exception e) {
-            this.idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
-        }
+        this.idleTimeout = idleTimeout;
+        return this;
+    }
+
+    @MinDuration("15s")
+    @NotNull
+    public Duration getConnectionTimeout()
+    {
+        return connectionTimeout;
+    }
+
+    @Config("connection-timeout")
+    public PinotConfig setConnectionTimeout(Duration connectionTimeout)
+    {
+        this.connectionTimeout = connectionTimeout;
         return this;
     }
 

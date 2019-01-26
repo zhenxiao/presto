@@ -39,6 +39,7 @@ import com.linkedin.pinot.transport.scattergather.ScatterGatherRequest;
 import com.linkedin.pinot.transport.scattergather.ScatterGatherStats;
 import com.yammer.metrics.core.MetricsRegistry;
 import io.airlift.log.Logger;
+import io.airlift.units.Duration;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.HashedWheelTimer;
@@ -78,6 +79,7 @@ public class PinotScatterGatherQueryClient
     private KeyedPool<PooledNettyClientResourceManager.PooledClientConnection> connPool;
     private ScheduledThreadPoolExecutor poolTimeoutExecutor;
     private ExecutorService requestSenderPool;
+    private Duration connectionTimeout;
 
     @Inject
     public PinotScatterGatherQueryClient(PinotConfig pinotConfig)
@@ -102,7 +104,8 @@ public class PinotScatterGatherQueryClient
 
         requestSenderPool = Executors.newFixedThreadPool(pinotConfig.getThreadPoolSize());
         poolTimeoutExecutor = new ScheduledThreadPoolExecutor(50);
-        connPool = new KeyedPoolImpl<PooledNettyClientResourceManager.PooledClientConnection>(pinotConfig.getMinConnectionsPerServer(), pinotConfig.getMaxConnectionsPerServer(), pinotConfig.getIdleTimeoutMs(), pinotConfig.getMaxBacklogPerServer(), resourceManager, poolTimeoutExecutor, requestSenderPool, registry);
+        connectionTimeout = pinotConfig.getConnectionTimeout();
+        connPool = new KeyedPoolImpl<PooledNettyClientResourceManager.PooledClientConnection>(pinotConfig.getMinConnectionsPerServer(), pinotConfig.getMaxConnectionsPerServer(), pinotConfig.getIdleTimeout().toMillis(), pinotConfig.getMaxBacklogPerServer(), resourceManager, poolTimeoutExecutor, requestSenderPool, registry);
         resourceManager.setPool(connPool);
 
         // Setup ScatterGather
@@ -138,7 +141,7 @@ public class PinotScatterGatherQueryClient
         List<String> segmentList = new ArrayList<>();
         segmentList.add(segment);
         routingTable.put(serverHost, segmentList);
-        ScatterGatherRequestImpl scatterRequest = new ScatterGatherRequestImpl(brokerRequest, routingTable, 0, 30000, prestoHostId);
+        ScatterGatherRequestImpl scatterRequest = new ScatterGatherRequestImpl(brokerRequest, routingTable, 0, connectionTimeout.toMillis(), prestoHostId);
 
         ScatterGatherStats scatterGatherStats = new ScatterGatherStats();
         CompositeFuture<byte[]> compositeFuture = routeScatterGather(scatterRequest, scatterGatherStats);
@@ -243,7 +246,7 @@ public class PinotScatterGatherQueryClient
             compositeFuture = this.scatterGatherer.scatterGather(scatterRequest, scatterGatherStats, true, brokerMetrics);
         }
         catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("Got exceptions querying Pinot servers. ", e);
         }
         return compositeFuture;
     }
