@@ -110,6 +110,7 @@ public final class SystemSessionProperties
     public static final String JSON_PATH_PUSHDOWN = "json_path_pushdown";
     public static final String PARTITION_FILTER = "enforce_partition_filter";
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
+    public static final String PARTITION_FILTER_ENFORCED_USERS = "partition_filter_enforced_users";
     public static final String REWRITE_GEOSPATIAL_QUERY = "rewrite_geospatial_query";
     public static final String AGGREGATION_PUSHDOWN = "aggregation_pushdown";
     public static final String DEREFERENCE_EXPRESSION_PUSHDOWN = "dereference_expression_pushdown";
@@ -312,6 +313,11 @@ public final class SystemSessionProperties
                         PARTITION_FILTER_TABLES,
                         "tables to enforce partition filtering",
                         featuresConfig.getPartitionFilteringTables(),
+                        true),
+                stringSessionProperty(
+                        PARTITION_FILTER_ENFORCED_USERS,
+                        "users to enforce partition filtering",
+                        featuresConfig.getPartitionFilteringEnforcedUsers(),
                         true),
                 integerSessionProperty(
                         QUERY_PRIORITY,
@@ -663,6 +669,11 @@ public final class SystemSessionProperties
     public static String getPartitionFilterTables(Session session)
     {
         return session.getSystemProperty(PARTITION_FILTER_TABLES, String.class);
+    }
+
+    public static String getPartitionFilterEnforcedUsers(Session session)
+    {
+        return session.getSystemProperty(PARTITION_FILTER_ENFORCED_USERS, String.class);
     }
 
     public static DataSize getQueryMaxMemory(Session session)

@@ -2457,12 +2457,12 @@ public class TestHiveIntegrationSmokeTest
         // Not able to use assertQuery here. assertQuery runs query in H2QueryRunner as well, which we are not able to create table there.
         computeActual(noPartitionFilterSession, "select * from partitioned_table");
         for (Session session : ImmutableList.of(partitionFilterSession, wildcardSession)) {
-            assertQueryFails(session, "select * from partitioned_table", "Your query is missing " +
-                    "partition filter. Please add a filter on the partition column \"order_status\" in the WHERE clause of your " +
-                    "query. For example: WHERE partition_column > '2017-06-01'.");
+            assertQueryFails(session, "select * from partitioned_table", "Your query is missing partition filter. " +
+                    "Please add a filter on the partition column \"order_status\" in the WHERE clause of your query. " +
+                    "For example: WHERE partition_column > '2017-06-01'. .*");
             assertQueryFails(session, "select * from partitioned_table_multi_partition_key", "Your query " +
                     "is missing partition filter. Please add filters on all partition columns \"order_status\", " +
-                    "\"ship_priority\" in the WHERE clause of your query. For example: WHERE partition_column > '2017-06-01'.");
+                    "\"ship_priority\" in the WHERE clause of your query. For example: WHERE partition_column > '2017-06-01'. .*");
         }
 
         // Query in session with empty strict mode tables will succeeded
@@ -2481,6 +2481,62 @@ public class TestHiveIntegrationSmokeTest
 
         // When order_date column in partitioned_table become order_date_1 in tableScan:originalConstraint, this query still works
         computeActual(partitionFilterSession, "select * from partitioned_table_multi_partition_key multiple join partitioned_table single on multiple.order_status = single.order_status where multiple.order_status = '2017=06-01' and single.order_status = '2017-06-01' and multiple.ship_priority = 2");
+
+        assertUpdate("DROP TABLE partitioned_table");
+        assertUpdate("DROP TABLE partitioned_table_multi_partition_key");
+    }
+
+    @Test
+    public void testPartitionFilterWithSpecificUserEnforcement()
+    {
+        Session commonSession = Session.builder(getSession())
+                .setSystemProperty(
+                        SystemSessionProperties.PARTITION_FILTER_TABLES,
+                        HiveQueryRunner.TPCH_SCHEMA + ".Partitioned_table:" + HiveQueryRunner.TPCH_SCHEMA + ".partitioned_table_multi_partition_key")
+                .build();
+
+        Session wildcardSession = Session.builder(getSession()).setSystemProperty(SystemSessionProperties.PARTITION_FILTER_TABLES, HiveQueryRunner.TPCH_SCHEMA + ".*").setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "true").build();
+        Session customUserListUser1 = Session.builder(getSession())
+                .setSystemProperty(SystemSessionProperties.PARTITION_FILTER_TABLES, HiveQueryRunner.TPCH_SCHEMA + ".*")
+                .setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "true")
+                .setSystemProperty(SystemSessionProperties.PARTITION_FILTER_ENFORCED_USERS, "user1:user2")
+                .setIdentity(new Identity("user1", Optional.empty()))
+                .build();
+        Session customUserListUser3 = Session.builder(getSession())
+                .setSystemProperty(SystemSessionProperties.PARTITION_FILTER_TABLES, HiveQueryRunner.TPCH_SCHEMA + ".*")
+                .setSystemProperty(SystemSessionProperties.PARTITION_FILTER, "true")
+                .setSystemProperty(SystemSessionProperties.PARTITION_FILTER_ENFORCED_USERS, "user1:user2")
+                .setIdentity(new Identity("user3", Optional.empty()))
+                .build();
+
+        @Language("SQL") String createPartitionTable = "" +
+                "CREATE TABLE partitioned_table " +
+                "WITH (" +
+                "partitioned_by = ARRAY[ 'ORDER_STATUS' ]" +
+                ") " +
+                "AS " +
+                "SELECT orderkey AS order_key, shippriority AS ship_priority, orderstatus AS order_status " +
+                "FROM tpch.tiny.orders";
+
+        @Language("SQL") String createPartitionedTableMultiPartitionKey = "" +
+                "CREATE TABLE partitioned_table_multi_partition_key " +
+                "WITH (" +
+                "partitioned_by = ARRAY[ 'SHIP_PRIORITY', 'ORDER_STATUS' ]" +
+                ") " +
+                "AS " +
+                "SELECT orderkey AS order_key, shippriority AS ship_priority, orderstatus AS order_status " +
+                "FROM tpch.tiny.orders";
+
+        assertUpdate(commonSession, createPartitionTable, "SELECT count(*) from orders");
+        assertUpdate(commonSession, createPartitionedTableMultiPartitionKey, "SELECT count(*) from orders");
+        assertUpdate("GRANT SELECT ON partitioned_table TO user1");
+        assertUpdate("GRANT SELECT ON partitioned_table TO user3");
+
+        assertQueryFails(customUserListUser1, "select * from partitioned_table",
+                "Your query is missing partition filter. " +
+                        "Please add a filter on the partition column \"order_status\" in the WHERE clause of your query. " +
+                        "For example: WHERE partition_column > '2017-06-01'. .*");
+        computeActual(customUserListUser3, "select * from partitioned_table");
 
         assertUpdate("DROP TABLE partitioned_table");
         assertUpdate("DROP TABLE partitioned_table_multi_partition_key");

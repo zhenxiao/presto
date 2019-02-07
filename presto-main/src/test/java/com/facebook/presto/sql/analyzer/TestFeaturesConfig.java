@@ -107,6 +107,7 @@ public class TestFeaturesConfig
                 .setMaxStages(100)
                 .setPartitionFilteringEnforced(false)
                 .setPartitionFilteringTables("")
+                .setPartitionFilteringEnforcedUsers("*")
                 .setRewriteGeoSpatialQuery(false));
     }
 
@@ -174,6 +175,7 @@ public class TestFeaturesConfig
                 .put("analyzer.max-grouping-sets", "2047")
                 .put("optimizer.partition-filtering-enforced", "true")
                 .put("optimizer.partition-filtering-tables", "dwh.a:hdrone.b")
+                .put("optimizer.partition-filtering-enforced-users", "user1")
                 .put("optimizer.json-path-pushdown", "true")
                 .put("optimizer.aggregation-pushdown", "true")
                 .build();
@@ -242,7 +244,8 @@ public class TestFeaturesConfig
                 .setJsonPathPushDown(true)
                 .setAggregationPushDown(true)
                 .setPartitionFilteringEnforced(true)
-                .setPartitionFilteringTables("dwh.a:hdrone.b");
+                .setPartitionFilteringTables("dwh.a:hdrone.b")
+                .setPartitionFilteringEnforcedUsers("user1");
 
         assertFullMapping(properties, expected);
     }

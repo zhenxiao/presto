@@ -97,6 +97,7 @@ public class FeaturesConfig
 
     private boolean partitionFilteringEnforced;
     private String partitionFilteringTables = "";
+    private String partitionFilteringEnforcedUsers = "*";
 
     private boolean rewriteGeoSpatialQuery;
     private boolean dereferenceExpressionPushDown;
@@ -871,6 +872,18 @@ public class FeaturesConfig
     public FeaturesConfig setPartitionFilteringTables(String tables)
     {
         this.partitionFilteringTables = tables;
+        return this;
+    }
+
+    public String getPartitionFilteringEnforcedUsers()
+    {
+        return this.partitionFilteringEnforcedUsers;
+    }
+
+    @Config("optimizer.partition-filtering-enforced-users")
+    public FeaturesConfig setPartitionFilteringEnforcedUsers(String partitionFilteringEnforcedUsers)
+    {
+        this.partitionFilteringEnforcedUsers = partitionFilteringEnforcedUsers;
         return this;
     }
 

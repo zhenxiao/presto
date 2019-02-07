@@ -34,6 +34,7 @@ import com.facebook.presto.sql.tree.SymbolReference;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +49,9 @@ import static java.util.Objects.requireNonNull;
 public class EnforcePartitionFilter
         implements PlanOptimizer
 {
-    private static final String ERROR_MESSAGE_FORMAT = "Your query is missing partition filter. Please %s %s in the WHERE clause of your query. For example: WHERE partition_column > '2017-06-01'.";
+    private static final String ERROR_MESSAGE_FORMAT = "Your query is missing partition filter. Please %s %s in the WHERE clause of your query. " +
+            "For example: WHERE partition_column > '2017-06-01'. See more details at " +
+            "https://engdocs.uberinternal.com/sql-analytics-guide/presto_pages/optimization.html#partition-column. ";
     private final Metadata metadata;
     private Set<SchemaTableName> partitionFilterEnforcedTables;
 
@@ -65,6 +68,12 @@ public class EnforcePartitionFilter
         return StreamSupport.stream(spliterator, false).map(SchemaTableName::valueOf).collect(Collectors.toSet());
     }
 
+    private static Set<String> parseUserList(String userList)
+    {
+        Spliterator<String> spliterator = Splitter.on(':').omitEmptyStrings().trimResults().split(userList).spliterator();
+        return StreamSupport.stream(spliterator, false).map(String::toLowerCase).collect(Collectors.toSet());
+    }
+
     @Override
     public PlanNode optimize(PlanNode plan, Session session, Map<Symbol, Type> types, SymbolAllocator symbolAllocator, PlanNodeIdAllocator idAllocator)
     {
@@ -73,7 +82,8 @@ public class EnforcePartitionFilter
             return plan;
         }
         this.partitionFilterEnforcedTables = getSchemaTableNames(partitionFilterTables);
-        return SimplePlanRewriter.rewriteWith(new Optimizer(session, metadata, this.partitionFilterEnforcedTables, idAllocator), plan, new PartitionFilteringContext());
+        String partitionFilterEnforcedUsers = SystemSessionProperties.getPartitionFilterEnforcedUsers(session);
+        return SimplePlanRewriter.rewriteWith(new Optimizer(session, metadata, this.partitionFilterEnforcedTables, partitionFilterEnforcedUsers, idAllocator), plan, new PartitionFilteringContext());
     }
 
     private static class PartitionFilteringContext
@@ -98,13 +108,22 @@ public class EnforcePartitionFilter
         private final Metadata metadata;
         private final Set<SchemaTableName> partitionFilteringTables;
         private final Set<String> enforcedSchemas;
+        private final boolean enforceAllUsers;
+        private final Set<String> enforcedUserList;
 
-        private Optimizer(Session session, Metadata metadata, Set<SchemaTableName> tables, PlanNodeIdAllocator idAllocator)
+        private Optimizer(Session session, Metadata metadata, Set<SchemaTableName> tables, String partitionFilterEnforcedUsers, PlanNodeIdAllocator idAllocator)
         {
             this.session = session;
             this.metadata = metadata;
             this.partitionFilteringTables = tables;
             this.enforcedSchemas = partitionFilteringTables.stream().filter(schemaTableName -> "*".equals(schemaTableName.getTableName())).map(SchemaTableName::getSchemaName).collect(Collectors.toSet());
+            this.enforceAllUsers = partitionFilterEnforcedUsers.trim().equals("*");
+            if (enforceAllUsers) {
+                this.enforcedUserList = Collections.emptySet();
+            }
+            else {
+                this.enforcedUserList = parseUserList(partitionFilterEnforcedUsers);
+            }
         }
 
         @Override
@@ -121,6 +140,10 @@ public class EnforcePartitionFilter
 
             SchemaTableName schemaTableName = metadata.getTableMetadata(session, tableScan.getTable()).getTable();
             if (!enforcedSchemas.contains(schemaTableName.getSchemaName()) && !partitionFilteringTables.contains(schemaTableName)) {
+                return context.defaultRewrite(tableScan);
+            }
+
+            if (!enforceAllUsers && !enforcedUserList.contains(session.getUser().toLowerCase())) {
                 return context.defaultRewrite(tableScan);
             }
 
