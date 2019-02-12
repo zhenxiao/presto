@@ -34,6 +34,7 @@ import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
@@ -539,6 +540,16 @@ public interface ConnectorMetadata
      */
     default Optional<TableScanPipeline> pushFilterIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
             TableScanPipeline currentPipeline, FilterPipelineNode filter)
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * Push limit operation into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support limit.
+     */
+    default Optional<TableScanPipeline> pushLimitIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, LimitPipelineNode limit)
     {
         return Optional.empty();
     }

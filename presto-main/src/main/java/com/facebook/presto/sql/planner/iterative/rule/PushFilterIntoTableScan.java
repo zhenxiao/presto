@@ -33,14 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static com.facebook.presto.matching.Capture.newCapture;
+import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.newTableScanWithPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.filter;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * Pushes filter operation into table scan. Useful in connectors which can compute faster than Presto.
@@ -97,17 +96,7 @@ public class PushFilterIntoTableScan
                 context.getSession(), scanNode.getTable(), scanNode.getOrCreateScanPipeline(typeProvider), filterPipelineNode.get());
 
         if (newScanPipeline.isPresent()) {
-            return Result.ofPlanNode(new TableScanNode(
-                    context.getIdAllocator().getNextId(),
-                    scanNode.getTable(),
-                    filter.getOutputSymbols(),
-                    IntStream.range(0, filter.getOutputSymbols().size())
-                            .boxed()
-                            .collect(toMap(filter.getOutputSymbols()::get, newScanPipeline.get().getOutputColumnHandles()::get)),
-                    scanNode.getLayout(),
-                    scanNode.getCurrentConstraint(),
-                    scanNode.getEnforcedConstraint(),
-                    newScanPipeline));
+            return Result.ofPlanNode(newTableScanWithPipeline(scanNode, context.getIdAllocator().getNextId(), filter.getOutputSymbols(), newScanPipeline.get()));
         }
 
         return Result.empty();

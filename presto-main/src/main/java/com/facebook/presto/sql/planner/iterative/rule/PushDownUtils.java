@@ -13,10 +13,14 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
+import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.TypeProvider;
 import com.facebook.presto.sql.planner.plan.AggregationNode;
+import com.facebook.presto.sql.planner.plan.PlanNodeId;
+import com.facebook.presto.sql.planner.plan.TableScanNode;
 import com.facebook.presto.sql.tree.FunctionCall;
 import com.facebook.presto.sql.tree.SymbolReference;
 
@@ -24,12 +28,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.stream.Collectors.toMap;
 
-public class AggregationsPushDownUtils
+public class PushDownUtils
 {
-    private AggregationsPushDownUtils()
+    private PushDownUtils()
     {
     }
 
@@ -58,7 +64,7 @@ public class AggregationsPushDownUtils
     /**
      * Convert planner based objects into connector format
      */
-    static Optional<AggregationPipelineNode> inConnectorFormat(List<Symbol> aggOutputSymbols, Map<Symbol, AggregationNode.Aggregation> aggregations,
+    static Optional<AggregationPipelineNode> convertAggregationToPushDownFormat(List<Symbol> aggOutputSymbols, Map<Symbol, AggregationNode.Aggregation> aggregations,
             List<Symbol> groupByKeys, List<Symbol> finalOutputSymbols, TypeProvider typeProvider)
     {
         int groupByKeyIndex = 0;
@@ -89,5 +95,24 @@ public class AggregationsPushDownUtils
         }
 
         return Optional.of(aggPipelineNode);
+    }
+
+    static TableScanNode newTableScanWithPipeline(TableScanNode existingNode, PlanNodeId newPlanNodeId, List<Symbol> newOutputSymbols, TableScanPipeline scanPipeline)
+    {
+        // Check the newOutputSymbols size and outputColumnHandles list size in scanPipeline are the same
+        checkArgument(scanPipeline.getOutputColumnHandles().size() == newOutputSymbols.size(), "Mismatch in row size");
+        Map<Symbol, ColumnHandle> newAssignments = IntStream.range(0, newOutputSymbols.size())
+                .boxed()
+                .collect(toMap(newOutputSymbols::get, scanPipeline.getOutputColumnHandles()::get));
+
+        return new TableScanNode(
+                newPlanNodeId,
+                existingNode.getTable(),
+                newOutputSymbols,
+                newAssignments,
+                existingNode.getLayout(),
+                existingNode.getCurrentConstraint(),
+                existingNode.getEnforcedConstraint(),
+                Optional.of(scanPipeline));
     }
 }

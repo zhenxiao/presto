@@ -26,6 +26,7 @@ import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
@@ -484,6 +485,12 @@ public abstract class AbstractMockMetadata
 
     @Override
     public Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle, TableScanPipeline existingPipeline, FilterPipelineNode filterPipelineNode)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushLimitIntoScan(Session session, TableHandle tableHandle, TableScanPipeline existingPipeline, LimitPipelineNode limit)
     {
         return Optional.empty();
     }

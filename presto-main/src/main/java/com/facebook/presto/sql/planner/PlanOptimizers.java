@@ -73,6 +73,9 @@ import com.facebook.presto.sql.planner.iterative.rule.PruneWindowColumns;
 import com.facebook.presto.sql.planner.iterative.rule.PushAggregationIntoTableScan;
 import com.facebook.presto.sql.planner.iterative.rule.PushAggregationThroughOuterJoin;
 import com.facebook.presto.sql.planner.iterative.rule.PushFilterIntoTableScan;
+import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.FinalLimitPushDown;
+import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.PartialLimitPushDown;
+import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.TwoPhaseLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughMarkDistinct;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughOuterJoin;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughProject;
@@ -524,7 +527,10 @@ public class PlanOptimizers
                         new PushFilterIntoTableScan(metadata),
                         new PushProjectIntoTableScan(metadata),
                         new PushAggregationIntoTableScan(metadata),
-                        new PushPartialAggregationIntoTableScan(metadata))));
+                        new PushPartialAggregationIntoTableScan(metadata),
+                        new TwoPhaseLimitPushDown(metadata),
+                        new PartialLimitPushDown(metadata),
+                        new FinalLimitPushDown(metadata))));
 
         builder.add(new IterativeOptimizer(
                 ruleStats,

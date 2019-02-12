@@ -25,11 +25,11 @@ import com.facebook.presto.sql.planner.plan.AggregationNode;
 import com.facebook.presto.sql.planner.plan.TableScanNode;
 
 import java.util.Optional;
-import java.util.stream.IntStream;
 
 import static com.facebook.presto.matching.Capture.newCapture;
 import static com.facebook.presto.matching.Pattern.empty;
-import static com.facebook.presto.sql.planner.iterative.rule.AggregationsPushDownUtils.inConnectorFormat;
+import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.convertAggregationToPushDownFormat;
+import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.newTableScanWithPipeline;
 import static com.facebook.presto.sql.planner.plan.AggregationNode.Step.PARTIAL;
 import static com.facebook.presto.sql.planner.plan.Patterns.Aggregation.groupingColumns;
 import static com.facebook.presto.sql.planner.plan.Patterns.Aggregation.step;
@@ -37,7 +37,6 @@ import static com.facebook.presto.sql.planner.plan.Patterns.aggregation;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * Pushes partial aggregation into table scan. Useful in connectors which can compute faster than Presto or
@@ -86,7 +85,7 @@ public class PushPartialAggregationIntoTableScan
         TableScanNode scanNode = captures.get(TABLE_SCAN);
         TypeProvider typeProvider = context.getSymbolAllocator().getTypes();
 
-        Optional<AggregationPipelineNode> aggPipelineNode = inConnectorFormat(
+        Optional<AggregationPipelineNode> aggPipelineNode = convertAggregationToPushDownFormat(
                 aggregation.getOutputSymbols(),
                 aggregation.getAggregations(),
                 aggregation.getGroupingKeys(),
@@ -101,17 +100,7 @@ public class PushPartialAggregationIntoTableScan
                 context.getSession(), scanNode.getTable(), scanNode.getOrCreateScanPipeline(typeProvider), aggPipelineNode.get());
 
         if (newScanPipeline.isPresent()) {
-            return Result.ofPlanNode(new TableScanNode(
-                    context.getIdAllocator().getNextId(),
-                    scanNode.getTable(),
-                    aggregation.getOutputSymbols(),
-                    IntStream.range(0, aggregation.getOutputSymbols().size())
-                            .boxed()
-                            .collect(toMap(aggregation.getOutputSymbols()::get, newScanPipeline.get().getOutputColumnHandles()::get)),
-                    scanNode.getLayout(),
-                    scanNode.getCurrentConstraint(),
-                    scanNode.getEnforcedConstraint(),
-                    newScanPipeline));
+            return Result.ofPlanNode(newTableScanWithPipeline(scanNode, context.getIdAllocator().getNextId(), aggregation.getOutputSymbols(), newScanPipeline.get()));
         }
 
         return Result.empty();

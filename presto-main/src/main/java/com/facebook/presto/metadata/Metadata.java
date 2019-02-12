@@ -27,6 +27,7 @@ import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
@@ -347,6 +348,13 @@ public interface Metadata
      */
     Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle,
             TableScanPipeline existingPipeline, FilterPipelineNode filterPipelineNode);
+
+    /**
+     * Push limit into table scan
+     * @return New {@link TableScanPipeline} if the connector supports limit. Empty otherwise.
+     */
+    Optional<TableScanPipeline> pushLimitIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, LimitPipelineNode limit);
 
     Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline);
 
