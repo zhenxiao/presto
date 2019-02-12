@@ -49,6 +49,7 @@ import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -177,7 +178,8 @@ public class MergeNestedColumn
             }
             ImmutableMap<Symbol, ColumnHandle> nestedColumnsMap = columnHandleBuilder.build();
 
-            TableScanNode newTableScan = new TableScanNode(idAllocator.getNextId(), tableScanNode.getTable(), ImmutableList.copyOf(nestedColumnsMap.keySet()), nestedColumnsMap, tableScanNode.getLayout(), tableScanNode.getCurrentConstraint(), tableScanNode.getEnforcedConstraint());
+            TableScanNode newTableScan = new TableScanNode(idAllocator.getNextId(), tableScanNode.getTable(), ImmutableList.copyOf(nestedColumnsMap.keySet()), nestedColumnsMap,
+                    tableScanNode.getLayout(), tableScanNode.getCurrentConstraint(), tableScanNode.getEnforcedConstraint(), Optional.empty());
 
             Rewriter rewriter = new Rewriter(symbolExpressionBuilder.build());
             Map<Symbol, Expression> assignments = node.getAssignments().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> ExpressionTreeRewriter.rewriteWith(rewriter, entry.getValue())));

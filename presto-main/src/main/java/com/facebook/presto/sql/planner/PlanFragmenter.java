@@ -763,7 +763,8 @@ public class PlanFragmenter
                     node.getAssignments(),
                     Optional.of(newTableLayoutHandle),
                     node.getCurrentConstraint(),
-                    node.getEnforcedConstraint());
+                    node.getEnforcedConstraint(),
+                    Optional.empty());
         }
     }
 }

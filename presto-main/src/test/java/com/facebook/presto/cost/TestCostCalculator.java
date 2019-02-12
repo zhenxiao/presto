@@ -647,7 +647,8 @@ public class TestCostCalculator
                 assignments.build(),
                 Optional.of(new TableLayoutHandle(new ConnectorId("tpch"), INSTANCE, new TpchTableLayoutHandle(tableHandle, TupleDomain.all()))),
                 TupleDomain.all(),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
     }
 
     private PlanNode project(String id, PlanNode source, String symbol, Expression expression)

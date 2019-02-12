@@ -103,7 +103,8 @@ public class TestTypeValidator
                 assignments,
                 Optional.empty(),
                 TupleDomain.all(),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
     }
 
     @Test

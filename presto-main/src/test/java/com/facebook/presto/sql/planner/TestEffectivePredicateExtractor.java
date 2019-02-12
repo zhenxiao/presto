@@ -338,7 +338,8 @@ public class TestEffectivePredicateExtractor
                 assignments,
                 Optional.of(TESTING_TABLE_LAYOUT),
                 TupleDomain.none(),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(effectivePredicate, FALSE_LITERAL);
 
@@ -349,7 +350,8 @@ public class TestEffectivePredicateExtractor
                 assignments,
                 Optional.of(TESTING_TABLE_LAYOUT),
                 TupleDomain.withColumnDomains(ImmutableMap.of(scanAssignments.get(A), Domain.singleValue(BIGINT, 1L))),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(normalizeConjuncts(effectivePredicate), normalizeConjuncts(equals(bigintLiteral(1L), AE)));
 
@@ -362,7 +364,8 @@ public class TestEffectivePredicateExtractor
                 TupleDomain.withColumnDomains(ImmutableMap.of(
                         scanAssignments.get(A), Domain.singleValue(BIGINT, 1L),
                         scanAssignments.get(B), Domain.singleValue(BIGINT, 2L))),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(normalizeConjuncts(effectivePredicate), normalizeConjuncts(equals(bigintLiteral(2L), BE), equals(bigintLiteral(1L), AE)));
 
@@ -373,7 +376,8 @@ public class TestEffectivePredicateExtractor
                 assignments,
                 Optional.empty(),
                 TupleDomain.all(),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
         effectivePredicate = effectivePredicateExtractor.extract(node);
         assertEquals(effectivePredicate, BooleanLiteral.TRUE_LITERAL);
     }
@@ -712,7 +716,8 @@ public class TestEffectivePredicateExtractor
                 scanAssignments,
                 Optional.empty(),
                 TupleDomain.all(),
-                TupleDomain.all());
+                TupleDomain.all(),
+                Optional.empty());
     }
 
     private static PlanNodeId newId()

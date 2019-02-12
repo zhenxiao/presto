@@ -15,6 +15,7 @@ package com.facebook.presto.sql.planner.plan;
 
 import com.facebook.presto.matching.Pattern;
 import com.facebook.presto.matching.Property;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.tree.Expression;
 
@@ -176,6 +177,14 @@ public class Patterns
         return property("sources", PlanNode::getSources);
     }
 
+    public static class ScanNode
+    {
+        public static Property<TableScanNode, TableScanPipeline> pipeline()
+        {
+            return optionalProperty("pipeline", TableScanNode::getScanPipeline);
+        }
+    }
+
     public static class Aggregation
     {
         public static Property<AggregationNode, List<Symbol>> groupingColumns()
@@ -223,6 +232,11 @@ public class Patterns
         public static Property<LimitNode, Long> count()
         {
             return property("count", LimitNode::getCount);
+        }
+
+        public static Property<LimitNode, Boolean> partial()
+        {
+            return property("partial", LimitNode::isPartial);
         }
     }
 

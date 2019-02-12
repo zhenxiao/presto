@@ -25,6 +25,8 @@ import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -322,6 +324,15 @@ public interface Metadata
      * Gets the privileges for the specified table available to the given grantee
      */
     List<GrantInfo> listTablePrivileges(Session session, QualifiedTablePrefix prefix);
+
+    /**
+     * Push aggregation into table scan
+     * @return New {@link TableScanPipeline} if the connector supports aggregation. Empty otherwise.
+     */
+    Optional<TableScanPipeline> pushAggregationIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, AggregationPipelineNode aggregations);
+
+    Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline);
 
     FunctionManager getFunctionManager();
 

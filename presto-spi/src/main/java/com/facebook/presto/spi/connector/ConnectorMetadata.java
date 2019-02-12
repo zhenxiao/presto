@@ -32,6 +32,8 @@ import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.SystemTable;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -507,5 +509,21 @@ public interface ConnectorMetadata
     default Map<NestedColumn, ColumnHandle> getNestedColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle, Collection<NestedColumn> dereferences)
     {
         return new HashMap<>();
+    }
+
+    /**
+     * Push aggregation operation into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support aggregation pushdowns or any specific aggregation functions.
+     */
+    default Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, AggregationPipelineNode aggregation)
+    {
+        return Optional.empty();
+    }
+
+    default Optional<ConnectorTableLayoutHandle> pushTableScanIntoConnectorLayoutHandle(ConnectorSession session, TableScanPipeline scanPipeline,
+            ConnectorTableLayoutHandle connectorTableLayoutHandle)
+    {
+        return Optional.empty();
     }
 }

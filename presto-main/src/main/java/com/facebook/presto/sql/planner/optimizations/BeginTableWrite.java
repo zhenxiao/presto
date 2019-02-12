@@ -212,7 +212,8 @@ public class BeginTableWrite
                         scan.getAssignments(),
                         Optional.of(layoutResult.getLayout().getHandle()),
                         layoutResult.getLayout().getPredicate(),
-                        computeEnforced(originalEnforcedConstraint, layoutResult.getUnenforcedConstraint()));
+                        computeEnforced(originalEnforcedConstraint, layoutResult.getUnenforcedConstraint()),
+                        Optional.empty());
             }
 
             if (node instanceof FilterNode) {

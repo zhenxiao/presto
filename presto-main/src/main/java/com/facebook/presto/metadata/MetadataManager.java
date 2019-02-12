@@ -42,6 +42,8 @@ import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.function.OperatorType;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -1085,5 +1087,34 @@ public class MetadataManager
     public Map<String, Collection<ConnectorMetadata>> getCatalogsByQueryId()
     {
         return ImmutableMap.copyOf(catalogsByQueryId);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushAggregationIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, AggregationPipelineNode aggregations)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        ConnectorMetadata metadata = getMetadata(session, connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        return metadata.pushAggregationIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, aggregations);
+    }
+
+    @Override
+    public Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline)
+    {
+        ConnectorId connectorId = tableLayoutHandle.getConnectorId();
+        CatalogMetadata catalogMetadata = getCatalogMetadata(session, connectorId);
+        ConnectorMetadata metadata = catalogMetadata.getMetadataFor(connectorId);
+        ConnectorTransactionHandle transaction = catalogMetadata.getTransactionHandleFor(connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        Optional<ConnectorTableLayoutHandle> newConnectorLayoutHandle = metadata.pushTableScanIntoConnectorLayoutHandle(connectorSession, scanPipeline, tableLayoutHandle.getConnectorHandle());
+
+        if (newConnectorLayoutHandle.isPresent()) {
+            return Optional.of(new TableLayoutHandle(connectorId, transaction, newConnectorLayoutHandle.get()));
+        }
+
+        return Optional.empty();
     }
 }

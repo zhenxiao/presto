@@ -26,6 +26,7 @@ import com.facebook.presto.sql.planner.plan.AggregationNode;
 import com.facebook.presto.sql.planner.plan.ExchangeNode;
 import com.facebook.presto.sql.planner.plan.PlanNode;
 import com.facebook.presto.sql.planner.plan.PlanVisitor;
+import com.facebook.presto.sql.planner.plan.TableScanNode;
 import com.facebook.presto.sql.planner.sanity.PlanSanityChecker.Checker;
 
 import java.util.List;
@@ -149,6 +150,12 @@ public class ValidateAggregationsWithDefaultValues
             }
 
             return Optional.of(new SeenExchanges(true, seenExchanges.remoteRepartitionExchange));
+        }
+
+        @Override
+        public Optional<SeenExchanges> visitTableScan(TableScanNode node, Void context)
+        {
+            return Optional.of(new SeenExchanges(false, false));
         }
 
         private Optional<SeenExchanges> aggregatedSeenExchanges(List<PlanNode> nodes)

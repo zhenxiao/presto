@@ -16,8 +16,11 @@ package com.facebook.presto.sql.planner.plan;
 import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.metadata.TableLayoutHandle;
 import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.sql.planner.Symbol;
+import com.facebook.presto.sql.planner.TypeProvider;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
@@ -28,6 +31,7 @@ import javax.annotation.concurrent.Immutable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -43,6 +47,7 @@ public class TableScanNode
     private final Map<Symbol, ColumnHandle> assignments; // symbol -> column
 
     private final Optional<TableLayoutHandle> tableLayout;
+    private final Optional<TableScanPipeline> scanPipeline;
 
     // Used during predicate refinement over multiple passes of predicate pushdown
     // TODO: think about how to get rid of this in new planner
@@ -56,7 +61,8 @@ public class TableScanNode
             @JsonProperty("table") TableHandle table,
             @JsonProperty("outputSymbols") List<Symbol> outputs,
             @JsonProperty("assignments") Map<Symbol, ColumnHandle> assignments,
-            @JsonProperty("layout") Optional<TableLayoutHandle> tableLayout)
+            @JsonProperty("layout") Optional<TableLayoutHandle> tableLayout,
+            @JsonProperty("pipeline") Optional<TableScanPipeline> scanPipeline)
     {
         // This constructor is for JSON deserialization only. Do not use.
         super(id);
@@ -67,6 +73,7 @@ public class TableScanNode
         this.tableLayout = requireNonNull(tableLayout, "tableLayout is null");
         this.currentConstraint = null;
         this.enforcedConstraint = null;
+        this.scanPipeline = scanPipeline;
     }
 
     public TableScanNode(
@@ -75,7 +82,7 @@ public class TableScanNode
             List<Symbol> outputs,
             Map<Symbol, ColumnHandle> assignments)
     {
-        this(id, table, outputs, assignments, Optional.empty(), TupleDomain.all(), TupleDomain.all());
+        this(id, table, outputs, assignments, Optional.empty(), TupleDomain.all(), TupleDomain.all(), Optional.empty());
     }
 
     public TableScanNode(
@@ -85,7 +92,8 @@ public class TableScanNode
             Map<Symbol, ColumnHandle> assignments,
             Optional<TableLayoutHandle> tableLayout,
             TupleDomain<ColumnHandle> currentConstraint,
-            TupleDomain<ColumnHandle> enforcedConstraint)
+            TupleDomain<ColumnHandle> enforcedConstraint,
+            Optional<TableScanPipeline> scanPipeline)
     {
         super(id);
         this.table = requireNonNull(table, "table is null");
@@ -98,6 +106,7 @@ public class TableScanNode
         if (!currentConstraint.isAll() || !enforcedConstraint.isAll()) {
             checkArgument(tableLayout.isPresent(), "tableLayout must be present when currentConstraint or enforcedConstraint is non-trivial");
         }
+        this.scanPipeline = scanPipeline;
     }
 
     @JsonProperty("table")
@@ -152,6 +161,31 @@ public class TableScanNode
         // enforcedConstraint can be pretty complex. As a result, it may incur a significant cost to serialize, store, and transport.
         checkState(enforcedConstraint != null, "enforcedConstraint should only be used in planner. It is not transported to workers.");
         return enforcedConstraint;
+    }
+
+    @JsonProperty("pipeline")
+    public Optional<TableScanPipeline> getScanPipeline()
+    {
+        return scanPipeline;
+    }
+
+    public TableScanPipeline getOrCreateScanPipeline(TypeProvider typeProvider)
+    {
+        if (scanPipeline.isPresent()) {
+            return scanPipeline.get();
+        }
+
+        // Create a base pipeline with base scan
+        TablePipelineNode tablePipelineNode = new TablePipelineNode(
+                table.getConnectorHandle(),
+                outputSymbols.stream().map(s -> assignments.get(s)).collect(Collectors.toList()),
+                outputSymbols.stream().map(s -> s.getName()).collect(Collectors.toList()),
+                outputSymbols.stream().map(s -> typeProvider.get(s)).collect(Collectors.toList()));
+
+        TableScanPipeline newScanPipeline = new TableScanPipeline();
+        newScanPipeline.addPipeline(tablePipelineNode, outputSymbols.stream().map(s -> assignments.get(s)).collect(Collectors.toList()));
+
+        return newScanPipeline;
     }
 
     @Override
