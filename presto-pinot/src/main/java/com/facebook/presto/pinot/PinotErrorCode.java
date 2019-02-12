@@ -23,8 +23,13 @@ import static com.facebook.presto.spi.ErrorType.INTERNAL_ERROR;
 public enum PinotErrorCode
         implements ErrorCodeSupplier
 {
-    PINOT_UNSUPPORTED_COLUMN_TYPE(0, EXTERNAL),
-    PINOT_QUERY_GENERATOR_FAILURE(1, INTERNAL_ERROR);
+    PINOT_UNSUPPORTED_COLUMN_TYPE(0, EXTERNAL), // schema issues
+    PINOT_QUERY_GENERATOR_FAILURE(1, INTERNAL_ERROR), // Accepted a query whose pql we couldn't generate
+    PINOT_INSUFFICIENT_SERVER_RESPONSE(2, EXTERNAL), // numServersResponded < numServersQueried
+    PINOT_EXCEPTION(3, EXTERNAL), // Exception reported by pinot
+    PINOT_HTTP_ERROR(4, EXTERNAL), // Some non okay http error code
+    PINOT_UNEXPECTED_RESPONSE(5, EXTERNAL), // Invalid json response with okay http return code
+    PINOT_UNSUPPORTED_EXPRESSION(6, INTERNAL_ERROR); // Unsupported function
 
     /**
      * Connectors can use error codes starting at the range 0x0100_0000

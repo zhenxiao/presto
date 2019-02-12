@@ -13,14 +13,11 @@
  */
 package com.facebook.presto.pinot;
 
-import com.facebook.presto.spi.ColumnHandle;
-import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.inject.Inject;
 import com.linkedin.pinot.common.exception.QueryException;
 import com.linkedin.pinot.common.metrics.BrokerMeter;
 import com.linkedin.pinot.common.metrics.BrokerMetrics;
 import com.linkedin.pinot.common.request.BrokerRequest;
-import com.linkedin.pinot.common.request.FilterQuery;
 import com.linkedin.pinot.common.request.InstanceRequest;
 import com.linkedin.pinot.common.response.ProcessingException;
 import com.linkedin.pinot.common.response.ServerInstance;
@@ -105,7 +102,8 @@ public class PinotScatterGatherQueryClient
         requestSenderPool = Executors.newFixedThreadPool(pinotConfig.getThreadPoolSize());
         poolTimeoutExecutor = new ScheduledThreadPoolExecutor(50);
         connectionTimeout = pinotConfig.getConnectionTimeout();
-        connPool = new KeyedPoolImpl<PooledNettyClientResourceManager.PooledClientConnection>(pinotConfig.getMinConnectionsPerServer(), pinotConfig.getMaxConnectionsPerServer(), pinotConfig.getIdleTimeout().toMillis(), pinotConfig.getMaxBacklogPerServer(), resourceManager, poolTimeoutExecutor, requestSenderPool, registry);
+        connPool = new KeyedPoolImpl<>(pinotConfig.getMinConnectionsPerServer(), pinotConfig.getMaxConnectionsPerServer(), pinotConfig.getIdleTimeout().toMillis(),
+                pinotConfig.getMaxBacklogPerServer(), resourceManager, poolTimeoutExecutor, requestSenderPool, registry);
         resourceManager.setPool(connPool);
 
         // Setup ScatterGather
@@ -158,12 +156,6 @@ public class PinotScatterGatherQueryClient
         serverResponseMap = gatherServerResponses(compositeFuture, scatterGatherStats, true, brokerRequest.getQuerySource().getTableName(), processingExceptions);
         deserializeServerResponses(serverResponseMap, true, dataTableMap, brokerRequest.getQuerySource().getTableName(), processingExceptions);
         return dataTableMap;
-    }
-
-    private FilterQuery getPinotPredicate(TupleDomain<ColumnHandle> effectivePredicate)
-    {
-        FilterQuery fq = new FilterQuery();
-        return fq;
     }
 
     /**

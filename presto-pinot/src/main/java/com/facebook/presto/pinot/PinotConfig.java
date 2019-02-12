@@ -13,12 +13,15 @@
  */
 package com.facebook.presto.pinot;
 
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.configuration.Config;
 import io.airlift.units.Duration;
 import io.airlift.units.MinDuration;
 
 import javax.validation.constraints.NotNull;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class PinotConfig
@@ -29,7 +32,6 @@ public class PinotConfig
     private static final int DEFAULT_MAX_CONNECTIONS_PER_SERVER = 30;
     private static final int DEFAULT_MAX_BACKLOG_PER_SERVER = 30;
     private static final int DEFAULT_THREAD_POOL_SIZE = 30;
-    private static final String DEFAULT_PINOT_CLUSTER_ENV = "adhoc";
 
     private static final long DEFAULT_LIMIT_ALL = 2147483647;
     private static final long DEFAULT_LIMIT_LARGE = 10000;
@@ -39,8 +41,14 @@ public class PinotConfig
 
     private String zkUrl;
     private String pinotCluster;
-    private String pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
+    private String brokerRestService;
+    private String controllerRestService;
+    private String serviceHeaderParam = "RPC-Service";
+    private String callerHeaderValue = "presto";
+    private String callerHeaderParam = "RPC-Caller";
+
     private String controllerUrl;
+    private String brokerUrl;
 
     private long limitAll = DEFAULT_LIMIT_ALL;
     private long limitLarge = DEFAULT_LIMIT_LARGE;
@@ -54,6 +62,13 @@ public class PinotConfig
     private int maxConnectionsPerServer = DEFAULT_MAX_CONNECTIONS_PER_SERVER;
     private int maxBacklogPerServer = DEFAULT_MAX_BACKLOG_PER_SERVER;
     private int estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
+    private Map<String, String> extraHttpHeaders = ImmutableMap.of();
+    private Duration metadataCacheExpiry = new Duration(1, TimeUnit.DAYS);
+
+    private boolean aggregationPushDownEnabled = true;
+    private boolean filterPushDownEnabled = true;
+    private boolean projectPushDownEnabled = true;
+    private boolean limitPushDownEnabled = true;
 
     @NotNull
     public String getZkUrl()
@@ -85,18 +100,15 @@ public class PinotConfig
     }
 
     @NotNull
-    public String getPinotClusterEnv()
+    public Map<String, String> getExtraHttpHeaders()
     {
-        return pinotClusterEnv;
+        return extraHttpHeaders;
     }
 
-    @Config("pinot-cluster-env")
-    public PinotConfig setPinotClusterEnv(String pinotClusterEnv)
+    @Config("extra-http-headers")
+    public PinotConfig setExtraHttpHeaders(String headers)
     {
-        if (pinotClusterEnv == null || pinotClusterEnv.length() == 0) {
-            pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
-        }
-        this.pinotClusterEnv = pinotClusterEnv;
+        extraHttpHeaders = ImmutableMap.copyOf(Splitter.on(",").trimResults().omitEmptyStrings().withKeyValueSeparator(":").split(headers));
         return this;
     }
 
@@ -110,6 +122,45 @@ public class PinotConfig
     public PinotConfig setControllerUrl(String controllerUrl)
     {
         this.controllerUrl = controllerUrl;
+        return this;
+    }
+
+    @NotNull
+    public String getControllerRestService()
+    {
+        return controllerRestService;
+    }
+
+    @Config("controller-rest-service")
+    public PinotConfig setControllerRestService(String controllerRestService)
+    {
+        this.controllerRestService = controllerRestService;
+        return this;
+    }
+
+    @NotNull
+    public String getBrokerUrl()
+    {
+        return brokerUrl;
+    }
+
+    @Config("broker-url")
+    public PinotConfig setBrokerUrl(String brokerUrl)
+    {
+        this.brokerUrl = brokerUrl;
+        return this;
+    }
+
+    @NotNull
+    public String getBrokerRestService()
+    {
+        return brokerRestService;
+    }
+
+    @Config("broker-rest-service")
+    public PinotConfig setBrokerRestService(String brokerRestService)
+    {
+        this.brokerRestService = brokerRestService;
         return this;
     }
 
@@ -267,6 +318,20 @@ public class PinotConfig
         return this;
     }
 
+    @MinDuration("0s")
+    @NotNull
+    public Duration getMetadataCacheExpiry()
+    {
+        return metadataCacheExpiry;
+    }
+
+    @Config("metadata-expiry")
+    public PinotConfig setMetadataCacheExpiry(Duration metadataCacheExpiry)
+    {
+        this.metadataCacheExpiry = metadataCacheExpiry;
+        return this;
+    }
+
     @NotNull
     public int getEstimatedSizeInBytesForNonNumericColumn()
     {
@@ -282,6 +347,93 @@ public class PinotConfig
         catch (Exception e) {
             this.estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
         }
+        return this;
+    }
+
+    @NotNull
+    public String getServiceHeaderParam()
+    {
+        return serviceHeaderParam;
+    }
+
+    @Config("service-header-param")
+    public PinotConfig setServiceHeaderParam(String serviceHeaderParam)
+    {
+        this.serviceHeaderParam = serviceHeaderParam;
+        return this;
+    }
+
+    @NotNull
+    public String getCallerHeaderValue()
+    {
+        return callerHeaderValue;
+    }
+
+    @Config("caller-header-value")
+    public PinotConfig setCallerHeaderValue(String callerHeaderValue)
+    {
+        this.callerHeaderValue = callerHeaderValue;
+        return this;
+    }
+
+    @NotNull
+    public String getCallerHeaderParam()
+    {
+        return callerHeaderParam;
+    }
+
+    @Config("caller-header-param")
+    public PinotConfig setCallerHeaderParam(String callerHeaderParam)
+    {
+        this.callerHeaderParam = callerHeaderParam;
+        return this;
+    }
+
+    public boolean isAggregationPushDownEnabled()
+    {
+        return aggregationPushDownEnabled;
+    }
+
+    @Config("aggregation-pushdown-enabled")
+    public PinotConfig setAggregationPushDownEnabled(boolean aggregationPushDownEnabled)
+    {
+        this.aggregationPushDownEnabled = aggregationPushDownEnabled;
+        return this;
+    }
+
+    public boolean isFilterPushDownEnabled()
+    {
+        return filterPushDownEnabled;
+    }
+
+    @Config("filter-pushdown-enabled")
+    public PinotConfig setFilterPushDownEnabled(boolean filterPushDownEnabled)
+    {
+        this.filterPushDownEnabled = filterPushDownEnabled;
+        return this;
+    }
+
+    public boolean isProjectPushDownEnabled()
+    {
+        return projectPushDownEnabled;
+    }
+
+    @Config("project-pushdown-enabled")
+    public PinotConfig setProjectPushDownEnabled(boolean projectPushDownEnabled)
+    {
+        this.projectPushDownEnabled = projectPushDownEnabled;
+        return this;
+    }
+
+    public boolean isLimitPushDownEnabled()
+    {
+        return limitPushDownEnabled;
+    }
+
+    @Config("limit-pushdown-enabled")
+    public PinotConfig setLimitPushDownEnabled(boolean limitPushDownEnabled)
+    {
+        this.limitPushDownEnabled = limitPushDownEnabled;
         return this;
     }
 }

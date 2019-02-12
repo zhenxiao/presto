@@ -300,6 +300,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.facebook.presto</groupId>
+            <artifactId>presto-parser</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
             <scope>test</scope>
@@ -314,21 +320,14 @@
             <version>${dep.yammer.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpcore</artifactId>
-            <version>${dep.httpcore.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>commons-logging</groupId>
-                    <artifactId>commons-logging</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>io.airlift</groupId>
+            <artifactId>http-client</artifactId>
+            <version>${dep.airlift.version}</version>
         </dependency>
-
         <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>${dep.httpclient.version}</version>
+            <groupId>io.airlift</groupId>
+            <artifactId>concurrent</artifactId>
+            <version>${dep.airlift.version}</version>
         </dependency>
     </dependencies>
 </project>

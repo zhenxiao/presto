@@ -13,23 +13,31 @@
  */
 package com.facebook.presto.pinot;
 
+import com.facebook.presto.pinot.query.PinotQueryGenerator;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.FixedSplitSource;
-import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.LimitPipelineNode;
+import com.facebook.presto.spi.pipeline.PipelineNode;
+import com.facebook.presto.spi.pipeline.PushDownExpression;
+import com.facebook.presto.spi.pipeline.PushDownInExpression;
+import com.facebook.presto.spi.pipeline.PushDownInputColumn;
+import com.facebook.presto.spi.pipeline.PushDownLiteral;
+import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
+import com.facebook.presto.spi.pipeline.SortPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.pipeline.TableScanPipelineVisitor;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.TupleDomain;
-import com.facebook.presto.spi.type.VarcharType;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 import com.linkedin.pinot.client.PinotClientException;
 import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
@@ -37,32 +45,181 @@ import io.airlift.slice.Slice;
 import javax.inject.Inject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static com.facebook.presto.pinot.Types.checkType;
-import static com.google.common.base.Preconditions.checkState;
+import static com.facebook.presto.pinot.PinotSplit.createBrokerSplit;
+import static com.facebook.presto.pinot.PinotSplit.createSegmentSplit;
+import static com.facebook.presto.pinot.PinotUtils.checkType;
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Collections.singletonList;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.joining;
 
 public class PinotSplitManager
         implements ConnectorSplitManager
 {
     private static final Logger log = Logger.get(PinotSplitManager.class);
     private final String connectorId;
-    private final PinotConfig pinotConfig;
     private final PinotConnection pinotPrestoConnection;
+    private final PinotConfig pinotConfig;
 
     @Inject
-    public PinotSplitManager(PinotConnectorId connectorId, PinotConfig pinotConfig, PinotConnection pinotPrestoConnection)
+    public PinotSplitManager(PinotConnectorId connectorId, PinotConnection pinotPrestoConnection, PinotConfig pinotConfig)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
-        this.pinotConfig = pinotConfig;
         this.pinotPrestoConnection = requireNonNull(pinotPrestoConnection, "pinotPrestoConnection is null");
+        this.pinotConfig = requireNonNull(pinotConfig, "pinotConfig is null");
+    }
+
+    private static PushDownLiteral getLiteralFromMarker(Marker marker)
+    {
+        return getLiteralFromMarkerObject(marker.getValue());
+    }
+
+    private static PushDownLiteral getLiteralFromMarkerObject(Object value)
+    {
+        if (value instanceof Slice) {
+            Slice slice = (Slice) value;
+            return new PushDownLiteral(slice.toStringUtf8(), null, null, null);
+        }
+
+        if (value instanceof Long) {
+            return new PushDownLiteral(null, (Long) value, null, null);
+        }
+
+        if (value instanceof Double) {
+            return new PushDownLiteral(null, null, (Double) value, null);
+        }
+
+        if (value instanceof Boolean) {
+            return new PushDownLiteral(null, null, null, (Boolean) value);
+        }
+
+        throw new PinotException(PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "unsupported market type in TupleDomain: " + value.getClass());
+    }
+
+    static PushDownExpression getPredicate(TupleDomain<ColumnHandle> constraint)
+    {
+        List<PushDownExpression> expressions = new ArrayList<>();
+        Map<ColumnHandle, Domain> columnHandleDomainMap = constraint.getDomains().get();
+        for (ColumnHandle k : columnHandleDomainMap.keySet()) {
+            Domain domain = columnHandleDomainMap.get(k);
+            Optional<PushDownExpression> columnPredicate = getColumnPredicate(domain, ((PinotColumnHandle) k).getColumnName());
+            if (columnPredicate.isPresent()) {
+                expressions.add(columnPredicate.get());
+            }
+        }
+
+        Optional<PushDownExpression> predicate = combineExpressions(expressions, "AND");
+        if (!predicate.isPresent()) {
+            throw new IllegalStateException("TupleDomain resolved to empty predicate: " + constraint);
+        }
+
+        return predicate.get();
+    }
+
+    static Optional<PushDownExpression> getColumnPredicate(Domain domain, String columnName)
+    {
+        PushDownExpression inputColumn = new PushDownInputColumn(columnName.toLowerCase(ENGLISH));
+        List<PushDownExpression> conditions = new ArrayList<>();
+
+        domain.getValues().getValuesProcessor().consume(
+                ranges -> {
+                    for (Range range : ranges.getOrderedRanges()) {
+                        if (range.isSingleValue()) {
+                            conditions.add(new PushDownLogicalBinaryExpression(inputColumn, "=", getLiteralFromMarker(range.getLow())));
+                        }
+                        else {
+                            // get low bound
+                            List<PushDownExpression> bounds = new ArrayList<>();
+                            if (!range.getLow().isLowerUnbounded()) {
+                                String op = (range.getLow().getBound() == Marker.Bound.EXACTLY) ? "<=" : "<";
+                                bounds.add(new PushDownLogicalBinaryExpression(getLiteralFromMarker(range.getLow()), op, inputColumn));
+                            }
+                            // get high bound
+                            if (!range.getHigh().isUpperUnbounded()) {
+                                String op = range.getHigh().getBound() == Marker.Bound.EXACTLY ? "<=" : "<";
+                                bounds.add(new PushDownLogicalBinaryExpression(inputColumn, op, getLiteralFromMarker(range.getHigh())));
+                            }
+
+                            conditions.add(combineExpressions(bounds, "AND").get());
+                        }
+                    }
+                },
+                discreteValues -> {
+                    if (discreteValues.getValues().isEmpty()) {
+                        return;
+                    }
+
+                    List<PushDownExpression> inList = discreteValues.getValues().stream().map(v -> getLiteralFromMarkerObject(v)).collect(Collectors.toList());
+                    conditions.add(new PushDownInExpression(discreteValues.isWhiteList(), inputColumn, inList));
+                },
+                allOrNone ->
+                {
+                    //no-op
+                });
+
+        return combineExpressions(conditions, "OR");
+    }
+
+    static Optional<PushDownExpression> combineExpressions(List<PushDownExpression> expressions, String op)
+    {
+        if (expressions.isEmpty()) {
+            return Optional.empty();
+        }
+
+        // combine conjucts using the given op
+        if (expressions.size() == 1) {
+            return Optional.of(expressions.get(0));
+        }
+
+        Collections.reverse(expressions);
+        PushDownExpression result = expressions.get(0);
+        for (int i = 1; i < expressions.size(); i++) {
+            result = new PushDownLogicalBinaryExpression(expressions.get(i), op, result);
+        }
+
+        return Optional.of(result);
+    }
+
+    private static TableScanPipeline getScanPipeline(PinotTableLayoutHandle pinotTable)
+    {
+        if (!pinotTable.getScanPipeline().isPresent()) {
+            throw new IllegalArgumentException("Scan pipeline is missing from the Pinot table layout handle");
+        }
+
+        return pinotTable.getScanPipeline().get();
+    }
+
+    protected static TableScanPipeline addTupleDomainToScanPipelineIfNeeded(Optional<TupleDomain<ColumnHandle>> constraint, TableScanPipeline existingPipeline)
+    {
+        // if there is no constraint or the constraint selects all then just return the existing pipeline
+        if (!constraint.isPresent() || constraint.get().isAll()) {
+            return existingPipeline;
+        }
+
+        // Check if the pipeline already contains the filter. If it is, then the TupleDomain part is already accommodated into the pipeline
+        if (FilterFinder.hasFilter(existingPipeline)) {
+            return existingPipeline;
+        }
+
+        // convert TupleDomain into FilterPipelineNode
+        PushDownExpression predicate = getPredicate(constraint.get());
+
+        checkArgument(existingPipeline.getPipelineNodes().size() == 1, "expected to contain just the scan node in pipeline");
+        final PipelineNode scanNode = existingPipeline.getPipelineNodes().get(0);
+        final FilterPipelineNode filterNode = new FilterPipelineNode(predicate, scanNode.getOutputColumns(), scanNode.getRowType());
+
+        TableScanPipeline newScanPipeline = new TableScanPipeline();
+        newScanPipeline.addPipeline(scanNode, existingPipeline.getOutputColumnHandles());
+        newScanPipeline.addPipeline(filterNode, existingPipeline.getOutputColumnHandles());
+
+        return newScanPipeline;
     }
 
     @Override
@@ -72,210 +229,149 @@ public class PinotSplitManager
             ConnectorTableLayoutHandle layout,
             SplitSchedulingStrategy splitSchedulingStrategy)
     {
-        PinotTableLayoutHandle layoutHandle = checkType(layout, PinotTableLayoutHandle.class, "layout");
-        PinotTableHandle tableHandle = layoutHandle.getTable();
-        PinotTable table = null;
-        Map<String, Map<String, List<String>>> routingTable = null;
-        Map<String, String> timeBoundary = null;
+        PinotTableLayoutHandle pinotLayoutHandle = checkType(layout, PinotTableLayoutHandle.class, "expected a Pinot table layout handle");
+
+        TableScanPipeline scanPipeline = getScanPipeline(pinotLayoutHandle);
+
+        if (ScanParallelismFinder.canParallelize(scanPipeline)) {
+            scanPipeline = addTupleDomainToScanPipelineIfNeeded(pinotLayoutHandle.getConstraint(), scanPipeline);
+
+            return generateSplitsForSegmentBasedScan(pinotLayoutHandle, scanPipeline);
+        }
+        else {
+            return generateSplitsForBrokerBasedScan(scanPipeline);
+        }
+    }
+
+    protected ConnectorSplitSource generateSplitsForBrokerBasedScan(TableScanPipeline scanPipeline)
+    {
+        return new FixedSplitSource(singletonList(createBrokerSplit(connectorId, scanPipeline)));
+    }
+
+    protected ConnectorSplitSource generateSplitsForSegmentBasedScan(PinotTableLayoutHandle pinotLayoutHandle, TableScanPipeline scanPipeline)
+    {
+        PinotTableHandle tableHandle = pinotLayoutHandle.getTable();
+        String tableName = tableHandle.getTableName();
+        Map<String, Map<String, List<String>>> routingTable;
+        Map<String, String> timeBoundary;
+
         try {
-            table = pinotPrestoConnection.getTable(tableHandle.getTableName());
-            routingTable = pinotPrestoConnection.GetRoutingTable(tableHandle.getTableName());
-            timeBoundary = pinotPrestoConnection.GetTimeBoundary(tableHandle.getTableName());
-            // this can happen if table is removed during a query
-            checkState(table != null, "Table %s no longer exists", tableHandle.getTableName());
+            routingTable = pinotPrestoConnection.getRoutingTable(tableName);
+            timeBoundary = pinotPrestoConnection.getTimeBoundary(tableName);
         }
         catch (Exception e) {
-            log.error("Failed to fetch table status for Pinot table: %s, Exceptions: %s", tableHandle.getTableName(), e);
-            throw new PinotClientException("Failed to fetch table status for Pinot table: " + tableHandle.getTableName(), e);
+            log.error("Failed to fetch table status for Pinot table: %s, Exceptions: %s", tableName, e);
+            throw new PinotClientException("Failed to fetch table status for Pinot table: " + tableName, e);
+        }
+
+        Optional<String> offlineTimePredicate = Optional.empty();
+        Optional<String> onlineTimePredicate = Optional.empty();
+
+        if (timeBoundary.containsKey("timeColumnName") && timeBoundary.containsKey("timeColumnValue")) {
+            String timeColumnName = timeBoundary.get("timeColumnName");
+            String timeColumnValue = timeBoundary.get("timeColumnValue");
+
+            offlineTimePredicate = Optional.of(format("%s < %s", timeColumnName, timeColumnValue));
+            onlineTimePredicate = Optional.of(format("%s >= %s", timeColumnName, timeColumnValue));
         }
 
         List<ConnectorSplit> splits = new ArrayList<>();
         if (!routingTable.isEmpty()) {
-            setSplits(splits, routingTable, timeBoundary, getOfflineTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary());
-            setSplits(splits, routingTable, timeBoundary, getRealtimeTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary());
+            generateSegmentSplits(splits, routingTable, onlineTimePredicate, tableName, "_REALTIME", scanPipeline);
+            generateSegmentSplits(splits, routingTable, offlineTimePredicate, tableName, "_OFFLINE", scanPipeline);
         }
 
         Collections.shuffle(splits);
-        log.debug("PinotSplits is %s", Arrays.toString(splits.toArray()));
-
         return new FixedSplitSource(splits);
     }
 
-    private String getTimePredicate(String type, String timeColumn, String maxTimeStamp)
+    protected void generateSegmentSplits(List<ConnectorSplit> splits, Map<String, Map<String, List<String>>> routingTable, Optional<String> timePredicate,
+            String tableName, String tableNameSuffix, TableScanPipeline scanPipeline)
     {
-        if ("OFFLINE".equalsIgnoreCase(type)) {
-            return String.format("%s < %s", timeColumn, maxTimeStamp);
-        }
-        if ("REALTIME".equalsIgnoreCase(type)) {
-            return String.format("%s >= %s", timeColumn, maxTimeStamp);
-        }
-        return null;
-    }
+        final String finalTableName = tableName + tableNameSuffix;
 
-    private void setSplits(List<ConnectorSplit> splits, Map<String, Map<String, List<String>>> routingTable, Map<String, String> timeBoundary, String tableName,
-            TupleDomain<ColumnHandle> constraintSummary)
-    {
-        String pinotFilter = getPinotPredicate(constraintSummary);
-        String timeFilter = "";
-
-        if (timeBoundary.containsKey("timeColumnName") && timeBoundary.containsKey("timeColumnValue")) {
-            timeFilter = getTimePredicate(getTableType(tableName), timeBoundary.get("timeColumnName"), timeBoundary.get("timeColumnValue"));
-        }
         for (String routingTableName : routingTable.keySet()) {
-            if (routingTableName.equalsIgnoreCase(tableName)) {
-                Map<String, List<String>> hostToSegmentsMap = routingTable.get(routingTableName);
-                for (String host : hostToSegmentsMap.keySet()) {
-                    for (String segment : hostToSegmentsMap.get(host)) {
-                        splits.add(new PinotSplit(connectorId, routingTableName, host, segment, timeFilter, pinotFilter));
-                    }
+            if (!routingTableName.equalsIgnoreCase(finalTableName)) {
+                continue;
+            }
+
+            String pql = PinotQueryGenerator.generate(scanPipeline, Optional.empty(), Optional.of(tableNameSuffix), timePredicate, Optional.of(pinotConfig)).getPql();
+
+            Map<String, List<String>> hostToSegmentsMap = routingTable.get(routingTableName);
+            for (String host : hostToSegmentsMap.keySet()) {
+                for (String segment : hostToSegmentsMap.get(host)) {
+                    splits.add(createSegmentSplit(connectorId, pql, segment, host));
                 }
             }
         }
     }
 
-    /**
-     * Get the predicates for Pinot columns in string format, for constructing Pinot queries directly
-     * Note that for predicates like UDF (WHERE ROUND(fare) > 10), column comparison (WHERE colA - colB > 10, WHERE col/100 > 5),
-     * constraintSummary passed to Pinot will be empty, since those predicates would be in remainingExpression and not passed here.
-     *
-     * @param constraintSummary TupleDomain representing the allowed ranges for Pinot columns
-     * @return Predicate in Pinot Query Language for Pinot columns
-     */
-    @VisibleForTesting
-    String getPinotPredicate(TupleDomain<ColumnHandle> constraintSummary)
+    static class ScanParallelismFinder
+            extends TableScanPipelineVisitor<Boolean, Boolean>
     {
-        ImmutableList.Builder<String> pinotFilterBuilder = ImmutableList.builder();
+        // go through the pipeline operations and see if we parallelize the scan
+        static boolean canParallelize(TableScanPipeline scanPipeline)
+        {
+            Boolean canParallelize = true;
 
-        Map<ColumnHandle, Domain> columnHandleDomainMap = constraintSummary.getDomains().get();
-        for (ColumnHandle k : columnHandleDomainMap.keySet()) {
-            Domain domain = columnHandleDomainMap.get(k);
-            String columnPredicate = getColumnPredicate(domain, ((PinotColumnHandle) k).getColumnName());
-            if (!columnPredicate.isEmpty()) {
-                pinotFilterBuilder.add("(" + columnPredicate + ")");
+            ScanParallelismFinder scanParallelismFinder = new ScanParallelismFinder();
+            for (PipelineNode pipelineNode : scanPipeline.getPipelineNodes()) {
+                canParallelize = pipelineNode.accept(scanParallelismFinder, canParallelize);
             }
+
+            return canParallelize;
         }
-        return Joiner.on(" AND ").join(pinotFilterBuilder.build());
-    }
 
-    /**
-     * Get the predicates for a column in string format, for constructing Pinot queries directly
-     *
-     * @param domain TupleDomain representing the allowed ranges for a column
-     * @param columnName Pinot column name
-     * @return Predicate in Pinot Query Language for the column. Empty string would be returned if no constraints
-     */
-    @VisibleForTesting
-    String getColumnPredicate(Domain domain, String columnName)
-    {
-        List<String> discreteConstraintList = new ArrayList<>();
-        List<String> rangeConstraintList = new ArrayList<>();
-
-        return domain.getValues().getValuesProcessor().transform(
-                ranges ->
-                {
-                    for (Range range : ranges.getOrderedRanges()) {
-                        if (range.isSingleValue()) {
-                            discreteConstraintList.add(getMarkerValue(range.getLow()));
-                        }
-                        else {
-                            StringBuilder builder = new StringBuilder();
-                            ImmutableList.Builder<String> bounds = ImmutableList.builder();
-                            // Get low bound
-                            String equationMark = (range.getLow().getBound() == Marker.Bound.EXACTLY) ? "= " : " ";
-                            if (!range.getLow().isLowerUnbounded()) {
-                                bounds.add(getMarkerValue(range.getLow()) + " <" + equationMark + columnName);
-                            }
-                            // Get high bound
-                            equationMark = (range.getHigh().getBound() == Marker.Bound.EXACTLY) ? "= " : " ";
-                            if (!range.getHigh().isUpperUnbounded()) {
-                                bounds.add(columnName + " <" + equationMark + getMarkerValue(range.getHigh()));
-                            }
-                            // Use AND to combine bounds within the same range
-                            builder.append("(" + Joiner.on(" AND ").join(bounds.build()) + ")");
-                            rangeConstraintList.add(builder.toString());
-                        }
-                    }
-                    // Multiple ranges on the same column are OR'ed together.
-                    String rangeConstraint = Joiner.on(" OR ").join(rangeConstraintList);
-                    String discreteConstraint = getDiscretePredicate(true, columnName, discreteConstraintList);
-
-                    return Stream.of(rangeConstraint, discreteConstraint)
-                            .filter(s -> s != null && !s.isEmpty())
-                            .collect(joining(" OR "));
-                },
-                discreteValues ->
-                {
-                    /** For most regular types like boolean, char, number, the discrete values would be converted to singleValues in ranges above,
-                     * and would not appear here. So far the column types supported by Pinot all fall in that category.
-                     * For some types like {@link com.facebook.presto.type.ColorType} that are not orderable, discreteValues would appear here.
-                     * We still adding the support for this, though it might not be used at this time.
-                     */
-                    discreteConstraintList.addAll(discreteValues.getValues().stream().map(Object::toString).collect(Collectors.toList()));
-                    return getDiscretePredicate(discreteValues.isWhiteList(), columnName, discreteConstraintList);
-                },
-                allOrNone ->
-                {
-                    // no-op
-                    return "";
-                });
-    }
-
-    /**
-     * Construct the IN predicate for discrete values
-     *
-     * @param isWhitelist true for IN predicate, false for NOT IN predicate
-     * @param columnName name of the column
-     * @param discreteConstraintList list of allowed or not allowed values
-     * @return Stringified clause with IN or NOT IN
-     */
-    String getDiscretePredicate(boolean isWhitelist, String columnName, List<String> discreteConstraintList)
-    {
-        if (discreteConstraintList.size() == 0) {
-            return "";
+        @Override
+        public Boolean visitNode(PipelineNode node, Boolean canParallelize)
+        {
+            return canParallelize;
         }
-        else {
-            return columnName + (isWhitelist ? " " : " NOT ") + "IN (" + Joiner.on(',').join(discreteConstraintList) + ")";
+
+        @Override
+        public Boolean visitAggregationNode(AggregationPipelineNode aggregation, Boolean canParallelize)
+        {
+            return false;
+        }
+
+        @Override
+        public Boolean visitLimitNode(LimitPipelineNode limit, Boolean canParallelize)
+        {
+            // we can only parallelize if the limit pushdown is split level (aka partial limit)
+            return canParallelize && limit.isPartial();
+        }
+
+        @Override
+        public Boolean visitSortNode(SortPipelineNode limit, Boolean canParallelize)
+        {
+            return false;
         }
     }
 
-    /**
-     * Get the value for the Marker.
-     *
-     * @param marker marker in the Domain
-     * @return Underlying value for the block in the marker. For string, encapsulating quotes will be added.
-     */
-    String getMarkerValue(Marker marker)
+    static class FilterFinder
+            extends TableScanPipelineVisitor<Boolean, Boolean>
     {
-        if (marker.getType() instanceof VarcharType) {
-            Block highBlock = marker.getValueBlock().get();
-            Slice slice = highBlock.getSlice(0, 0, highBlock.getSliceLength(0));
-            return "\"" + slice.toStringUtf8() + "\"";
-        }
-        else {
-            return marker.getValue().toString();
-        }
-    }
-
-    private String getOfflineTableName(String table)
-    {
-        return table + "_OFFLINE";
-    }
-
-    private String getRealtimeTableName(String table)
-    {
-        return table + "_REALTIME";
-    }
-
-    private String getTableType(String table)
-    {
-        if (table.endsWith("_REALTIME")) {
-            return "REALTIME";
+        static boolean hasFilter(TableScanPipeline scanPipeline)
+        {
+            FilterFinder filterFinder = new FilterFinder();
+            for (PipelineNode pipelineNode : scanPipeline.getPipelineNodes()) {
+                if (pipelineNode.accept(filterFinder, null)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        if (table.endsWith("_OFFLINE")) {
-            return "OFFLINE";
+        @Override
+        public Boolean visitNode(PipelineNode node, Boolean context)
+        {
+            return false;
         }
 
-        return null;
+        @Override
+        public Boolean visitFilterNode(FilterPipelineNode filter, Boolean context)
+        {
+            return true;
+        }
     }
 }

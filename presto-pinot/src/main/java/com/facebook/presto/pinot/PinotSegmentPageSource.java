@@ -19,7 +19,6 @@ import com.facebook.presto.spi.PageBuilder;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.BlockBuilder;
 import com.facebook.presto.spi.type.Type;
-import com.google.common.collect.ImmutableList;
 import com.linkedin.pinot.common.data.FieldSpec.DataType;
 import com.linkedin.pinot.common.response.ServerInstance;
 import com.linkedin.pinot.common.utils.DataTable;
@@ -32,10 +31,10 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNSUPPORTED_COLUMN_TYPE;
-import static com.facebook.presto.pinot.PinotQueryGenerator.getPinotQuery;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
@@ -47,17 +46,19 @@ import static java.util.Objects.requireNonNull;
  * This class retrieves Pinot data from a Pinot client, and re-constructs the data into Presto Pages.
  */
 
-public class PinotPageSource
+public class PinotSegmentPageSource
         implements ConnectorPageSource
 {
-    private static final Logger log = Logger.get(PinotPageSource.class);
+    private static final Logger log = Logger.get(PinotSegmentPageSource.class);
+
+    private final List<PinotColumnHandle> columnHandles;
+    private final PinotConfig pinotConfig;
+    private final PinotSplit split;
+    private final PinotScatterGatherQueryClient pinotQueryClient;
+
     // Stores the mapping between pinot column name and the column index
-    Map<String, Integer> pinotColumnNameIndexMap = new HashMap<>();
-    private List<PinotColumnHandle> columnHandles;
+    private Map<String, Integer> pinotColumnNameIndexMap = new HashMap<>();
     private List<Type> columnTypes;
-    private PinotConfig pinotConfig;
-    private PinotSplit split;
-    private PinotScatterGatherQueryClient pinotQueryClient;
     // dataTableList stores the dataTable returned from each server. Each dataTable is constructed to a Page, and then destroyed to save memory.
     private LinkedList<PinotDataTableWithSize> dataTableList = new LinkedList<>();
     private long completedBytes;
@@ -67,7 +68,7 @@ public class PinotPageSource
     private boolean closed;
     private boolean isPinotDataFetched;
 
-    public PinotPageSource(PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient, PinotSplit split, List<PinotColumnHandle> columnHandles)
+    public PinotSegmentPageSource(PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient, PinotSplit split, List<PinotColumnHandle> columnHandles)
     {
         requireNonNull(split, "split is null");
         this.pinotConfig = requireNonNull(pinotConfig, "pinotConfig is null");
@@ -146,14 +147,14 @@ public class PinotPageSource
      */
     private void fetchPinotData()
     {
-        log.debug("Fetching data from Pinot for table %s, segment %s", split.getTableName(), split.getSegment());
+        log.debug("Fetching data from Pinot for table %s, segment %s", split.getPql(), split.getSegment());
         long startTimeNanos = System.nanoTime();
         int idx = 0;
         for (PinotColumnHandle columnHandle : columnHandles) {
             pinotColumnNameIndexMap.put(columnHandle.getColumnName(), idx++);
         }
-        String pinotQuery = getPinotQuery(pinotConfig, columnHandles, split.getPinotFilter(), split.getTimeFilter(), split.getTableName());
-        Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(pinotQuery, split.getHost(), split.getSegment());
+
+        Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(split.getPql().get(), split.getSegmentHost().get(), split.getSegment().get());
         dataTableMap.values().stream()
                 // ignore empty tables and tables with 0 rows
                 .filter(table -> table != null && table.getNumberOfRows() > 0)
@@ -167,12 +168,12 @@ public class PinotPageSource
                     dataTableList.add(new PinotDataTableWithSize(dataTable, estimatedTableSizeInBytes));
                     estimatedMemoryUsageInBytes += estimatedTableSizeInBytes;
                 });
-        ImmutableList.Builder<Type> types = ImmutableList.builder();
-        columnHandles
+
+        this.columnTypes = columnHandles
                 .stream()
                 .map(columnHandle -> getTypeForBlock(columnHandle))
-                .forEach(types::add);
-        this.columnTypes = types.build();
+                .collect(Collectors.toList());
+
         readTimeNanos = System.nanoTime() - startTimeNanos;
         isPinotDataFetched = true;
     }
@@ -262,7 +263,7 @@ public class PinotPageSource
     Type getType(int colIdx)
     {
         checkArgument(colIdx < columnHandles.size(), "Invalid field index");
-        return columnHandles.get(colIdx).getColumnType();
+        return columnHandles.get(colIdx).getDataType();
     }
 
     boolean getBoolean(int rowIdx, int colIdx)
@@ -353,11 +354,11 @@ public class PinotPageSource
 
     Type getTypeForBlock(PinotColumnHandle pinotColumnHandle)
     {
-        if (pinotColumnHandle.getColumnType().equals(INTEGER)) {
+        if (pinotColumnHandle.getDataType().equals(INTEGER)) {
             return BIGINT;
         }
         else {
-            return pinotColumnHandle.getColumnType();
+            return pinotColumnHandle.getDataType();
         }
     }
 

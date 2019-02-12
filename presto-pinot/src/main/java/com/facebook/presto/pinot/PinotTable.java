@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
@@ -39,11 +40,7 @@ public class PinotTable
         this.name = requireNonNull(name, "name is null");
         this.columns = ImmutableList.copyOf(requireNonNull(columns, "columns is null"));
 
-        ImmutableList.Builder<ColumnMetadata> columnsMetadata = ImmutableList.builder();
-        for (PinotColumn column : this.columns) {
-            columnsMetadata.add(new PinotColumnMetadata(column.getName(), column.getType()));
-        }
-        this.columnsMetadata = columnsMetadata.build();
+        this.columnsMetadata = columns.stream().map(c -> new PinotColumnMetadata(c.getName(), c.getType())).collect(Collectors.toList());
     }
 
     @JsonProperty

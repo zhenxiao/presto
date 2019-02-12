@@ -13,10 +13,8 @@
  */
 package com.facebook.presto.pinot;
 
-import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.SchemaTableName;
-import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Joiner;
@@ -31,7 +29,6 @@ public final class PinotTableHandle
     private final String connectorId;
     private final String schemaName;
     private final String tableName;
-    private TupleDomain<ColumnHandle> constraintSummary;
 
     @JsonCreator
     public PinotTableHandle(
@@ -62,16 +59,6 @@ public final class PinotTableHandle
         return tableName;
     }
 
-    public TupleDomain<ColumnHandle> getConstraintSummary()
-    {
-        return constraintSummary;
-    }
-
-    public void setConstraintSummary(TupleDomain<ColumnHandle> constraintSummary)
-    {
-        this.constraintSummary = constraintSummary;
-    }
-
     public SchemaTableName toSchemaTableName()
     {
         return new SchemaTableName(schemaName, tableName);
@@ -94,7 +81,7 @@ public final class PinotTableHandle
         }
 
         PinotTableHandle other = (PinotTableHandle) obj;
-        return Objects.equals(this.connectorId, other.connectorId) && Objects.equals(this.schemaName, other.schemaName) && Objects.equals(this.tableName, other.tableName);
+        return Objects.equals(connectorId, other.connectorId) && Objects.equals(schemaName, other.schemaName) && Objects.equals(tableName, other.tableName);
     }
 
     @Override

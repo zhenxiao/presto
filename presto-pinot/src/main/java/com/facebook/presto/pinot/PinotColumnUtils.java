@@ -24,8 +24,8 @@ import com.linkedin.pinot.common.data.FieldSpec;
 import com.linkedin.pinot.common.data.FieldSpec.DataType;
 import com.linkedin.pinot.common.data.Schema;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class PinotColumnUtils
 {
@@ -35,12 +35,9 @@ public class PinotColumnUtils
 
     public static List<PinotColumn> getPinotColumnsForPinotSchema(Schema pinotTableSchema)
     {
-        List<PinotColumn> pinotColumns = new ArrayList<>();
-        for (String columnName : pinotTableSchema.getColumnNames()) {
-            PinotColumn pinotColumn = new PinotColumn(columnName, getPrestoTypeFromPinotType(pinotTableSchema.getFieldSpecFor(columnName)));
-            pinotColumns.add(pinotColumn);
-        }
-        return pinotColumns;
+        return pinotTableSchema.getColumnNames().stream()
+                .map(columnName -> new PinotColumn(columnName, getPrestoTypeFromPinotType(pinotTableSchema.getFieldSpecFor(columnName))))
+                .collect(Collectors.toList());
     }
 
     public static Type getPrestoTypeFromPinotType(FieldSpec pinotFieldSpec)

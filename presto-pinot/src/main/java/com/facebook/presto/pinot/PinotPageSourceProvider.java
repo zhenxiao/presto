@@ -25,7 +25,7 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.facebook.presto.pinot.Types.checkType;
+import static com.facebook.presto.pinot.PinotUtils.checkType;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -35,26 +35,37 @@ public class PinotPageSourceProvider
     private final String connectorId;
     private final PinotConfig pinotConfig;
     private final PinotScatterGatherQueryClient pinotQueryClient;
+    private final PinotClusterInfoFetcher clusterInfoFetcher;
 
     @Inject
-    public PinotPageSourceProvider(PinotConnectorId connectorId, PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient)
+    public PinotPageSourceProvider(PinotConnectorId connectorId, PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient, PinotClusterInfoFetcher clusterInfoFetcher)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
         this.pinotConfig = requireNonNull(pinotConfig, "pinotConfig is null");
         this.pinotQueryClient = requireNonNull(pinotQueryClient, "pinotQueryClient is null");
+        this.clusterInfoFetcher = requireNonNull(clusterInfoFetcher, "cluster info fetcher is null");
     }
 
     @Override
     public ConnectorPageSource createPageSource(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorSplit split, List<ColumnHandle> columns)
     {
-        requireNonNull(split, "partitionChunk is null");
-        PinotSplit pinotSplit = checkType(split, PinotSplit.class, "split");
+        requireNonNull(split, "split is null");
+
+        PinotSplit pinotSplit = (PinotSplit) split;
         checkArgument(pinotSplit.getConnectorId().equals(connectorId), "split is not for this connector");
 
         List<PinotColumnHandle> handles = new ArrayList<>();
         for (ColumnHandle handle : columns) {
-            handles.add(checkType(handle, PinotColumnHandle.class, "handle"));
+            handles.add(checkType(handle, PinotColumnHandle.class, "handle is not Pinot type"));
         }
-        return new PinotPageSource(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles);
+
+        switch (pinotSplit.getSplitType()) {
+            case SEGMENT:
+                return new PinotSegmentPageSource(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles);
+            case BROKER:
+                return new PinotBrokerPageSource(this.pinotConfig, pinotSplit.getPipeline().get(), handles, clusterInfoFetcher);
+            default:
+                throw new UnsupportedOperationException("Unknown Pinot split type: " + pinotSplit.getSplitType());
+        }
     }
 }

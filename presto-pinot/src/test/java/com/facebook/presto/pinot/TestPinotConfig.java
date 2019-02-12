@@ -30,7 +30,7 @@ public class TestPinotConfig
                 ConfigAssertions.recordDefaults(PinotConfig.class)
                         .setZkUrl(null)
                         .setPinotCluster(null)
-                        .setPinotClusterEnv(null)
+                        .setExtraHttpHeaders("")
                         .setControllerUrl(null)
                         .setIdleTimeout(new Duration(5, TimeUnit.MINUTES))
                         .setLimitAll(null)
@@ -41,7 +41,18 @@ public class TestPinotConfig
                         .setMinConnectionsPerServer(null)
                         .setThreadPoolSize(null)
                         .setEstimatedSizeInBytesForNonNumericColumn(20)
-                        .setConnectionTimeout(new Duration(1, TimeUnit.MINUTES)));
+                        .setConnectionTimeout(new Duration(1, TimeUnit.MINUTES))
+                        .setControllerRestService(null)
+                        .setServiceHeaderParam("RPC-Service")
+                        .setCallerHeaderValue("presto")
+                        .setCallerHeaderParam("RPC-Caller")
+                        .setBrokerRestService(null)
+                        .setBrokerUrl(null)
+                        .setMetadataCacheExpiry(new Duration(1, TimeUnit.DAYS))
+                        .setAggregationPushDownEnabled(true)
+                        .setFilterPushDownEnabled(true)
+                        .setProjectPushDownEnabled(true)
+                        .setLimitPushDownEnabled(true));
     }
 
     @Test
@@ -50,7 +61,8 @@ public class TestPinotConfig
         Map<String, String> properties = new ImmutableMap.Builder<String, String>()
                 .put("zk-uri", "localhost:2181")
                 .put("pinot-cluster", "upinot")
-                .put("pinot-cluster-env", "adhoc2")
+                .put("extra-http-headers", "k:v")
+                .put("controller-rest-service", "pinot-controller-service")
                 .put("controller-url", "localhost:15982")
                 .put("idle-timeout", "1h")
                 .put("limit-all", "2147483646")
@@ -62,12 +74,23 @@ public class TestPinotConfig
                 .put("thread-pool-size", "100")
                 .put("estimated-size-in-bytes-for-non-numeric-column", "30")
                 .put("connection-timeout", "8m")
+                .put("broker-rest-service", "pinot-broker-service")
+                .put("broker-url", "pinot-broker-url")
+                .put("metadata-expiry", "1m")
+                .put("caller-header-value", "myCaller")
+                .put("caller-header-param", "myParam")
+                .put("service-header-param", "myServiceHeader")
+                .put("aggregation-pushdown-enabled", "false")
+                .put("filter-pushdown-enabled", "false")
+                .put("project-pushdown-enabled", "false")
+                .put("limit-pushdown-enabled", "false")
                 .build();
 
         PinotConfig expected = new PinotConfig()
                 .setZkUrl("localhost:2181")
                 .setPinotCluster("upinot")
-                .setPinotClusterEnv("adhoc2")
+                .setExtraHttpHeaders("k:v")
+                .setControllerRestService("pinot-controller-service")
                 .setControllerUrl("localhost:15982")
                 .setIdleTimeout(new Duration(1, TimeUnit.HOURS))
                 .setLimitAll("2147483646")
@@ -78,7 +101,17 @@ public class TestPinotConfig
                 .setMinConnectionsPerServer("1")
                 .setThreadPoolSize("100")
                 .setEstimatedSizeInBytesForNonNumericColumn(30)
-                .setConnectionTimeout(new Duration(8, TimeUnit.MINUTES));
+                .setConnectionTimeout(new Duration(8, TimeUnit.MINUTES))
+                .setBrokerRestService("pinot-broker-service")
+                .setBrokerUrl("pinot-broker-url")
+                .setServiceHeaderParam("myServiceHeader")
+                .setCallerHeaderValue("myCaller")
+                .setCallerHeaderParam("myParam")
+                .setMetadataCacheExpiry(new Duration(1, TimeUnit.MINUTES))
+                .setAggregationPushDownEnabled(false)
+                .setFilterPushDownEnabled(false)
+                .setProjectPushDownEnabled(false)
+                .setLimitPushDownEnabled(false);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }

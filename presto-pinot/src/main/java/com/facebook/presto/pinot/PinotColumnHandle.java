@@ -27,28 +27,19 @@ import static java.util.Objects.requireNonNull;
 public final class PinotColumnHandle
         implements ColumnHandle
 {
-    private final String connectorId;
     private final String columnName;
-    private final Type columnType;
-    private final int ordinalPosition;
+    private final Type dataType;
+    private final PinotColumnType type;
 
     @JsonCreator
     public PinotColumnHandle(
-            @JsonProperty("connectorId") String connectorId,
             @JsonProperty("columnName") String columnName,
-            @JsonProperty("columnType") Type columnType,
-            @JsonProperty("ordinalPosition") int ordinalPosition)
+            @JsonProperty("dataType") Type dataType,
+            @JsonProperty("type") PinotColumnType type)
     {
-        this.connectorId = requireNonNull(connectorId, "connectorId is null");
         this.columnName = requireNonNull(columnName, "columnName is null");
-        this.columnType = requireNonNull(columnType, "columnType is null");
-        this.ordinalPosition = ordinalPosition;
-    }
-
-    @JsonProperty
-    public String getConnectorId()
-    {
-        return connectorId;
+        this.dataType = requireNonNull(dataType, "dataType is null");
+        this.type = requireNonNull(type, "type is null");
     }
 
     @JsonProperty
@@ -58,20 +49,20 @@ public final class PinotColumnHandle
     }
 
     @JsonProperty
-    public Type getColumnType()
+    public Type getDataType()
     {
-        return columnType;
+        return dataType;
     }
 
     @JsonProperty
-    public int getOrdinalPosition()
+    public PinotColumnType getType()
     {
-        return ordinalPosition;
+        return type;
     }
 
     public ColumnMetadata getColumnMetadata()
     {
-        return new ColumnMetadata(columnName, columnType);
+        return new ColumnMetadata(columnName, dataType);
     }
 
     public String getName()
@@ -80,33 +71,39 @@ public final class PinotColumnHandle
     }
 
     @Override
-    public int hashCode()
+    public boolean equals(Object o)
     {
-        return Objects.hash(connectorId, columnName);
-    }
-
-    @Override
-    public boolean equals(Object obj)
-    {
-        if (this == obj) {
+        if (this == o) {
             return true;
         }
-        if ((obj == null) || (getClass() != obj.getClass())) {
+
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
 
-        PinotColumnHandle other = (PinotColumnHandle) obj;
-        return Objects.equals(this.connectorId, other.connectorId) && Objects.equals(this.columnName, other.columnName);
+        PinotColumnHandle that = (PinotColumnHandle) o;
+        return Objects.equals(columnName, that.columnName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnName);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("connectorId", connectorId)
                 .add("columnName", columnName)
-                .add("columnType", columnType)
-                .add("ordinalPosition", ordinalPosition)
+                .add("dataType", dataType)
+                .add("type", type)
                 .toString();
+    }
+
+    public enum PinotColumnType
+    {
+        REGULAR, // refers to the column in table
+        DERIVED, // refers to a derived column that is created after a pushdown expression
     }
 }

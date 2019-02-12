@@ -23,32 +23,16 @@ import static java.util.Locale.ENGLISH;
 public class PinotColumnMetadata
         extends ColumnMetadata
 {
+    // We need to preserve the case sensitivity of the column, store it here as the super class stores the value after lower-casing it
     private final String name;
-    private final Type type;
-    private final String comment;
-    private final boolean hidden;
 
     public PinotColumnMetadata(String name, Type type)
     {
-        this(name, type, null, false);
-    }
-
-    public PinotColumnMetadata(String name, Type type, String comment, boolean hidden)
-    {
-        super(name, type, comment, hidden);
-        if (name == null || name.isEmpty()) {
-            throw new NullPointerException("name is null or empty");
-        }
-        if (type == null) {
-            throw new NullPointerException("type is null");
-        }
-
+        super(name, type);
         this.name = name;
-        this.type = type;
-        this.comment = comment;
-        this.hidden = hidden;
     }
 
+    @Override
     public String getName()
     {
         return name.toLowerCase(ENGLISH);
@@ -59,41 +43,10 @@ public class PinotColumnMetadata
         return name;
     }
 
-    public Type getType()
-    {
-        return type;
-    }
-
-    public String getComment()
-    {
-        return comment;
-    }
-
-    public boolean isHidden()
-    {
-        return hidden;
-    }
-
-    @Override
-    public String toString()
-    {
-        StringBuilder sb = new StringBuilder("ColumnMetadata{");
-        sb.append("name='").append(name).append('\'');
-        sb.append(", type=").append(type);
-        if (comment != null) {
-            sb.append(", comment='").append(comment).append('\'');
-        }
-        if (hidden) {
-            sb.append(", hidden");
-        }
-        sb.append('}');
-        return sb.toString();
-    }
-
     @Override
     public int hashCode()
     {
-        return Objects.hash(name, type, comment, hidden);
+        return Objects.hash(name, getType(), getComment(), isHidden());
     }
 
     @Override
@@ -106,6 +59,9 @@ public class PinotColumnMetadata
             return false;
         }
         PinotColumnMetadata other = (PinotColumnMetadata) obj;
-        return Objects.equals(this.name, other.name) && Objects.equals(this.type, other.type) && Objects.equals(this.comment, other.comment) && Objects.equals(this.hidden, other.hidden);
+        return Objects.equals(this.name, other.name) &&
+                Objects.equals(this.getType(), other.getType()) &&
+                Objects.equals(this.getComment(), other.getComment()) &&
+                Objects.equals(this.isHidden(), other.isHidden());
     }
 }

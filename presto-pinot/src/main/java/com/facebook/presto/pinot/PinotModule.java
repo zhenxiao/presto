@@ -20,16 +20,21 @@ import com.fasterxml.jackson.databind.deser.std.FromStringDeserializer;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
+import io.airlift.units.DataSize;
+import io.airlift.units.Duration;
 
 import javax.inject.Inject;
 
 import static com.facebook.presto.spi.type.TypeSignature.parseTypeSignature;
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.airlift.configuration.ConfigBinder.configBinder;
+import static io.airlift.http.client.HttpClientBinder.httpClientBinder;
 import static io.airlift.json.JsonBinder.jsonBinder;
 import static io.airlift.json.JsonCodec.listJsonCodec;
 import static io.airlift.json.JsonCodecBinder.jsonCodecBinder;
+import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Guice module for the Pinot connector.
@@ -48,6 +53,13 @@ public class PinotModule
         binder.bind(PinotScatterGatherQueryClient.class).in(Scopes.SINGLETON);
         binder.bind(PinotClusterInfoFetcher.class).in(Scopes.SINGLETON);
         binder.bind(PinotConnection.class).in(Scopes.SINGLETON);
+        httpClientBinder(binder).bindHttpClient("pinot", ForPinot.class)
+                .withConfigDefaults(cfg -> {
+                    cfg.setIdleTimeout(new Duration(60, SECONDS));
+                    cfg.setRequestTimeout(new Duration(60, SECONDS));
+                    cfg.setMaxConnectionsPerServer(250);
+                    cfg.setMaxContentLength(new DataSize(32, MEGABYTE));
+                });
 
         jsonBinder(binder).addDeserializerBinding(Type.class).to(TypeDeserializer.class);
         jsonCodecBinder(binder).bindMapJsonCodec(String.class, listJsonCodec(PinotTable.class));

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.pinot;
 
+import com.facebook.presto.pinot.query.PinotQueryGenerator;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
@@ -26,6 +27,14 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.TableNotFoundException;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.LimitPipelineNode;
+import com.facebook.presto.spi.pipeline.PipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -33,13 +42,17 @@ import io.airlift.log.Logger;
 
 import javax.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
-import static com.facebook.presto.pinot.Types.checkType;
+import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.DERIVED;
+import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.REGULAR;
+import static com.facebook.presto.pinot.PinotUtils.checkType;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
@@ -50,12 +63,14 @@ public class PinotMetadata
     private static final Logger log = Logger.get(PinotMetadata.class);
     private final String connectorId;
     private final PinotConnection pinotPrestoConnection;
+    private final PinotConfig pinotConfig;
 
     @Inject
-    public PinotMetadata(PinotConnectorId connectorId, PinotConnection pinotPrestoConnection)
+    public PinotMetadata(PinotConnectorId connectorId, PinotConnection pinotPrestoConnection, PinotConfig pinotConfig)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
         this.pinotPrestoConnection = requireNonNull(pinotPrestoConnection, "pinotPrestoConnection is null");
+        this.pinotConfig = requireNonNull(pinotConfig, "pinotConfig is null");
     }
 
     @Override
@@ -64,7 +79,7 @@ public class PinotMetadata
         return listSchemaNames();
     }
 
-    public List<String> listSchemaNames()
+    private List<String> listSchemaNames()
     {
         try {
             ImmutableList.Builder<String> schemaNamesListBuilder = ImmutableList.builder();
@@ -78,7 +93,7 @@ public class PinotMetadata
         }
     }
 
-    public String getPinotTableNameFromPrestoTableName(String prestoTableName)
+    private String getPinotTableNameFromPrestoTableName(String prestoTableName)
     {
         try {
             for (String pinotTableName : pinotPrestoConnection.getTableNames()) {
@@ -117,8 +132,7 @@ public class PinotMetadata
     public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns)
     {
         PinotTableHandle tableHandle = checkType(table, PinotTableHandle.class, "table");
-        tableHandle.setConstraintSummary(constraint.getSummary());
-        ConnectorTableLayout layout = new ConnectorTableLayout(new PinotTableLayoutHandle(tableHandle));
+        ConnectorTableLayout layout = new ConnectorTableLayout(new PinotTableLayoutHandle(tableHandle, Optional.of(constraint.getSummary()), Optional.empty()));
         return ImmutableList.of(new ConnectorTableLayoutResult(layout, constraint.getSummary()));
     }
 
@@ -175,11 +189,9 @@ public class PinotMetadata
                 throw new TableNotFoundException(pinotTableHandle.toSchemaTableName());
             }
             ImmutableMap.Builder<String, ColumnHandle> columnHandles = ImmutableMap.builder();
-            int index = 0;
             for (ColumnMetadata column : table.getColumnsMetadata()) {
                 columnHandles.put(column.getName().toLowerCase(ENGLISH),
-                        new PinotColumnHandle(connectorId, ((PinotColumnMetadata) column).getPinotName(), column.getType(), index));
-                index++;
+                        new PinotColumnHandle(((PinotColumnMetadata) column).getPinotName(), column.getType(), REGULAR));
             }
             return columnHandles.build();
         }
@@ -236,5 +248,91 @@ public class PinotMetadata
     {
         checkType(tableHandle, PinotTableHandle.class, "tableHandle");
         return checkType(columnHandle, PinotColumnHandle.class, "columnHandle").getColumnMetadata();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> convertToTableScanPipeline(ConnectorSession session, ConnectorTableHandle tableHandle, TablePipelineNode tablePipelineNode)
+    {
+        TableScanPipeline scanPipeline = new TableScanPipeline();
+        scanPipeline.addPipeline(tablePipelineNode,
+                tablePipelineNode.getInputColumns());
+
+        return Optional.of(scanPipeline);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, ProjectPipelineNode project)
+    {
+        return tryCreatingNewPipeline(pinotConfig::isProjectPushDownEnabled, currentPipeline, project);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushFilterIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, FilterPipelineNode filter)
+    {
+        return tryCreatingNewPipeline(pinotConfig::isFilterPushDownEnabled, currentPipeline, filter);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, AggregationPipelineNode aggregation)
+    {
+        if (aggregation.isPartial()) {
+            return Optional.empty(); // partial aggregation is not supported
+        }
+        return tryCreatingNewPipeline(pinotConfig::isAggregationPushDownEnabled, currentPipeline, aggregation);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushLimitIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, LimitPipelineNode limit)
+    {
+        return tryCreatingNewPipeline(pinotConfig::isLimitPushDownEnabled, currentPipeline, limit);
+    }
+
+    private Optional<TableScanPipeline> tryCreatingNewPipeline(Supplier<Boolean> isEnabled, TableScanPipeline scanPipeline, PipelineNode newPipelineNode)
+    {
+        if (!isEnabled.get()) {
+            return Optional.empty();
+        }
+
+        try {
+            TableScanPipeline newPipeline = new TableScanPipeline(new ArrayList<>(scanPipeline.getPipelineNodes()), scanPipeline.getOutputColumnHandles());
+            newPipeline.addPipeline(newPipelineNode, createDerivedColumnHandles(newPipelineNode));
+            PinotQueryGenerator.generatePQL(newPipeline);
+            return Optional.of(newPipeline);
+        }
+        catch (Exception e) {
+            // Adding the new node is not allowed as we fail to generate PQL
+            log.debug("Pushdown failed: " + e.getMessage(), e);
+            return Optional.empty();
+        }
+    }
+
+    private List<ColumnHandle> createDerivedColumnHandles(PipelineNode pipelineNode)
+    {
+        List<ColumnHandle> outputColumnHandles = new ArrayList<>();
+        List<String> outputColumns = pipelineNode.getOutputColumns();
+        List<Type> outputColumnTypes = pipelineNode.getRowType();
+
+        for (int fieldId = 0; fieldId < outputColumns.size(); fieldId++) {
+            // Create a column handle for the new output column
+            outputColumnHandles.add(new PinotColumnHandle(
+                    outputColumns.get(fieldId),
+                    outputColumnTypes.get(fieldId),
+                    DERIVED));
+        }
+
+        return outputColumnHandles;
+    }
+
+    @Override
+    public Optional<ConnectorTableLayoutHandle> pushTableScanIntoConnectorLayoutHandle(ConnectorSession session, TableScanPipeline scanPipeline, ConnectorTableLayoutHandle
+            connectorTableLayoutHandle)
+    {
+        PinotTableLayoutHandle currentHandle = (PinotTableLayoutHandle) connectorTableLayoutHandle;
+        checkArgument(!currentHandle.getScanPipeline().isPresent(), "layout already has a scan pipeline");
+
+        return Optional.of(new PinotTableLayoutHandle(currentHandle.getTable(), currentHandle.getConstraint(), Optional.of(scanPipeline)));
     }
 }

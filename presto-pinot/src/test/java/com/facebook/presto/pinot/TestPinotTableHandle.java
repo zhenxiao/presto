@@ -20,7 +20,7 @@ import org.testng.annotations.Test;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static org.testng.Assert.assertEquals;
 
-public class TestExampleTableHandle
+public class TestPinotTableHandle
 {
     private final PinotTableHandle tableHandle = new PinotTableHandle("connectorId", "schemaName", "tableName");
 

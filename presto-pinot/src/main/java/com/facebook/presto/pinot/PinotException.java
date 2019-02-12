@@ -13,21 +13,28 @@
  */
 package com.facebook.presto.pinot;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.String.format;
+import com.facebook.presto.spi.PrestoException;
 
-final class Types
+import java.util.Optional;
+
+public class PinotException
+        extends PrestoException
 {
-    private Types()
+    private final Optional<String> pql;
+
+    public PinotException(PinotErrorCode errorCode, Optional<String> pql, String message)
     {
+        super(errorCode, message);
+        this.pql = pql;
     }
 
-    public static <A, B extends A> B checkType(A value, Class<B> target, String name)
+    @Override
+    public String getMessage()
     {
-        if (value == null) {
-            throw new NullPointerException(format("%s is null", name));
+        String ret = super.getMessage();
+        if (pql.isPresent()) {
+            ret += " with pql \"" + pql.get() + "\"";
         }
-        checkArgument(target.isInstance(value), "%s must be of type %s, not %s", name, target.getName(), value.getClass().getName());
-        return target.cast(value);
+        return ret;
     }
 }

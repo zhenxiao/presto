@@ -15,42 +15,77 @@ package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
+import java.util.Optional;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
 public class PinotSplit
         implements ConnectorSplit
 {
     private final String connectorId;
-    private final String tableName;
-    private final String host;
-    private final String segment;
-    private final boolean remotelyAccessible;
-    private final List<HostAddress> addresses;
-    private final String timeFilter;
-    private final String pinotFilter;
+    private final SplitType splitType;
+
+    // Properties needed for broker split type
+    private final Optional<TableScanPipeline> pipeline;
+
+    // Properties needed for segment split type
+    private final Optional<String> pql;
+    private final Optional<String> segment;
+    private final Optional<String> segmentHost;
 
     @JsonCreator
     public PinotSplit(
             @JsonProperty("connectorId") String connectorId,
-            @JsonProperty("tableName") String tableName,
-            @JsonProperty("host") String host,
-            @JsonProperty("segment") String segment,
-            @JsonProperty("timeFilter") String timeFilter,
-            @JsonProperty("pinotFilter") String pinotFilter)
+            @JsonProperty("splitType") SplitType splitType,
+            @JsonProperty("pipeline") Optional<TableScanPipeline> pipeline,
+            @JsonProperty("pql") Optional<String> pql,
+            @JsonProperty("segment") Optional<String> segment,
+            @JsonProperty("segmentHost") Optional<String> segmentHost)
     {
         this.connectorId = requireNonNull(connectorId, "connector id is null");
-        this.tableName = requireNonNull(tableName, "table name is null");
-        this.host = requireNonNull(host, "host is null");
+        this.splitType = requireNonNull(splitType, "splitType id is null");
+        this.pipeline = requireNonNull(pipeline, "pipeline is null");
+        this.pql = requireNonNull(pql, "table name is null");
         this.segment = requireNonNull(segment, "segment is null");
-        this.addresses = null;
-        this.pinotFilter = pinotFilter;
-        this.timeFilter = timeFilter;
-        this.remotelyAccessible = true;
+        this.segmentHost = requireNonNull(segmentHost, "host is null");
+
+        // make sure the segment properties are present when the split type is segment
+        if (splitType == SplitType.SEGMENT) {
+            checkArgument(pql.isPresent(), "Table name is missing from the split");
+            checkArgument(segment.isPresent(), "Segment is missing from the split");
+            checkArgument(segmentHost.isPresent(), "Segment host address is missing from the split");
+        }
+        else {
+            checkArgument(pipeline.isPresent(), "pipeline is missing from the split");
+        }
+    }
+
+    public static PinotSplit createBrokerSplit(String connectorId, TableScanPipeline pipeline)
+    {
+        return new PinotSplit(
+                requireNonNull(connectorId, "connector id is null"),
+                SplitType.BROKER,
+                Optional.of(requireNonNull(pipeline, "pipeline is null")),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+    }
+
+    public static PinotSplit createSegmentSplit(String connectorId, String pql, String segment, String segmentHost)
+    {
+        return new PinotSplit(
+                requireNonNull(connectorId, "connector id is null"),
+                SplitType.SEGMENT,
+                Optional.empty(),
+                Optional.of(requireNonNull(pql, "pql is null")),
+                Optional.of(requireNonNull(segment, "segment is null")),
+                Optional.of(requireNonNull(segmentHost, "segmentHost is null")));
     }
 
     @JsonProperty
@@ -60,51 +95,56 @@ public class PinotSplit
     }
 
     @JsonProperty
-    public String getTableName()
+    public SplitType getSplitType()
     {
-        return tableName;
+        return splitType;
     }
 
     @JsonProperty
-    public String getHost()
+    public Optional<TableScanPipeline> getPipeline()
     {
-        return host;
+        return pipeline;
     }
 
     @JsonProperty
-    public String getSegment()
+    public Optional<String> getPql()
+    {
+        return pql;
+    }
+
+    @JsonProperty
+    public Optional<String> getSegmentHost()
+    {
+        return segmentHost;
+    }
+
+    @JsonProperty
+    public Optional<String> getSegment()
     {
         return segment;
-    }
-
-    @JsonProperty
-    public String getTimeFilter()
-    {
-        return timeFilter;
-    }
-
-    @JsonProperty
-    public String getPinotFilter()
-    {
-        return pinotFilter;
     }
 
     @Override
     public boolean isRemotelyAccessible()
     {
-        // only http or https is remotely accessible
-        return remotelyAccessible;
+        return true;
     }
 
     @Override
     public List<HostAddress> getAddresses()
     {
-        return addresses;
+        return null;
     }
 
     @Override
     public Object getInfo()
     {
         return this;
+    }
+
+    public enum SplitType
+    {
+        SEGMENT,
+        BROKER,
     }
 }
