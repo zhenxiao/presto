@@ -25,6 +25,8 @@ import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -470,6 +472,18 @@ public abstract class AbstractMockMetadata
 
     @Override
     public Optional<TableScanPipeline> pushAggregationIntoScan(Session session, TableHandle tableHandle, TableScanPipeline existingPipeline, AggregationPipelineNode aggregations)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushProjectIntoScan(Session session, TableHandle tableHandle, TableScanPipeline existingPipeline, ProjectPipelineNode projectPipelineNode)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle, TableScanPipeline existingPipeline, FilterPipelineNode filterPipelineNode)
     {
         return Optional.empty();
     }

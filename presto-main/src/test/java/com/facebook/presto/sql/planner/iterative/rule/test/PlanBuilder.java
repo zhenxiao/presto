@@ -202,6 +202,11 @@ public class PlanBuilder
         return new LimitNode(idAllocator.getNextId(), source, limit, false);
     }
 
+    public LimitNode limit(long limit, boolean partial, PlanNode source)
+    {
+        return new LimitNode(idAllocator.getNextId(), source, limit, partial);
+    }
+
     public TopNNode topN(long count, List<Symbol> orderBy, PlanNode source)
     {
         return new TopNNode(

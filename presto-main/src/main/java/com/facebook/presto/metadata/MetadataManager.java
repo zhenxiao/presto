@@ -43,6 +43,8 @@ import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.function.OperatorType;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -1098,6 +1100,28 @@ public class MetadataManager
         ConnectorSession connectorSession = session.toConnectorSession(connectorId);
 
         return metadata.pushAggregationIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, aggregations);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushProjectIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, ProjectPipelineNode projectPipelineNode)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        ConnectorMetadata metadata = getMetadata(session, connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        return metadata.pushProjectIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, projectPipelineNode);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, FilterPipelineNode filterPipelineNode)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        ConnectorMetadata metadata = getMetadata(session, connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        return metadata.pushFilterIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, filterPipelineNode);
     }
 
     @Override

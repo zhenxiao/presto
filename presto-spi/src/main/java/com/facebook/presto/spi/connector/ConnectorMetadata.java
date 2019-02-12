@@ -33,6 +33,8 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -517,6 +519,26 @@ public interface ConnectorMetadata
      */
     default Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
             TableScanPipeline currentPipeline, AggregationPipelineNode aggregation)
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * Push project expressions into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support project pushdown or any specific expressions in project.
+     */
+    default Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, ProjectPipelineNode project)
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * Push filter expressions into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support filter pushdown or any specific expressions in filter.
+     */
+    default Optional<TableScanPipeline> pushFilterIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            TableScanPipeline currentPipeline, FilterPipelineNode filter)
     {
         return Optional.empty();
     }

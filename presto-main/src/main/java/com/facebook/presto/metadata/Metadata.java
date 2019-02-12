@@ -26,6 +26,8 @@ import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -331,6 +333,20 @@ public interface Metadata
      */
     Optional<TableScanPipeline> pushAggregationIntoScan(Session session, TableHandle tableHandle,
             TableScanPipeline existingPipeline, AggregationPipelineNode aggregations);
+
+    /**
+     * Push the project into scan
+     * @return new {@link TableScanPipeline} if the connector supports the project pushdown and all expressions in project. Empty otherwise.
+     */
+    Optional<TableScanPipeline> pushProjectIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, ProjectPipelineNode projectPipelineNode);
+
+    /**
+     * Push filter into scan.
+     * @return New {@link TableScanPipeline} if the connector supports the complete filter. Empty otherwise.
+     */
+    Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle,
+            TableScanPipeline existingPipeline, FilterPipelineNode filterPipelineNode);
 
     Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline);
 
