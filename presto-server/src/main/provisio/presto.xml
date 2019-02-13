@@ -146,6 +146,12 @@
         </artifact>
     </artifactSet>
 
+    <artifactSet to="plugin/pinot">
+        <artifact id="${project.groupId}:presto-pinot:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
     <artifactSet to="plugin/redis">
         <artifact id="${project.groupId}:presto-redis:zip:${project.version}">
             <unpack />

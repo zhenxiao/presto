@@ -136,6 +136,7 @@
         <module>presto-udf</module>
         <module>presto-schemaless</module>
         <module>presto-event-listener</module>
+        <module>presto-pinot</module>
     </modules>
 
     <dependencyManagement>
@@ -303,6 +304,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-raptor</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-pinot</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
