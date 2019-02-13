@@ -167,7 +167,10 @@ public class HiveFileIterator
             if (exception instanceof FileNotFoundException) {
                 throw new PrestoException(HIVE_FILE_NOT_FOUND, "Partition location does not exist: " + path);
             }
-            return new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed to list directory: " + path + ". Seems like a security problem, please ask in https://uchat.uberinternal.com/uber/channels/data-security-community", exception);
+            return new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed to list directory: " + path + ". " +
+                    "Seems like a security problem, please ask in https://uchat.uberinternal.com/uber/channels/data-security-community. " +
+                    "If you believe you have permissions check if the directory corresponds to a recent partition which could be in " +
+                    "the process of data ingestion at this moment. Please retry your query after sometime.", exception);
         }
     }
 
