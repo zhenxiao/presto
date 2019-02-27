@@ -108,12 +108,14 @@ import com.facebook.presto.sql.planner.optimizations.HashGenerationOptimizer;
 import com.facebook.presto.sql.planner.optimizations.ImplementIntersectAndExceptAsUnion;
 import com.facebook.presto.sql.planner.optimizations.IndexJoinOptimizer;
 import com.facebook.presto.sql.planner.optimizations.LimitPushDown;
+import com.facebook.presto.sql.planner.optimizations.MergeNestedColumn;
 import com.facebook.presto.sql.planner.optimizations.MetadataDeleteOptimizer;
 import com.facebook.presto.sql.planner.optimizations.MetadataQueryOptimizer;
 import com.facebook.presto.sql.planner.optimizations.OptimizeMixedDistinctAggregations;
 import com.facebook.presto.sql.planner.optimizations.PlanOptimizer;
 import com.facebook.presto.sql.planner.optimizations.PredicatePushDown;
 import com.facebook.presto.sql.planner.optimizations.PruneUnreferencedOutputs;
+import com.facebook.presto.sql.planner.optimizations.PushDownDereferenceExpression;
 import com.facebook.presto.sql.planner.optimizations.ReplicateSemiJoinInDelete;
 import com.facebook.presto.sql.planner.optimizations.SetFlatteningOptimizer;
 import com.facebook.presto.sql.planner.optimizations.StatsRecordingPlanOptimizer;
@@ -343,6 +345,11 @@ public class PlanOptimizers
                                 new RemoveRedundantIdentityProjections(),
                                 new TransformCorrelatedSingleRowSubqueryToProject())),
                 new CheckSubqueryNodesAreRewritten(),
+                // pushdown dereference
+                new PushDownDereferenceExpression(metadata, sqlParser),
+                new PruneUnreferencedOutputs(),
+                new MergeNestedColumn(metadata, sqlParser),
+                new IterativeOptimizer(ruleStats, statsCalculator, estimatedExchangesCostCalculator, ImmutableSet.of(new PruneTableScanColumns())),
                 predicatePushDown,
                 new IterativeOptimizer(
                         ruleStats,
