@@ -2457,12 +2457,14 @@ public class TestHiveIntegrationSmokeTest
         // Not able to use assertQuery here. assertQuery runs query in H2QueryRunner as well, which we are not able to create table there.
         computeActual(noPartitionFilterSession, "select * from partitioned_table");
         for (Session session : ImmutableList.of(partitionFilterSession, wildcardSession)) {
-            assertQueryFails(session, "select * from partitioned_table", "Your query is missing partition filter. " +
-                    "Please add a filter on the partition column \"order_status\" in the WHERE clause of your query. " +
-                    "For example: WHERE partition_column > '2017-06-01'. .*");
-            assertQueryFails(session, "select * from partitioned_table_multi_partition_key", "Your query " +
-                    "is missing partition filter. Please add filters on all partition columns \"order_status\", " +
-                    "\"ship_priority\" in the WHERE clause of your query. For example: WHERE partition_column > '2017-06-01'. .*");
+            assertQueryFails(session, "select * from partitioned_table",
+                    "Your query is missing partition filter. " +
+                            "Please add filter on partition column \"order_status\" for table \"tpch.partitioned_table\" in the WHERE clause of your query. " +
+                            "For example: WHERE partition_column > '2017-06-01'. .*");
+            assertQueryFails(session, "select * from partitioned_table_multi_partition_key",
+                    "Your query is missing partition filter. " +
+                            "Please add filter on partition column \"order_status\", \"ship_priority\" for table \"tpch.partitioned_table_multi_partition_key\" in the WHERE clause of your query. " +
+                            "For example: WHERE partition_column > '2017-06-01'. .*");
         }
 
         // Query in session with empty strict mode tables will succeeded
@@ -2534,7 +2536,7 @@ public class TestHiveIntegrationSmokeTest
 
         assertQueryFails(customUserListUser1, "select * from partitioned_table",
                 "Your query is missing partition filter. " +
-                        "Please add a filter on the partition column \"order_status\" in the WHERE clause of your query. " +
+                        "Please add filter on partition column \"order_status\" for table \"tpch.partitioned_table\" in the WHERE clause of your query. " +
                         "For example: WHERE partition_column > '2017-06-01'. .*");
         computeActual(customUserListUser3, "select * from partitioned_table");
 

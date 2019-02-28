@@ -49,7 +49,7 @@ import static java.util.Objects.requireNonNull;
 public class EnforcePartitionFilter
         implements PlanOptimizer
 {
-    private static final String ERROR_MESSAGE_FORMAT = "Your query is missing partition filter. Please %s %s in the WHERE clause of your query. " +
+    private static final String ERROR_MESSAGE_FORMAT = "Your query is missing partition filter. Please add filter on partition column %s for table \"%s\" in the WHERE clause of your query. " +
             "For example: WHERE partition_column > '2017-06-01'. See more details at " +
             "https://engdocs.uberinternal.com/sql-analytics-guide/presto_pages/optimization.html#partition-column. ";
     private final Metadata metadata;
@@ -153,12 +153,7 @@ public class EnforcePartitionFilter
             boolean containsAllPartitionColumns = partitionColumns.stream().allMatch(partitionColumn -> predicateColumns.stream().anyMatch(predicate -> predicate.startsWith(partitionColumn)));
             if (!containsAllPartitionColumns) {
                 String partitionColumnNames = partitionColumns.stream().map(str -> "\"" + str + "\"").collect(Collectors.joining(", "));
-                if (partitionColumns.size() == 1) {
-                    throw new PrestoException(NO_PARTITION_FILTER, String.format(ERROR_MESSAGE_FORMAT, "add a filter on the partition column", partitionColumnNames));
-                }
-                else {
-                    throw new PrestoException(NO_PARTITION_FILTER, String.format(ERROR_MESSAGE_FORMAT, "add filters on all partition columns", partitionColumnNames));
-                }
+                throw new PrestoException(NO_PARTITION_FILTER, String.format(ERROR_MESSAGE_FORMAT, partitionColumnNames, schemaTableName));
             }
             return context.defaultRewrite(tableScan);
         }
