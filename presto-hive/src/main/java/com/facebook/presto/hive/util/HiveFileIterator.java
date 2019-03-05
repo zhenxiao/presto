@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.security.AccessControlException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -34,6 +35,7 @@ import java.util.Iterator;
 import static com.facebook.presto.hadoop.HadoopFileStatus.isDirectory;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_FILESYSTEM_ERROR;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_FILE_NOT_FOUND;
+import static com.facebook.presto.hive.HiveErrorCode.HIVE_PERMISSION_ERROR;
 import static java.util.Objects.requireNonNull;
 
 public class HiveFileIterator
@@ -167,10 +169,14 @@ public class HiveFileIterator
             if (exception instanceof FileNotFoundException) {
                 throw new PrestoException(HIVE_FILE_NOT_FOUND, "Partition location does not exist: " + path);
             }
-            return new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed to list directory: " + path + ". " +
-                    "Seems like a security problem, please ask in https://uchat.uberinternal.com/uber/channels/data-security-community. " +
-                    "If you believe you have permissions check if the directory corresponds to a recent partition which could be in " +
-                    "the process of data ingestion at this moment. Please retry your query after sometime.", exception);
+            else if (exception instanceof AccessControlException) {
+                throw new PrestoException(HIVE_PERMISSION_ERROR, "Seems like a security problem, " +
+                        "please try to follow the FAQ http://t.uber.com/uaccess_getting_started to resolve the issue first. " +
+                        "If it persists, please ask in https://uchat.uberinternal.com/uber/channels/data-security-community." + exception.getMessage());
+            }
+            return new PrestoException(HIVE_FILESYSTEM_ERROR, "Failed to list directory: " + path +
+                    ". If you believe you have permissions check if the directory corresponds to a recent partition which could be in " +
+                    "the process of data ingestion at this moment. Please retry your query after sometime. " + exception.getMessage(), exception);
         }
     }
 
