@@ -810,9 +810,12 @@ public class TaskExecutor
                 for (StackTraceElement traceElement : splitInfo.getThread().getStackTrace()) {
                     stackTrace.append("\tat ").append(traceElement).append("\n");
                 }
-                Exception exception = new Exception("Long running split");
-                exception.setStackTrace(splitInfo.getThread().getStackTrace());
-                log.warn(exception, "Split thread %s has been running longer than %s. Split details: %s", splitInfo.getThreadId(), duration, splitInfo.getDetails());
+                if (!splitInfo.isPrinted()) {
+                    splitInfo.setPrinted();
+                    Exception exception = new Exception("Long running split");
+                    exception.setStackTrace(splitInfo.getThread().getStackTrace());
+                    log.warn(exception, "Split thread %s has been running longer than %s. Split details: %s", splitInfo.getThreadId(), duration, splitInfo.getDetails());
+                }
             }
         }
 
