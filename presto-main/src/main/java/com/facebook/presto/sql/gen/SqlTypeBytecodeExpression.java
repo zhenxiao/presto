@@ -22,15 +22,22 @@ import io.airlift.bytecode.instruction.InvokeInstruction;
 import io.airlift.slice.Slice;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.facebook.presto.sql.gen.Bootstrap.BOOTSTRAP_METHOD;
 import static io.airlift.bytecode.ParameterizedType.type;
+import static java.time.ZoneOffset.UTC;
 import static java.util.Objects.requireNonNull;
 
 public class SqlTypeBytecodeExpression
         extends BytecodeExpression
 {
+    private static final AtomicLong NAME_ID = new AtomicLong();
+    private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("YYYYMMdd_HHmmss");
+
     public static SqlTypeBytecodeExpression constantType(CallSiteBinder callSiteBinder, Type type)
     {
         requireNonNull(callSiteBinder, "callSiteBinder is null");
@@ -40,9 +47,20 @@ public class SqlTypeBytecodeExpression
         return new SqlTypeBytecodeExpression(type, binding, BOOTSTRAP_METHOD);
     }
 
+    private static String generateName(Type type)
+    {
+        String name = type.getTypeSignature().toString().replaceAll("\\W+", "_");
+        // If the length exceeds the limit enforced by the ASM, truncate it to 20 characters and appending current timestamp + a unique number
+        if (name.length() >= Character.MAX_VALUE) {
+            name = name.substring(0, 20) + "_" + Instant.now().atZone(UTC).format(TIMESTAMP_FORMAT) + "_" + NAME_ID.getAndIncrement();
+        }
+        return name;
+    }
+
     private final Type type;
     private final Binding binding;
     private final Method bootstrapMethod;
+    private final String name;
 
     private SqlTypeBytecodeExpression(Type type, Binding binding, Method bootstrapMethod)
     {
@@ -51,12 +69,13 @@ public class SqlTypeBytecodeExpression
         this.type = requireNonNull(type, "type is null");
         this.binding = requireNonNull(binding, "binding is null");
         this.bootstrapMethod = requireNonNull(bootstrapMethod, "bootstrapMethod is null");
+        this.name = generateName(type);
     }
 
     @Override
     public BytecodeNode getBytecode(MethodGenerationContext generationContext)
     {
-        return InvokeInstruction.invokeDynamic(type.getTypeSignature().toString().replaceAll("\\W+", "_"), binding.getType(), bootstrapMethod, binding.getBindingId());
+        return InvokeInstruction.invokeDynamic(name, binding.getType(), bootstrapMethod, binding.getBindingId());
     }
 
     @Override
@@ -68,7 +87,7 @@ public class SqlTypeBytecodeExpression
     @Override
     protected String formatOneLine()
     {
-        return type.getTypeSignature().toString();
+        return name;
     }
 
     public BytecodeExpression getValue(BytecodeExpression block, BytecodeExpression position)
