@@ -68,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static com.facebook.presto.SystemSessionProperties.QUERY_SUBMIT_USER;
 import static com.facebook.presto.SystemSessionProperties.getQueryMaxCpuTime;
 import static com.facebook.presto.execution.QueryState.RUNNING;
 import static com.facebook.presto.execution.QueryStateMachine.QUERY_STATE_LOG;
@@ -341,7 +342,7 @@ public class SqlQueryManager
             Optional<String> queryType = getQueryType(preparedQuery.getStatement().getClass()).map(Enum::name);
             selectionContext = resourceGroupManager.selectGroup(new SelectionCriteria(
                     sessionContext.getIdentity().getPrincipal().isPresent(),
-                    sessionContext.getIdentity().getUser(),
+                    sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER) ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER) : sessionContext.getIdentity().getUser(),
                     Optional.ofNullable(sessionContext.getSource()),
                     sessionContext.getClientTags(),
                     sessionContext.getResourceEstimates(),

@@ -116,6 +116,7 @@ public final class SystemSessionProperties
     public static final String IGNORE_STATS_CALCULATOR_FAILURES = "ignore_stats_calculator_failures";
     public static final String MAX_DRIVERS_PER_TASK = "max_drivers_per_task";
     public static final String DEFAULT_FILTER_FACTOR_ENABLED = "default_filter_factor_enabled";
+    public static final String QUERY_SUBMIT_USER = "query_submit_user";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -543,6 +544,11 @@ public final class SystemSessionProperties
                         DEFAULT_FILTER_FACTOR_ENABLED,
                         "use a default filter factor for unknown filters in a filter node",
                         featuresConfig.isDefaultFilterFactorEnabled(),
+                        false),
+                stringProperty(
+                        QUERY_SUBMIT_USER,
+                        "User who submits this query",
+                        null,
                         false));
     }
 
