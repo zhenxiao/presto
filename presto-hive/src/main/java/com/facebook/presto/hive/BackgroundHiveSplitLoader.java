@@ -32,16 +32,10 @@ import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Streams;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.uber.hoodie.common.table.HoodieTableMetaClient;
-import com.uber.hoodie.common.table.HoodieTimeline;
-import com.uber.hoodie.common.table.TableFileSystemView;
-import com.uber.hoodie.common.table.view.HoodieTableFileSystemView;
-import com.uber.hoodie.hadoop.HoodieInputFormat;
-import io.airlift.log.Logger;
+import io.airlift.stats.TimeStat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -71,7 +65,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.IntPredicate;
-import java.util.stream.Collectors;
 
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_BAD_DATA;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_INVALID_BUCKET_FILES;
@@ -81,7 +74,6 @@ import static com.facebook.presto.hive.HiveSessionProperties.isForceLocalSchedul
 import static com.facebook.presto.hive.HiveUtil.checkCondition;
 import static com.facebook.presto.hive.HiveUtil.getHeaderCount;
 import static com.facebook.presto.hive.HiveUtil.getInputFormat;
-import static com.facebook.presto.hive.HiveUtil.getInputFormatName;
 import static com.facebook.presto.hive.metastore.MetastoreUtil.getHiveSchema;
 import static com.facebook.presto.hive.util.ConfigurationUtils.toJobConf;
 import static com.facebook.presto.hive.util.HiveFileIterator.NestedDirectoryPolicy.FAIL;
@@ -99,8 +91,6 @@ public class BackgroundHiveSplitLoader
         implements HiveSplitLoader
 {
     private static final ListenableFuture<?> COMPLETED_FUTURE = immediateFuture(null);
-    private static final String HOODIE_INPUT_FORMAT = HoodieInputFormat.class.getSimpleName();
-    private static final Logger log = Logger.get(BackgroundHiveSplitLoader.class);
 
     private final Table table;
     private final TupleDomain<? extends ColumnHandle> compactEffectivePredicate;
@@ -120,8 +110,6 @@ public class BackgroundHiveSplitLoader
     private final Optional<TupleDomain<List<String>>> nestedTupleDomain;
     private final Optional<Map<String, List<String>>> aggregations;
     private final boolean useDummyBlock;
-    private HoodieTableMetaClient hoodieTableMetaClient;
-    private HoodieTimeline hoodieTimeline;
 
     // Purpose of this lock:
     // * Write lock: when you need a consistent view across partitions, fileIterators, and hiveSplitSource.
@@ -178,23 +166,6 @@ public class BackgroundHiveSplitLoader
         this.partitions = new ConcurrentLazyQueue<>(partitions);
         this.hdfsContext = new HdfsContext(session, table.getDatabaseName(), table.getTableName());
         this.useDummyBlock = useDummyBlock;
-        if (this.respectSplitsInputFormats != null) {
-            initHoodieMetadataAndTimeLineAsNeeded();
-        }
-    }
-
-    private void initHoodieMetadataAndTimeLineAsNeeded()
-    {
-        String tableBasePath = getPartitionLocation(table, Optional.empty());
-        Path path = new Path(tableBasePath);
-        Configuration conf = hdfsEnvironment.getConfiguration(hdfsContext, path);
-        Properties schema = getPartitionSchema(table, Optional.empty());
-        String inputFormatName = getInputFormatName(schema);
-        if (isHoodieInputFormat(inputFormatName)) {
-            log.info("Initializing Hoodie metadata and timelines for loading splits for table:" + table.getDatabaseName() + "." + table.getTableName());
-            this.hoodieTableMetaClient = new HoodieTableMetaClient(conf, tableBasePath);
-            this.hoodieTimeline = hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
-        }
     }
 
     @Override
@@ -386,29 +357,15 @@ public class BackgroundHiveSplitLoader
                 if (tableBucketInfo.isPresent()) {
                     throw new PrestoException(NOT_SUPPORTED, "Presto cannot read bucketed partition in an input format with UseFileSplitsFromInputFormat annotation: " + inputFormat.getClass().getSimpleName());
                 }
-                if (isHoodieInputFormat(inputFormat.getClass().getCanonicalName())) {
-                    Iterator hiveFileIterator = new HiveFileIterator(table, path, fs, directoryLister, namenodeStats, recursiveDirWalkerEnabled ? RECURSE : IGNORED);
-                    List<LocatedFileStatus> locatedFileStatuses = Lists.newArrayList(hiveFileIterator);
-                    LocatedFileStatus[] statuses = locatedFileStatuses.stream().toArray(LocatedFileStatus[]::new);
-                    TableFileSystemView.ReadOptimizedView roView = new HoodieTableFileSystemView(hoodieTableMetaClient, hoodieTimeline, statuses);
-                    Set<FileStatus> filteredFiles = roView.getLatestDataFiles().map(s -> s.getFileStatus()).collect(Collectors.toSet());
-                    Iterator<InternalHiveSplit> internalSplits = locatedFileStatuses.stream()
-                            .filter(s -> filteredFiles.contains(s))
-                            .map(splitFactory::createInternalHiveSplit)
-                            .filter(Optional::isPresent)
-                            .map(Optional::get)
-                            .iterator();
-                    fileIterators.addLast(internalSplits);
-                    return COMPLETED_FUTURE;
+                JobConf jobConf = toJobConf(configuration);
+                handleFileHeader(schema, jobConf);
+                FileInputFormat.setInputPaths(jobConf, path);
+                InputSplit[] splits;
+                try (TimeStat.BlockTimer ignored = namenodeStats.getHoodieGetSplits().time()) {
+                    splits = inputFormat.getSplits(jobConf, 0);
                 }
-                else {
-                    // Handle all other custom input formats
-                    JobConf jobConf = toJobConf(configuration);
-                    handleFileHeader(schema, jobConf);
-                    FileInputFormat.setInputPaths(jobConf, path);
-                    InputSplit[] splits = inputFormat.getSplits(jobConf, 0);
-                    return addSplitsToSource(splits, splitFactory);
-                }
+
+                return addSplitsToSource(splits, splitFactory);
             });
         }
 
@@ -451,11 +408,6 @@ public class BackgroundHiveSplitLoader
     private boolean shouldUseFileSplitsFromInputFormat(InputFormat<?, ?> inputFormat)
     {
         return respectSplitsInputFormats != null && respectSplitsInputFormats.contains(inputFormat.getClass().getCanonicalName());
-    }
-
-    boolean isHoodieInputFormat(String inputFormatName)
-    {
-        return inputFormatName.contains(HOODIE_INPUT_FORMAT);
     }
 
     private Iterator<InternalHiveSplit> createInternalHiveSplitIterator(Path path, FileSystem fileSystem, InternalHiveSplitFactory splitFactory)
