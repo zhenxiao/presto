@@ -191,9 +191,13 @@ public class BackgroundHiveSplitLoader
         Properties schema = getPartitionSchema(table, Optional.empty());
         String inputFormatName = getInputFormatName(schema);
         if (isHoodieInputFormat(inputFormatName)) {
-            log.info("Initializing Hoodie metadata and timelines for loading splits for table:" + table.getDatabaseName() + "." + table.getTableName());
-            this.hoodieTableMetaClient = new HoodieTableMetaClient(conf, tableBasePath);
-            this.hoodieTimeline = hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
+            hdfsEnvironment.getHdfsAuthentication().doAs(session.getUser(), () -> {
+                log.info("Initializing Hoodie metadata and timelines for loading splits for table:"
+                        + table.getDatabaseName() + "." + table.getTableName());
+                this.hoodieTableMetaClient = new HoodieTableMetaClient(conf, tableBasePath);
+                this.hoodieTimeline = hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline()
+                    .filterCompletedInstants();
+            });
         }
     }
 
