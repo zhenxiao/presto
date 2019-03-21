@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Client;
 import org.apache.thrift.TException;
 
 import java.util.List;
@@ -75,6 +76,12 @@ public class MockHiveMetastoreClient
             throw new IllegalStateException();
         }
         return ImmutableList.of(TEST_DATABASE);
+    }
+
+    @Override
+    public Client getHMSClient()
+    {
+        return null;
     }
 
     @Override
