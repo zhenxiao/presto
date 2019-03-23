@@ -28,19 +28,18 @@ import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import parquet.column.ColumnDescriptor;
-import parquet.column.Encoding;
-import parquet.io.ColumnIO;
-import parquet.io.ColumnIOFactory;
-import parquet.io.GroupColumnIO;
-import parquet.io.InvalidRecordException;
-import parquet.io.MessageColumnIO;
-import parquet.io.ParquetDecodingException;
-import parquet.io.PrimitiveColumnIO;
-import parquet.schema.DecimalMetadata;
-import parquet.schema.GroupType;
-import parquet.schema.MessageType;
-import parquet.schema.OriginalType;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.io.ColumnIO;
+import org.apache.parquet.io.ColumnIOFactory;
+import org.apache.parquet.io.GroupColumnIO;
+import org.apache.parquet.io.InvalidRecordException;
+import org.apache.parquet.io.MessageColumnIO;
+import org.apache.parquet.io.ParquetDecodingException;
+import org.apache.parquet.io.PrimitiveColumnIO;
+import org.apache.parquet.schema.DecimalMetadata;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.OriginalType;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,8 +52,8 @@ import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.getOnlyElement;
-import static parquet.schema.OriginalType.DECIMAL;
-import static parquet.schema.Type.Repetition.REPEATED;
+import static org.apache.parquet.schema.OriginalType.DECIMAL;
+import static org.apache.parquet.schema.Type.Repetition.REPEATED;
 
 public final class ParquetTypeUtils
 {
@@ -166,7 +165,7 @@ public final class ParquetTypeUtils
 
     public static Type getPrestoType(TupleDomain<ColumnDescriptor> effectivePredicate, RichColumnDescriptor descriptor)
     {
-        switch (descriptor.getType()) {
+        switch (descriptor.getPrimitiveType().getPrimitiveTypeName()) {
             case BOOLEAN:
                 return BooleanType.BOOLEAN;
             case BINARY:
@@ -210,7 +209,7 @@ public final class ParquetTypeUtils
             return fileSchema.getFieldIndex(name.toLowerCase(Locale.ENGLISH));
         }
         catch (InvalidRecordException e) {
-            for (parquet.schema.Type type : fileSchema.getFields()) {
+            for (org.apache.parquet.schema.Type type : fileSchema.getFields()) {
                 if (type.getName().equalsIgnoreCase(name)) {
                     return fileSchema.getFieldIndex(type.getName());
                 }
@@ -243,14 +242,14 @@ public final class ParquetTypeUtils
         }
     }
 
-    public static parquet.schema.Type getParquetTypeByName(String columnName, GroupType messageType)
+    public static org.apache.parquet.schema.Type getParquetTypeByName(String columnName, org.apache.parquet.schema.GroupType messageType)
     {
         if (messageType.containsField(columnName)) {
             return messageType.getType(columnName);
         }
         // parquet is case-sensitive, but hive is not. all hive columns get converted to lowercase
         // check for direct match above but if no match found, try case-insensitive match
-        for (parquet.schema.Type type : messageType.getFields()) {
+        for (org.apache.parquet.schema.Type type : messageType.getFields()) {
             if (type.getName().equalsIgnoreCase(columnName)) {
                 return type;
             }
@@ -338,22 +337,22 @@ public final class ParquetTypeUtils
         }
     }
 
-    public static parquet.schema.Type getNestedColumnType(GroupType baseType, NestedColumn nestedColumn)
+    public static org.apache.parquet.schema.Type getNestedColumnType(org.apache.parquet.schema.GroupType baseType, NestedColumn nestedColumn)
     {
         Preconditions.checkArgument(nestedColumn.getNames().size() >= 1, "fields size is less than 1");
 
-        ImmutableList.Builder<parquet.schema.Type> typeBuilder = ImmutableList.builder();
-        parquet.schema.Type parentType = baseType;
+        ImmutableList.Builder<org.apache.parquet.schema.Type> typeBuilder = ImmutableList.builder();
+        org.apache.parquet.schema.Type parentType = baseType;
 
         for (String field : nestedColumn.getNames()) {
-            parquet.schema.Type childType = getParquetTypeByName(field, parentType.asGroupType());
+            org.apache.parquet.schema.Type childType = getParquetTypeByName(field, parentType.asGroupType());
             if (childType == null) {
                 return null;
             }
             typeBuilder.add(childType);
             parentType = childType;
         }
-        List<parquet.schema.Type> typeChain = typeBuilder.build();
+        List<org.apache.parquet.schema.Type> typeChain = typeBuilder.build();
 
         if (typeChain.isEmpty()) {
             return null;
@@ -362,9 +361,9 @@ public final class ParquetTypeUtils
             return getOnlyElement(typeChain);
         }
         else {
-            parquet.schema.Type messageType = typeChain.get(typeChain.size() - 1);
+            org.apache.parquet.schema.Type messageType = typeChain.get(typeChain.size() - 1);
             for (int i = typeChain.size() - 2; i >= 0; --i) {
-                GroupType groupType = typeChain.get(i).asGroupType();
+                org.apache.parquet.schema.GroupType groupType = typeChain.get(i).asGroupType();
                 messageType = new MessageType(groupType.getName(), ImmutableList.of(messageType));
             }
             return messageType;

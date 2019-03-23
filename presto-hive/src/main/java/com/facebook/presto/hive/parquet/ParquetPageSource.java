@@ -33,8 +33,8 @@ import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import parquet.io.MessageColumnIO;
-import parquet.schema.MessageType;
+import org.apache.parquet.io.MessageColumnIO;
+import org.apache.parquet.schema.MessageType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,7 +50,7 @@ import static com.facebook.presto.hive.parquet.ParquetPageSourceFactory.getColum
 import static com.facebook.presto.parquet.ParquetTypeUtils.lookupColumnByName;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
-import static parquet.io.ColumnIOConverter.constructField;
+import static org.apache.parquet.io.ColumnIOConverter.constructField;
 
 public class ParquetPageSource
         implements ConnectorPageSource
