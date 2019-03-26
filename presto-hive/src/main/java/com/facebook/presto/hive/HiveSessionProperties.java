@@ -80,6 +80,7 @@ public final class HiveSessionProperties
     private static final String TEMPORARY_STAGING_DIRECTORY_PATH = "temporary_staging_directory_path";
     private static final String PRELOAD_SPLITS_FOR_GROUPED_EXECUTION = "preload_splits_for_grouped_execution";
     private static final String HDFS_OBSERVER_READ_ENABLED = "hdfs_observer_read_enabled";
+    private static final String ENABLE_PARQUET_COLUMN_DECRYPTION = "enable_parquet_column_decryption";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -320,6 +321,12 @@ public final class HiveSessionProperties
                         HDFS_OBSERVER_READ_ENABLED,
                         "Experimental: enable Observer reads for HDFS",
                         hiveClientConfig.isHdfsObserverReadEnabled(),
+                        false),
+
+                booleanProperty(
+                        ENABLE_PARQUET_COLUMN_DECRYPTION,
+                        "Is parquet column decryption enabled",
+                        hiveClientConfig.isParquetColumnDecryptionEnabled(),
                         false));
     }
 
@@ -537,6 +544,11 @@ public final class HiveSessionProperties
     public static boolean isHdfsObserverReadEnabled(ConnectorSession session)
     {
         return session.getProperty(HDFS_OBSERVER_READ_ENABLED, Boolean.class);
+    }
+
+    public static boolean isParquetColumnDecryptionEnabled(ConnectorSession session)
+    {
+        return session.getProperty(ENABLE_PARQUET_COLUMN_DECRYPTION, Boolean.class);
     }
 
     public static PropertyMetadata<DataSize> dataSizeSessionProperty(String name, String description, DataSize defaultValue, boolean hidden)

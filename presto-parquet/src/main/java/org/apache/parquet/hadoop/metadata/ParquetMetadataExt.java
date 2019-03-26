@@ -11,30 +11,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.parquet;
+package org.apache.parquet.hadoop.metadata;
 
-import io.airlift.slice.Slice;
-
-public abstract class Page
+public class ParquetMetadataExt
+        extends ParquetMetadata
 {
-    protected final int compressedSize;
-    protected final int uncompressedSize;
+    private boolean hasCryptoModules;
 
-    public Page(int compressedSize, int uncompressedSize)
+    public ParquetMetadataExt(ParquetMetadata parquetMetadata, boolean hasCryptoModules)
     {
-        this.compressedSize = compressedSize;
-        this.uncompressedSize = uncompressedSize;
+        super(parquetMetadata.getFileMetaData(), parquetMetadata.getBlocks());
+        this.hasCryptoModules = hasCryptoModules;
     }
 
-    public int getCompressedSize()
+    public boolean getHasCryptoModules()
     {
-        return compressedSize;
+        return this.hasCryptoModules;
     }
-
-    public int getUncompressedSize()
-    {
-        return uncompressedSize;
-    }
-
-    public abstract Slice getSlice();
 }

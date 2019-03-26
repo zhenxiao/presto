@@ -125,7 +125,8 @@ public class TestHiveClientConfig
                 .setFileStatusCacheExpireAfterWrite(new Duration(1, TimeUnit.MINUTES))
                 .setFileStatusCacheMaxSize(1000 * 1000)
                 .setFileStatusCacheTables("")
-                .setHdfsObserverReadEnabled(false));
+                .setHdfsObserverReadEnabled(false)
+                .setParquetColumnDecryptionEnabled(false));
     }
 
     @Test
@@ -219,6 +220,7 @@ public class TestHiveClientConfig
                 .put("hive.file-status-cache-size", "1000")
                 .put("hive.file-status-cache-expire-time", "30m")
                 .put("hive.hdfs-observer-read-enabled", "true")
+                .put("hive.enable-parquet-column-decryption", "true")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -308,7 +310,8 @@ public class TestHiveClientConfig
                 .setFileStatusCacheTables("foo.bar1,foo.bar2")
                 .setFileStatusCacheMaxSize(1000)
                 .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES))
-                .setHdfsObserverReadEnabled(true);
+                .setHdfsObserverReadEnabled(true)
+                .setParquetColumnDecryptionEnabled(true);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }

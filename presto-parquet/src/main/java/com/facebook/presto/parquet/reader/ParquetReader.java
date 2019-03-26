@@ -66,23 +66,23 @@ public class ParquetReader
 
     private final List<BlockMetaData> blocks;
     private final List<PrimitiveColumnIO> columns;
-    private final ParquetDataSource dataSource;
     private final AggregatedMemoryContext systemMemoryContext;
 
     private int currentBlock;
-    private BlockMetaData currentBlockMetadata;
     private long currentPosition;
     private long currentGroupRowCount;
     private long nextRowInGroup;
     private int batchSize;
-    private final PrimitiveColumnReader[] columnReaders;
+    protected final ParquetDataSource dataSource;
+    protected BlockMetaData currentBlockMetadata;
+    protected final PrimitiveColumnReader[] columnReaders;
 
     private AggregatedMemoryContext currentRowGroupMemoryContext;
 
     public ParquetReader(MessageColumnIO messageColumnIO,
-            List<BlockMetaData> blocks,
-            ParquetDataSource dataSource,
-            AggregatedMemoryContext systemMemoryContext)
+                         List<BlockMetaData> blocks,
+                         ParquetDataSource dataSource,
+                         AggregatedMemoryContext systemMemoryContext)
     {
         this.blocks = blocks;
         this.dataSource = requireNonNull(dataSource, "dataSource is null");
@@ -194,7 +194,7 @@ public class ParquetReader
         return new ColumnChunk(rowBlock, columnChunk.getDefinitionLevels(), columnChunk.getRepetitionLevels());
     }
 
-    private ColumnChunk readPrimitive(PrimitiveField field)
+    protected ColumnChunk readPrimitive(PrimitiveField field)
             throws IOException
     {
         ColumnDescriptor columnDescriptor = field.getDescriptor();
@@ -215,15 +215,15 @@ public class ParquetReader
         }
         catch (UnsupportedOperationException e) {
             throw new PrestoException(INVALID_SCHEMA_PROPERTY, format("There is a mismatch between file schema and partition schema. " +
-                                                                "The column %s in file %s is declared as type %s but parquet file declared column type as %s.",
-                                                                Joiner.on(".").join(columnDescriptor.getPath()),
-                                                                dataSource.getId(),
-                                                                field.getType(),
-                                                                columnDescriptor.getType()));
+                            "The column %s in file %s is declared as type %s but parquet file declared column type as %s.",
+                    Joiner.on(".").join(columnDescriptor.getPath()),
+                    dataSource.getId(),
+                    field.getType(),
+                    columnDescriptor.getType()));
         }
     }
 
-    private byte[] allocateBlock(int length)
+    protected byte[] allocateBlock(int length)
     {
         byte[] buffer = new byte[length];
         LocalMemoryContext blockMemoryContext = currentRowGroupMemoryContext.newLocalMemoryContext(ParquetReader.class.getSimpleName());
@@ -231,7 +231,7 @@ public class ParquetReader
         return buffer;
     }
 
-    private ColumnChunkMetaData getColumnChunkMetaData(ColumnDescriptor columnDescriptor)
+    protected ColumnChunkMetaData getColumnChunkMetaData(ColumnDescriptor columnDescriptor)
             throws IOException
     {
         for (ColumnChunkMetaData metadata : currentBlockMetadata.getColumns()) {

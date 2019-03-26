@@ -16,10 +16,14 @@ package com.facebook.presto.parquet.reader;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.crypto.FileDecryptionProperties;
+import org.apache.parquet.crypto.InternalFileDecryptor;
 import org.apache.parquet.format.ColumnChunk;
 import org.apache.parquet.format.ColumnMetaData;
 import org.apache.parquet.format.ConvertedType;
 import org.apache.parquet.format.Encoding;
+import org.apache.parquet.format.FileCryptoMetaData;
 import org.apache.parquet.format.FileMetaData;
 import org.apache.parquet.format.KeyValue;
 import org.apache.parquet.format.RowGroup;
@@ -32,6 +36,8 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.hadoop.metadata.ParquetMetadataExt;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -56,7 +62,9 @@ import java.util.Set;
 
 import static com.facebook.presto.parquet.ParquetValidationUtils.validateParquet;
 import static java.nio.charset.StandardCharsets.US_ASCII;
+import static org.apache.parquet.format.Util.readFileCryptoMetaData;
 import static org.apache.parquet.format.Util.readFileMetaData;
+import static org.apache.parquet.hadoop.ParquetFileWriter.EFMAGIC;
 
 public final class MetadataReader
 {
@@ -158,6 +166,51 @@ public final class MetadataReader
             }
         }
         return new ParquetMetadata(new org.apache.parquet.hadoop.metadata.FileMetaData(messageType, keyValueMetaData, fileMetaData.getCreated_by()), blocks);
+    }
+
+    public static final ParquetMetadataExt readFooter(Path file,
+                                                   long fileSize,
+                                                   ParquetReadOptions options,
+                                                   SeekableInputStream inputStream,
+                                                   ParquetMetadataConverter converter,
+                                                   FileDecryptionProperties fileDecryptionProperties,
+                                                   InternalFileDecryptor fileDecryptor) throws IOException
+    {
+        if (null == fileDecryptor && null != fileDecryptionProperties) {
+            fileDecryptor = new InternalFileDecryptor(fileDecryptionProperties);
+        }
+
+        long metadataLengthIndex = getMetadataLengthIndex(file, fileSize);
+        int metadataLength = getMetadataLength(metadataLengthIndex, inputStream);
+        byte[] magic = new byte[MAGIC.length];
+        inputStream.readFully(magic);
+        long metadataIndex = metadataLengthIndex - metadataLength;
+        validateParquet(
+                metadataIndex >= MAGIC.length && metadataIndex < metadataLengthIndex,
+                "Corrupted Parquet file: %s metadata index: %s out of range",
+                file,
+                metadataIndex);
+        inputStream.seek(metadataIndex);
+
+        boolean encryptedFooterMode = isEncryptedFooterMode(magic, file.toString());
+        // Regular file, or encrypted file with plaintext footer
+        if (!encryptedFooterMode) {
+            ParquetMetadata parquetMetadata = converter.readParquetMetadata(inputStream, options.getMetadataFilter(), fileDecryptor,
+                    false, metadataIndex, metadataLength);
+            return (ParquetMetadataExt) parquetMetadata;
+        }
+
+        // Encrypted file with encrypted footer
+        if (null == fileDecryptor) {
+            throw new RuntimeException("Trying to read file with encrypted footer. No keys available");
+        }
+        FileCryptoMetaData fileCryptoMetaData = readFileCryptoMetaData(inputStream);
+        fileDecryptor.setFileCryptoMetaData(fileCryptoMetaData.getEncryption_algorithm(),
+                true, fileCryptoMetaData.getKey_metadata());
+        // footer offset and length required only for signed plaintext footers
+        ParquetMetadata parquetMetadata = converter.readParquetMetadata(inputStream, options.getMetadataFilter(), fileDecryptor,
+                true, 0, 0);
+        return (ParquetMetadataExt) parquetMetadata;
     }
 
     private static MessageType readParquetSchema(List<SchemaElement> schema)
@@ -314,5 +367,34 @@ public final class MetadataReader
         byte[] buffer = new byte[length];
         from.readFully(position, buffer);
         return new ByteArrayInputStream(buffer);
+    }
+
+    private static long getMetadataLengthIndex(Path file, long fileSize) throws IOException
+    {
+        validateParquet(fileSize >= MAGIC.length + PARQUET_METADATA_LENGTH + MAGIC.length,
+                "%s is not a valid Parquet File", file);
+        return fileSize - PARQUET_METADATA_LENGTH - MAGIC.length;
+    }
+
+    private static int getMetadataLength(long metadataLengthIndex,
+                                         SeekableInputStream inputStream) throws IOException
+    {
+        inputStream.seek(metadataLengthIndex);
+        return readIntLittleEndian(inputStream);
+    }
+
+    private static boolean isEncryptedFooterMode(byte[] magic, String filePath)
+    {
+        if (Arrays.equals(MAGIC, magic)) {
+            return false;
+        }
+        else if (Arrays.equals(EFMAGIC, magic)) {
+            return true;
+        }
+        else {
+            String err = String.format("Not valid Parquet file: %s expected magic number: %s or %s got: %s",
+                    filePath, MAGIC, EFMAGIC, Arrays.toString(magic));
+            throw new RuntimeException(err);
+        }
     }
 }

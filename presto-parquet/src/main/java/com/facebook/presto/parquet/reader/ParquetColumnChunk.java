@@ -37,7 +37,7 @@ import static io.airlift.slice.Slices.wrappedBuffer;
 public class ParquetColumnChunk
         extends ByteArrayInputStream
 {
-    private final ColumnChunkDescriptor descriptor;
+    protected final ColumnChunkDescriptor descriptor;
 
     public ParquetColumnChunk(
             ColumnChunkDescriptor descriptor,
@@ -103,7 +103,7 @@ public class ParquetColumnChunk
         return slice;
     }
 
-    private DictionaryPage readDictionaryPage(PageHeader pageHeader, int uncompressedPageSize, int compressedPageSize)
+    protected DictionaryPage readDictionaryPage(PageHeader pageHeader, int uncompressedPageSize, int compressedPageSize)
     {
         DictionaryPageHeader dicHeader = pageHeader.getDictionary_page_header();
         return new DictionaryPage(
@@ -113,10 +113,10 @@ public class ParquetColumnChunk
                 getParquetEncoding(Encoding.valueOf(dicHeader.getEncoding().name())));
     }
 
-    private long readDataPageV1(PageHeader pageHeader,
-            int uncompressedPageSize,
-            int compressedPageSize,
-            List<DataPage> pages)
+    protected long readDataPageV1(PageHeader pageHeader,
+                                int uncompressedPageSize,
+                                int compressedPageSize,
+                                List<DataPage> pages)
     {
         DataPageHeader dataHeaderV1 = pageHeader.getData_page_header();
         pages.add(new DataPageV1(
@@ -132,10 +132,10 @@ public class ParquetColumnChunk
         return dataHeaderV1.getNum_values();
     }
 
-    private long readDataPageV2(PageHeader pageHeader,
-            int uncompressedPageSize,
-            int compressedPageSize,
-            List<DataPage> pages)
+    protected long readDataPageV2(PageHeader pageHeader,
+                                int uncompressedPageSize,
+                                int compressedPageSize,
+                                List<DataPage> pages)
     {
         DataPageHeaderV2 dataHeaderV2 = pageHeader.getData_page_header_v2();
         int dataSize = compressedPageSize - dataHeaderV2.getRepetition_levels_byte_length() - dataHeaderV2.getDefinition_levels_byte_length();
