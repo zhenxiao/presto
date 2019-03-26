@@ -41,6 +41,7 @@ import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.VarbinaryType.VARBINARY;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.spi.type.VarcharType.createVarcharType;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 
@@ -154,7 +155,7 @@ public class SchemalessClientManager
         //TODO handle GUId (Should type be binary or string?), Integer, IsNotNoneAndNotEmpty, String:255 ?, Integer:default(-1),
         Type prestoType;
         int indexOfSemicolon = fieldType.indexOf(':');
-        String columnType = (indexOfSemicolon >= 0) ? fieldType.toLowerCase().substring(0, indexOfSemicolon) : fieldType.toLowerCase();
+        String columnType = (indexOfSemicolon >= 0) ? fieldType.toLowerCase(ENGLISH).substring(0, indexOfSemicolon) : fieldType.toLowerCase(ENGLISH);
         switch (columnType) {
             case "bool":
             case "isnotnoneandnotempty":

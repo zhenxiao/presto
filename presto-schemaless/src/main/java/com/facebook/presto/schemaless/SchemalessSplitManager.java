@@ -21,14 +21,12 @@ import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
-import com.facebook.presto.spi.type.NestedField;
 import com.google.common.collect.ImmutableList;
 
 import javax.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static com.facebook.presto.spi.HostAddress.fromParts;
 import static java.util.stream.Collectors.toList;
@@ -58,7 +56,7 @@ public class SchemalessSplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy, Optional<Map<String, NestedField>> nestedFields, Optional<Map<String, String>> jsonPaths, Optional<Long> limit)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout, SplitSchedulingStrategy splitSchedulingStrategy)
     {
         SchemalessTableLayoutHandle tableLayout = (SchemalessTableLayoutHandle) layout;
         SchemalessTableHandle tableHandle = tableLayout.getTable();
