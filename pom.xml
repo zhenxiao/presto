@@ -135,6 +135,7 @@
         <module>presto-elasticsearch2</module>
         <module>presto-udf</module>
         <module>presto-schemaless</module>
+        <module>presto-event-listener</module>
     </modules>
 
     <dependencyManagement>
@@ -370,6 +371,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-udf</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-event-listener</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
