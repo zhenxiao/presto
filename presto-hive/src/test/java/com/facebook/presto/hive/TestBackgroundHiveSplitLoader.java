@@ -28,9 +28,17 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.uber.hoodie.common.model.HoodieAvroPayload;
+import com.uber.hoodie.common.model.HoodieTableType;
+import com.uber.hoodie.common.table.HoodieTableConfig;
+import com.uber.hoodie.common.table.HoodieTableMetaClient;
+import com.uber.hoodie.common.util.FSUtils;
+import com.uber.hoodie.hadoop.HoodieInputFormat;
 import io.airlift.stats.CounterStat;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -43,15 +51,20 @@ import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.util.Progressable;
+import org.junit.rules.TemporaryFolder;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -76,13 +89,16 @@ import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 
 public class TestBackgroundHiveSplitLoader
 {
     private static final int BUCKET_COUNT = 2;
 
-    private static final String SAMPLE_PATH = "hdfs://VOL1:9000/db_name/table_name/000000_0";
-    private static final String SAMPLE_PATH_FILTERED = "hdfs://VOL1:9000/db_name/table_name/000000_1";
+    private static final String DEFAULT_TABLE_LOCATION = "hdfs://VOL1:9000/db_name/table_name";
+    private static final String SAMPLE_PATH = DEFAULT_TABLE_LOCATION + "/000000_0";
+    private static final String SAMPLE_PATH_FILTERED = DEFAULT_TABLE_LOCATION + "/000000_1";
+    private static final String DEFAULT_TABLE_NAME = "test_table";
 
     private static final Path RETURNED_PATH = new Path(SAMPLE_PATH);
     private static final Path FILTERED_PATH = new Path(SAMPLE_PATH_FILTERED);
@@ -106,8 +122,21 @@ public class TestBackgroundHiveSplitLoader
     private static final Optional<HiveBucketProperty> BUCKET_PROPERTY = Optional.of(
             new HiveBucketProperty(ImmutableList.of("col1"), BUCKET_COUNT, ImmutableList.of()));
 
-    private static final Table SIMPLE_TABLE = table(ImmutableList.of(), Optional.empty());
-    private static final Table PARTITIONED_TABLE = table(PARTITION_COLUMNS, BUCKET_PROPERTY);
+    private static final StorageFormat DEFAULT_STORAGE_FORMAT = StorageFormat.create(
+            "com.facebook.hive.orc.OrcSerde",
+            "org.apache.hadoop.hive.ql.io.RCFileInputFormat",
+            "org.apache.hadoop.hive.ql.io.RCFileInputFormat");
+
+    private static final Table SIMPLE_TABLE = table(ImmutableList.of(), Optional.empty(), DEFAULT_STORAGE_FORMAT, DEFAULT_TABLE_LOCATION, DEFAULT_TABLE_NAME);
+    private static final Table PARTITIONED_TABLE = table(PARTITION_COLUMNS, BUCKET_PROPERTY, DEFAULT_STORAGE_FORMAT, DEFAULT_TABLE_LOCATION, DEFAULT_TABLE_NAME);
+    private static final String RAW_TRIPS_TABLE_NAME = "raw_trips";
+    private static final String HOODIE_INPUT_FORMAT_CANONICAL_NAME = HoodieInputFormat.class.getCanonicalName();
+    private static final StorageFormat HOODIE_STORAGE_FORMAT = StorageFormat.create(
+            "any String.",
+            HOODIE_INPUT_FORMAT_CANONICAL_NAME,
+            HOODIE_INPUT_FORMAT_CANONICAL_NAME);
+    private static final TemporaryFolder HOODIE_TABLE_BASE_PATH = new TemporaryFolder();
+    private static Table hoodieTable;
 
     @Test
     public void testNoPathFilter()
@@ -117,7 +146,7 @@ public class TestBackgroundHiveSplitLoader
                 TEST_FILES,
                 TupleDomain.none());
 
-        HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.none());
+        HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, TupleDomain.none());
         backgroundHiveSplitLoader.start(hiveSplitSource);
 
         assertEquals(drain(hiveSplitSource).size(), 2);
@@ -131,7 +160,7 @@ public class TestBackgroundHiveSplitLoader
                 TEST_FILES,
                 RETURNED_PATH_DOMAIN);
 
-        HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, RETURNED_PATH_DOMAIN);
+        HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, RETURNED_PATH_DOMAIN);
         backgroundHiveSplitLoader.start(hiveSplitSource);
         List<String> paths = drain(hiveSplitSource);
         assertEquals(paths.size(), 1);
@@ -147,9 +176,10 @@ public class TestBackgroundHiveSplitLoader
                 RETURNED_PATH_DOMAIN,
                 Optional.of(new HiveBucketFilter(ImmutableSet.of(0, 1))),
                 PARTITIONED_TABLE,
-                Optional.of(new HiveBucketHandle(BUCKET_COLUMN_HANDLES, BUCKET_COUNT)));
+                Optional.of(new HiveBucketHandle(BUCKET_COLUMN_HANDLES, BUCKET_COUNT)),
+                Optional.empty());
 
-        HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, RETURNED_PATH_DOMAIN);
+        HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, RETURNED_PATH_DOMAIN);
         backgroundHiveSplitLoader.start(hiveSplitSource);
         List<String> paths = drain(hiveSplitSource);
         assertEquals(paths.size(), 1);
@@ -168,9 +198,10 @@ public class TestBackgroundHiveSplitLoader
                 Optional.of(
                         new HiveBucketHandle(
                                 getRegularColumnHandles(PARTITIONED_TABLE),
-                                BUCKET_COUNT)));
+                                BUCKET_COUNT)),
+                Optional.empty());
 
-        HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, RETURNED_PATH_DOMAIN);
+        HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, RETURNED_PATH_DOMAIN);
         backgroundHiveSplitLoader.start(hiveSplitSource);
         List<String> paths = drain(hiveSplitSource);
         assertEquals(paths.size(), 1);
@@ -185,7 +216,7 @@ public class TestBackgroundHiveSplitLoader
                 ImmutableList.of(locatedFileStatusWithNoBlocks(RETURNED_PATH)),
                 TupleDomain.none());
 
-        HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.none());
+        HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, TupleDomain.none());
         backgroundHiveSplitLoader.start(hiveSplitSource);
 
         List<HiveSplit> splits = drainSplits(hiveSplitSource);
@@ -199,7 +230,7 @@ public class TestBackgroundHiveSplitLoader
             throws Exception
     {
         BackgroundHiveSplitLoader backgroundHiveSplitLoader = backgroundHiveSplitLoaderOfflinePartitions();
-        HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.all());
+        HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, TupleDomain.all());
         backgroundHiveSplitLoader.start(hiveSplitSource);
 
         assertThrows(RuntimeException.class, () -> drain(hiveSplitSource));
@@ -225,7 +256,7 @@ public class TestBackgroundHiveSplitLoader
 
         futures.add(EXECUTOR.submit(() -> {
             BackgroundHiveSplitLoader backgroundHiveSplitLoader = backgroundHiveSplitLoader(TEST_FILES, cachedDirectoryLister);
-            HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.none());
+            HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, TupleDomain.none());
             backgroundHiveSplitLoader.start(hiveSplitSource);
             try {
                 return drainSplits(hiveSplitSource);
@@ -239,7 +270,7 @@ public class TestBackgroundHiveSplitLoader
             futures.add(EXECUTOR.submit(() -> {
                 firstVisit.await();
                 BackgroundHiveSplitLoader backgroundHiveSplitLoader = backgroundHiveSplitLoader(TEST_FILES, cachedDirectoryLister);
-                HiveSplitSource hiveSplitSource = hiveSplitSource(backgroundHiveSplitLoader, TupleDomain.none());
+                HiveSplitSource hiveSplitSource = hiveSplitSource(SIMPLE_TABLE, backgroundHiveSplitLoader, TupleDomain.none());
                 backgroundHiveSplitLoader.start(hiveSplitSource);
                 return drainSplits(hiveSplitSource);
             }));
@@ -250,6 +281,43 @@ public class TestBackgroundHiveSplitLoader
         }
         assertEquals(cachedDirectoryLister.getRequestCount(), totalCount);
         assertEquals(cachedDirectoryLister.getHitCount(), totalCount - 1);
+    }
+
+    @Test
+    public void testIfHoodieInputFormat()
+    {
+        BackgroundHiveSplitLoader dummySplitLoader = backgroundHiveSplitLoader(ImmutableList.of(locatedFileStatus(RETURNED_PATH)), TupleDomain.none());
+        assertTrue(dummySplitLoader.isHoodieInputFormat(HOODIE_INPUT_FORMAT_CANONICAL_NAME));
+    }
+
+    @Test
+    public void testLoadSplitsForHoodieTable() throws Exception
+    {
+        //prepare Hoodie DataSet
+        int numFiles = 19;
+        String commitnumber = "123";
+        Pair<File, List<LocatedFileStatus>> partitionPathToFiles = prepareHoodieDataset(HOODIE_TABLE_BASE_PATH, numFiles, commitnumber);
+
+        // create the commit file in Hoodie Metadata
+        new File(HOODIE_TABLE_BASE_PATH.getRoot().toString() + "/.hoodie/", commitnumber + ".commit").createNewFile();
+
+        BackgroundHiveSplitLoader splitLoader = backgroundHiveSplitLoader(partitionPathToFiles.getRight(),
+                TupleDomain.none(),
+                Optional.empty(),
+                hoodieTable,
+                Optional.empty(),
+                Optional.of(ImmutableSet.of(HOODIE_INPUT_FORMAT_CANONICAL_NAME)));
+        HiveSplitSource hiveSplitSource = hiveSplitSource(hoodieTable, splitLoader, TupleDomain.none());
+        splitLoader.start(hiveSplitSource);
+        List<HiveSplit> hiveSplits = drainSplits(hiveSplitSource);
+        assertEquals(hiveSplits.size(), numFiles);
+
+        // Check split locations match the datafiles created
+        Set<String> hiveSplitpaths = new HashSet<>();
+        hiveSplits.stream().map(s -> s.getPath()).forEach(hiveSplitpaths::add);
+        for (LocatedFileStatus fileStatus : partitionPathToFiles.getRight()) {
+            assertTrue(hiveSplitpaths.contains(fileStatus.getPath().toString()), "Encountered unknown split!");
+        }
     }
 
     private static List<String> drain(HiveSplitSource source)
@@ -282,6 +350,7 @@ public class TestBackgroundHiveSplitLoader
                 tupleDomain,
                 Optional.empty(),
                 SIMPLE_TABLE,
+                Optional.empty(),
                 Optional.empty());
     }
 
@@ -290,7 +359,8 @@ public class TestBackgroundHiveSplitLoader
             TupleDomain<HiveColumnHandle> compactEffectivePredicate,
             Optional<HiveBucketFilter> hiveBucketFilter,
             Table table,
-            Optional<HiveBucketHandle> bucketHandle)
+            Optional<HiveBucketHandle> bucketHandle,
+            Optional<Set<String>> respectSplitsInputFormats)
     {
         List<HivePartitionMetadata> hivePartitionMetadatas =
                 ImmutableList.of(
@@ -316,7 +386,7 @@ public class TestBackgroundHiveSplitLoader
                 false,
                 Optional.empty(),
                 Optional.empty(),
-                ImmutableSet.of(),
+                respectSplitsInputFormats.isPresent() ? respectSplitsInputFormats.get() : ImmutableSet.of(),
                 Optional.empty(),
                 false);
     }
@@ -405,13 +475,14 @@ public class TestBackgroundHiveSplitLoader
     }
 
     private static HiveSplitSource hiveSplitSource(
+            Table table,
             BackgroundHiveSplitLoader backgroundHiveSplitLoader,
             TupleDomain<HiveColumnHandle> compactEffectivePredicate)
     {
         return HiveSplitSource.allAtOnce(
                 SESSION,
-                SIMPLE_TABLE.getDatabaseName(),
-                SIMPLE_TABLE.getTableName(),
+                table.getDatabaseName(),
+                table.getTableName(),
                 compactEffectivePredicate,
                 1,
                 1,
@@ -423,28 +494,51 @@ public class TestBackgroundHiveSplitLoader
 
     private static Table table(
             List<Column> partitionColumns,
-            Optional<HiveBucketProperty> bucketProperty)
+            Optional<HiveBucketProperty> bucketProperty,
+            StorageFormat storageFormat,
+            String location,
+            String tableName)
     {
         Table.Builder tableBuilder = Table.builder();
         tableBuilder.getStorageBuilder()
-                .setStorageFormat(
-                        StorageFormat.create(
-                                "com.facebook.hive.orc.OrcSerde",
-                                "org.apache.hadoop.hive.ql.io.RCFileInputFormat",
-                                "org.apache.hadoop.hive.ql.io.RCFileInputFormat"))
-                .setLocation("hdfs://VOL1:9000/db_name/table_name")
+                .setStorageFormat(storageFormat)
+                .setLocation(location)
                 .setSkewed(false)
                 .setBucketProperty(bucketProperty);
 
         return tableBuilder
                 .setDatabaseName("test_dbname")
                 .setOwner("testOwner")
-                .setTableName("test_table")
+                .setTableName(tableName)
                 .setTableType(TableType.MANAGED_TABLE.toString())
                 .setDataColumns(ImmutableList.of(new Column("col1", HIVE_STRING, Optional.empty())))
                 .setParameters(ImmutableMap.of())
                 .setPartitionColumns(partitionColumns)
                 .build();
+    }
+
+    private static Pair<File, List<LocatedFileStatus>> prepareHoodieDataset(TemporaryFolder basePath, int numberOfFiles,
+                                                                            String commitNumber) throws IOException
+    {
+        HOODIE_TABLE_BASE_PATH.delete();
+        HOODIE_TABLE_BASE_PATH.create();
+        hoodieTable = table(PARTITION_COLUMNS, Optional.empty(), HOODIE_STORAGE_FORMAT, HOODIE_TABLE_BASE_PATH.getRoot().toString(), RAW_TRIPS_TABLE_NAME);
+        HoodieTableType tableType = HoodieTableType.COPY_ON_WRITE;
+        Properties properties = new Properties();
+        properties.setProperty(HoodieTableConfig.HOODIE_TABLE_NAME_PROP_NAME, RAW_TRIPS_TABLE_NAME);
+        properties.setProperty(HoodieTableConfig.HOODIE_TABLE_TYPE_PROP_NAME, tableType.name());
+        properties.setProperty(HoodieTableConfig.HOODIE_PAYLOAD_CLASS_PROP_NAME, HoodieAvroPayload.class.getName());
+        HoodieTableMetaClient.initializePathAsHoodieDataset(new Configuration(), basePath.getRoot().toString(), properties);
+        File partitionPath = basePath.newFolder("2016", "05", "01");
+        List<LocatedFileStatus> filesInPartition = new ArrayList<>();
+        for (int i = 0; i < numberOfFiles; i++) {
+            File dataFile = new File(partitionPath,
+                    FSUtils.makeDataFileName(commitNumber, 1, "fileid" + i));
+            dataFile.createNewFile();
+            filesInPartition.add(locatedFileStatus(new Path(dataFile.getAbsolutePath())));
+        }
+        Pair<File, List<LocatedFileStatus>> result = new ImmutablePair<>(partitionPath, filesInPartition);
+        return result;
     }
 
     private static LocatedFileStatus locatedFileStatus(Path path)
