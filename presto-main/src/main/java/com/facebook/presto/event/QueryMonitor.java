@@ -137,6 +137,8 @@ public class QueryMonitor
                         Optional.empty(),
                         Optional.empty()),
                 new QueryStatistics(
+                        0,
+                        ofMillis(0),
                         ofMillis(0),
                         ofMillis(0),
                         ofMillis(0),
@@ -157,7 +159,8 @@ public class QueryMonitor
                         0,
                         true,
                         ImmutableList.of(),
-                        ImmutableList.of()),
+                        ImmutableList.of(),
+                        Optional.empty()),
                 createQueryContext(queryInfo.getSession(), queryInfo.getResourceGroupId()),
                 new QueryIOMetadata(ImmutableList.of(), Optional.empty()),
                 createQueryFailureInfo(failure, Optional.empty()),
@@ -208,9 +211,11 @@ public class QueryMonitor
 
         QueryStats queryStats = queryInfo.getQueryStats();
         return new QueryStatistics(
+                queryStats.getTotalTasks(),
                 ofMillis(queryStats.getTotalCpuTime().toMillis()),
                 ofMillis(queryStats.getTotalScheduledTime().toMillis()),
                 ofMillis(queryStats.getQueuedTime().toMillis()),
+                ofMillis(queryStats.getTotalBlockedTime().toMillis()),
                 Optional.of(ofMillis(queryStats.getAnalysisTime().toMillis())),
                 Optional.of(ofMillis(queryStats.getDistributedPlanningTime().toMillis())),
                 queryStats.getPeakUserMemoryReservation().toBytes(),
@@ -228,7 +233,8 @@ public class QueryMonitor
                 queryStats.getCompletedDrivers(),
                 queryInfo.isCompleteInfo(),
                 getCpuDistributions(queryInfo),
-                operatorSummaries.build());
+                operatorSummaries.build(),
+                Optional.of(queryInfo.getMemoryPool()));
     }
 
     private QueryContext createQueryContext(SessionRepresentation session, Optional<ResourceGroupId> resourceGroup)
@@ -285,6 +291,8 @@ public class QueryMonitor
         }
 
         Optional<QueryOutputMetadata> output = Optional.empty();
+        Optional<String> plan = Optional.empty();
+        ImmutableList.Builder<String> predicates = ImmutableList.builder();
         if (queryInfo.getOutput().isPresent()) {
             Optional<TableFinishInfo> tableFinishInfo = queryInfo.getQueryStats().getOperatorSummaries().stream()
                     .map(OperatorStats::getInfo)

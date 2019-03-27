@@ -13,6 +13,8 @@
  */
 package com.facebook.presto.spi.eventlistener;
 
+import com.facebook.presto.spi.memory.MemoryPoolId;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -21,9 +23,11 @@ import static java.util.Objects.requireNonNull;
 
 public class QueryStatistics
 {
+    private final int totalTasks;
     private final Duration cpuTime;
     private final Duration wallTime;
     private final Duration queuedTime;
+    private final Duration blockedTime;
     private final Optional<Duration> analysisTime;
     private final Optional<Duration> distributedPlanningTime;
 
@@ -39,6 +43,7 @@ public class QueryStatistics
     private final long writtenBytes;
     private final long writtenRows;
 
+    private final Optional<MemoryPoolId> memoryPoolId;
     private final double cumulativeMemory;
 
     private final List<StageGcStatistics> stageGcStatistics;
@@ -51,9 +56,11 @@ public class QueryStatistics
     private final List<String> operatorSummaries;
 
     public QueryStatistics(
+            int totalTasks,
             Duration cpuTime,
             Duration wallTime,
             Duration queuedTime,
+            Duration blockedTime,
             Optional<Duration> analysisTime,
             Optional<Duration> distributedPlanningTime,
             long peakUserMemoryBytes,
@@ -71,11 +78,14 @@ public class QueryStatistics
             int completedSplits,
             boolean complete,
             List<StageCpuDistribution> cpuTimeDistribution,
-            List<String> operatorSummaries)
+            List<String> operatorSummaries,
+            Optional<MemoryPoolId> memoryPoolId)
     {
+        this.totalTasks = totalTasks;
         this.cpuTime = requireNonNull(cpuTime, "cpuTime is null");
         this.wallTime = requireNonNull(wallTime, "wallTime is null");
         this.queuedTime = requireNonNull(queuedTime, "queuedTime is null");
+        this.blockedTime = requireNonNull(blockedTime, "blockedTime is null");
         this.analysisTime = requireNonNull(analysisTime, "analysisTime is null");
         this.distributedPlanningTime = requireNonNull(distributedPlanningTime, "distributedPlanningTime is null");
         this.peakUserMemoryBytes = peakUserMemoryBytes;
@@ -94,6 +104,12 @@ public class QueryStatistics
         this.complete = complete;
         this.cpuTimeDistribution = requireNonNull(cpuTimeDistribution, "cpuTimeDistribution is null");
         this.operatorSummaries = requireNonNull(operatorSummaries, "operatorSummaries is null");
+        this.memoryPoolId = requireNonNull(memoryPoolId, "memoryPoolId is null");
+    }
+
+    public int getTotalTasks()
+    {
+        return totalTasks;
     }
 
     public Duration getCpuTime()
@@ -109,6 +125,11 @@ public class QueryStatistics
     public Duration getQueuedTime()
     {
         return queuedTime;
+    }
+
+    public Duration getBlockedTime()
+    {
+        return blockedTime;
     }
 
     public Optional<Duration> getAnalysisTime()
@@ -199,5 +220,10 @@ public class QueryStatistics
     public List<String> getOperatorSummaries()
     {
         return operatorSummaries;
+    }
+
+    public Optional<MemoryPoolId> getMemoryPoolId()
+    {
+        return memoryPoolId;
     }
 }

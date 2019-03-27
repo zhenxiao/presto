@@ -47,12 +47,14 @@ public class QueryEventInfo
     private final String cluster; // eg. sjc1_secure or dca1_nonsec
     private final String source;
     private final String catalog;
+    private final String resourceGroup;
     private final String schema;
     private final String query;
     private final long createTime;
     private final String remoteClientAddress;
     private final String userAgent;
     private final String sessionProperties;
+    private int totalTasks;
     private int totalStages;
     private long endTime;
     private long elapsedTime;
@@ -60,6 +62,7 @@ public class QueryEventInfo
     private double memory;
     private long cpuTime; // aggregate across all tasks
     private long wallTime; // aggregate across all tasks
+    private long blockedTime; // aggregate across all tasks
     private long analysisTime;
     private long distributedPlanningTime;
     private long totalDrivers;          // aka completedSplits
@@ -72,6 +75,7 @@ public class QueryEventInfo
     private String failureJson;
     private List<Map<String, Object>> columnAccess;
     private List<String> operatorSummaries;
+    private String memoryPool;
 
     private class ColumnAccessEntry
     {
@@ -140,6 +144,7 @@ public class QueryEventInfo
         this.user = queryContext.getUser();
         this.source = queryContext.getSource().orElse("");
         this.catalog = queryContext.getCatalog().orElse("");
+        this.resourceGroup = queryContext.getResourceGroupId().isPresent() ? queryContext.getResourceGroupId().get().toString() : "";
         this.schema = queryContext.getSchema().orElse("");
         this.janusId = getJanusId(this.query);
         this.translationId = getTranslationId(this.query);
@@ -173,6 +178,7 @@ public class QueryEventInfo
         this.user = queryContext.getUser();
         this.source = queryContext.getSource().orElse("");
         this.catalog = queryContext.getCatalog().orElse("");
+        this.resourceGroup = queryContext.getResourceGroupId().isPresent() ? queryContext.getResourceGroupId().get().toString() : "";
         this.schema = queryContext.getSchema().orElse("");
         this.janusId = getJanusId(this.query);
         this.translationId = getTranslationId(this.query);
@@ -187,11 +193,13 @@ public class QueryEventInfo
         this.elapsedTime = endTime - createTime;
 
         // Query Statistics
+        this.totalTasks = queryStatistics.getTotalTasks();
         this.totalStages = queryStatistics.getStageGcStatistics().size();
         this.queuedTime = queryStatistics.getQueuedTime().toMillis();
         this.memory = queryStatistics.getCumulativeMemory();
         this.cpuTime = queryStatistics.getCpuTime().getSeconds();
         this.wallTime = queryStatistics.getWallTime().getSeconds();
+        this.blockedTime = queryStatistics.getBlockedTime().getSeconds();
         this.analysisTime = queryStatistics.getAnalysisTime().orElse(Duration.ZERO).toMillis();
         this.distributedPlanningTime = queryStatistics.getDistributedPlanningTime().orElse(Duration.ZERO).toMillis();
         this.totalDrivers = queryStatistics.getCompletedSplits();
@@ -202,7 +210,10 @@ public class QueryEventInfo
         // Query IOMetadata
         this.columnAccess = getColumnAccess(queryIOMetadata.getInputs());
 
+        // Column Predicates
         this.operatorSummaries = queryStatistics.getOperatorSummaries();
+
+        this.memoryPool = queryStatistics.getMemoryPoolId().isPresent() ? queryStatistics.getMemoryPoolId().get().getId() : "";
 
         // Failure related
         if (queryCompletedEvent.getFailureInfo().isPresent()) {
@@ -288,6 +299,7 @@ public class QueryEventInfo
         map.put("cluster", this.cluster);
         map.put("source", this.source);
         map.put("catalog", this.catalog);
+        map.put("resourceGroup", this.resourceGroup);
         map.put("schema", this.schema);
         map.put("query", this.query);
         map.put("createTime", this.createTime);
@@ -297,6 +309,7 @@ public class QueryEventInfo
         map.put("memory", this.memory);
         map.put("cpuTime", this.cpuTime);
         map.put("wallTime", this.wallTime);
+        map.put("blockedTime", this.blockedTime);
         map.put("analysisTime", this.analysisTime);
         map.put("distributedPlanningTime", this.distributedPlanningTime);
         map.put("totalDrivers", this.totalDrivers);
@@ -311,8 +324,10 @@ public class QueryEventInfo
         map.put("errorType", this.errorType);
         map.put("errorName", this.errorName);
         map.put("failureJson", this.failureJson);
+        map.put("totalTasks", this.totalTasks);
         map.put("totalStages", this.totalStages);
         map.put("operatorSummaries", this.operatorSummaries);
+        map.put("memorypool", this.memoryPool);
         return map;
     }
 }
