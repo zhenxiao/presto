@@ -23,74 +23,102 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class FileFormatDataSourceStats
 {
-    private final DistributionStat readBytes = new DistributionStat();
-    private final DistributionStat maxCombinedBytesPerRow = new DistributionStat();
-    private final TimeStat time0Bto100KB = new TimeStat(MILLISECONDS);
-    private final TimeStat time100KBto1MB = new TimeStat(MILLISECONDS);
-    private final TimeStat time1MBto10MB = new TimeStat(MILLISECONDS);
-    private final TimeStat time10MBPlus = new TimeStat(MILLISECONDS);
+    private final CallStats orcCallStats = new CallStats();
+    private final CallStats parquetCallStats = new CallStats();
+    private final CallStats rcCallStats = new CallStats();
 
     @Managed
     @Nested
-    public DistributionStat getReadBytes()
+    public CallStats getOrcReaderStats()
     {
-        return readBytes;
+        return orcCallStats;
     }
 
     @Managed
     @Nested
-    public DistributionStat getMaxCombinedBytesPerRow()
+    public CallStats getParquetReaderStats()
     {
-        return maxCombinedBytesPerRow;
+        return parquetCallStats;
     }
 
     @Managed
     @Nested
-    public TimeStat get0Bto100KB()
+    public CallStats getRCReaderStats()
     {
-        return time0Bto100KB;
+        return rcCallStats;
     }
 
-    @Managed
-    @Nested
-    public TimeStat get100KBto1MB()
+    public static class CallStats
     {
-        return time100KBto1MB;
-    }
+        private final DistributionStat readBytes = new DistributionStat();
+        private final DistributionStat maxCombinedBytesPerRow = new DistributionStat();
+        private final TimeStat time0Bto100KB = new TimeStat(MILLISECONDS);
+        private final TimeStat time100KBto1MB = new TimeStat(MILLISECONDS);
+        private final TimeStat time1MBto10MB = new TimeStat(MILLISECONDS);
+        private final TimeStat time10MBPlus = new TimeStat(MILLISECONDS);
 
-    @Managed
-    @Nested
-    public TimeStat get1MBto10MB()
-    {
-        return time1MBto10MB;
-    }
-
-    @Managed
-    @Nested
-    public TimeStat get10MBPlus()
-    {
-        return time10MBPlus;
-    }
-
-    public void readDataBytesPerSecond(long bytes, long nanos)
-    {
-        readBytes.add(bytes);
-        if (bytes < 100 * 1024) {
-            time0Bto100KB.add(nanos, NANOSECONDS);
+        @Managed
+        @Nested
+        public DistributionStat getReadBytes()
+        {
+            return readBytes;
         }
-        else if (bytes < 1024 * 1024) {
-            time100KBto1MB.add(nanos, NANOSECONDS);
-        }
-        else if (bytes < 10 * 1024 * 1024) {
-            time1MBto10MB.add(nanos, NANOSECONDS);
-        }
-        else {
-            time10MBPlus.add(nanos, NANOSECONDS);
-        }
-    }
 
-    public void addMaxCombinedBytesPerRow(long bytes)
-    {
-        maxCombinedBytesPerRow.add(bytes);
+        @Managed
+        @Nested
+        public DistributionStat getMaxCombinedBytesPerRow()
+        {
+            return maxCombinedBytesPerRow;
+        }
+
+        @Managed
+        @Nested
+        public TimeStat get0Bto100KB()
+        {
+            return time0Bto100KB;
+        }
+
+        @Managed
+        @Nested
+        public TimeStat get100KBto1MB()
+        {
+            return time100KBto1MB;
+        }
+
+        @Managed
+        @Nested
+        public TimeStat get1MBto10MB()
+        {
+            return time1MBto10MB;
+        }
+
+        @Managed
+        @Nested
+        public TimeStat get10MBPlus()
+        {
+            return time10MBPlus;
+        }
+
+        public void readDataBytesPerSecond(long bytes, long nanos)
+        {
+            readBytes.add(bytes);
+            if (bytes < 100 * 1024) {
+                time0Bto100KB.add(nanos, NANOSECONDS);
+            }
+            else if (bytes < 1024 * 1024) {
+                time100KBto1MB.add(nanos, NANOSECONDS);
+            }
+            else if (bytes < 10 * 1024 * 1024) {
+                time1MBto10MB.add(nanos, NANOSECONDS);
+            }
+            else {
+                time10MBPlus.add(nanos, NANOSECONDS);
+            }
+        }
+
+        public void addMaxCombinedBytesPerRow(long bytes)
+        {
+            maxCombinedBytesPerRow.add(bytes);
+        }
     }
 }

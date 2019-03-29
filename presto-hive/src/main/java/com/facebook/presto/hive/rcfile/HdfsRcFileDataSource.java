@@ -82,7 +82,7 @@ public class HdfsRcFileDataSource
         inputStream.readFully(position, buffer, bufferOffset, bufferLength);
 
         long readDuration = System.nanoTime() - start;
-        stats.readDataBytesPerSecond(bufferLength, readDuration);
+        stats.getRCReaderStats().readDataBytesPerSecond(bufferLength, readDuration);
 
         readTimeNanos += readDuration;
         readBytes += bufferLength;

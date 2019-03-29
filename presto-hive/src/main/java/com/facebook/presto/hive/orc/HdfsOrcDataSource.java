@@ -62,7 +62,7 @@ public class HdfsOrcDataSource
         try {
             long readStart = System.nanoTime();
             inputStream.readFully(position, buffer, bufferOffset, bufferLength);
-            stats.readDataBytesPerSecond(bufferLength, System.nanoTime() - readStart);
+            stats.getOrcReaderStats().readDataBytesPerSecond(bufferLength, System.nanoTime() - readStart);
         }
         catch (PrestoException e) {
             // just in case there is a Presto wrapper or hook
