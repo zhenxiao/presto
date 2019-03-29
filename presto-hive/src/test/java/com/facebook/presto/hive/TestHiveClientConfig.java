@@ -120,7 +120,8 @@ public class TestHiveClientConfig
                 .setTemporaryStagingDirectoryEnabled(true)
                 .setTemporaryStagingDirectoryPath("/tmp/presto-${USER}")
                 .setPreloadSplitsForGroupedExecution(false)
-                .setClientFallbackSimpleAuthAllowed(false));
+                .setClientFallbackSimpleAuthAllowed(false)
+                .setViewFsTempDirMapping(""));
     }
 
     @Test
@@ -208,7 +209,8 @@ public class TestHiveClientConfig
                 .put("hive.temporary-staging-directory-enabled", "false")
                 .put("hive.temporary-staging-directory-path", "updated")
                 .put("hive.preload-splits-for-grouped-execution", "true")
-                .put("hive.ipc.client.fallback-to-simple-auth-allowed", "false")
+                .put("hive.ipc.client.fallback-to-simple-auth-allowed", "true")
+                .put("hive.hdfs.viewfs.tmpdirs", "/tmp/foo#/foo,/tmp/bar#/bar")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -288,13 +290,13 @@ public class TestHiveClientConfig
                 .setRecordingDuration(new Duration(42, TimeUnit.SECONDS))
                 .setReplay(true)
                 .setCollectColumnStatisticsOnWrite(true)
-                .setCollectColumnStatisticsOnWrite(true)
                 .setS3SelectPushdownEnabled(true)
                 .setS3SelectPushdownMaxConnections(1234)
                 .setTemporaryStagingDirectoryEnabled(false)
                 .setTemporaryStagingDirectoryPath("updated")
                 .setPreloadSplitsForGroupedExecution(true)
-                .setClientFallbackSimpleAuthAllowed(false);
+                .setClientFallbackSimpleAuthAllowed(true)
+                .setViewFsTempDirMapping("/tmp/foo#/foo,/tmp/bar#/bar");
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }

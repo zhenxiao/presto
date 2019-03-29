@@ -69,7 +69,7 @@ public class MockThriftHiveMetastoreClient
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             DataOutputStream output = new DataOutputStream(outputStream);
             id.write(output);
-            Token<DelegationTokenIdentifier> hmsToken = new Token<DelegationTokenIdentifier>(id.getBytes(), null, HIVE_DELEGATION_KIND, null);
+            Token<DelegationTokenIdentifier> hmsToken = new Token<DelegationTokenIdentifier>(id.getBytes(), "MockPassword".getBytes(), HIVE_DELEGATION_KIND, new Text("MockService"));
             this.tokenCreated = hmsToken;
             return hmsToken.encodeToUrlString();
         }
