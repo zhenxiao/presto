@@ -20,6 +20,7 @@ import org.weakref.jmx.Managed;
 import org.weakref.jmx.Nested;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.facebook.presto.spi.StandardErrorCode.ABANDONED_QUERY;
 import static com.facebook.presto.spi.StandardErrorCode.USER_CANCELED;
@@ -47,6 +48,12 @@ public class SqlQueryManagerStats
     private final TimeStat queuedTime = new TimeStat(MILLISECONDS);
     private final DistributionStat wallInputBytesRate = new DistributionStat();
     private final DistributionStat cpuInputByteRate = new DistributionStat();
+    private final AtomicLong totalTasks = new AtomicLong();
+
+    public void updateTasks(long tasks)
+    {
+        totalTasks.set(tasks);
+    }
 
     public void queryQueued()
     {
@@ -153,6 +160,12 @@ public class SqlQueryManagerStats
     public CounterStat getFailedQueries()
     {
         return failedQueries;
+    }
+
+    @Managed
+    public long getTotalTasks()
+    {
+        return totalTasks.get();
     }
 
     @Managed

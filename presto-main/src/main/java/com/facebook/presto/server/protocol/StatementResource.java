@@ -22,6 +22,8 @@ import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.HttpRequestSessionContext;
 import com.facebook.presto.server.SessionContext;
+import com.facebook.presto.server.redirect.RedirectManager;
+import com.facebook.presto.server.redirect.RedirectRulesSpec;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.google.common.collect.Ordering;
@@ -37,6 +39,7 @@ import org.weakref.jmx.Nested;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
@@ -56,13 +59,17 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Stream;
 
+import static com.facebook.presto.SystemSessionProperties.QUERY_SUBMIT_USER;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_TRANSACTION_ID;
@@ -77,12 +84,14 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.net.HttpHeaders.X_FORWARDED_PROTO;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static io.airlift.concurrent.Threads.threadsNamed;
+import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static javax.ws.rs.core.MediaType.TEXT_PLAIN;
 
 @Path("/v1/statement")
 public class StatementResource
@@ -99,6 +108,7 @@ public class StatementResource
     private final BlockEncodingSerde blockEncodingSerde;
     private final BoundedExecutor responseExecutor;
     private final ScheduledExecutorService timeoutExecutor;
+    private final RedirectManager redirectManager;
 
     private final ConcurrentMap<QueryId, Query> queries = new ConcurrentHashMap<>();
     private final ScheduledExecutorService queryPurger = newSingleThreadScheduledExecutor(threadsNamed("query-purger"));
@@ -111,6 +121,7 @@ public class StatementResource
             SessionPropertyManager sessionPropertyManager,
             ExchangeClientSupplier exchangeClientSupplier,
             BlockEncodingSerde blockEncodingSerde,
+            RedirectManager redirectManager,
             @ForStatementResource BoundedExecutor responseExecutor,
             @ForStatementResource ScheduledExecutorService timeoutExecutor)
     {
@@ -120,6 +131,7 @@ public class StatementResource
         this.blockEncodingSerde = requireNonNull(blockEncodingSerde, "blockEncodingSerde is null");
         this.responseExecutor = requireNonNull(responseExecutor, "responseExecutor is null");
         this.timeoutExecutor = requireNonNull(timeoutExecutor, "timeoutExecutor is null");
+        this.redirectManager = requireNonNull(redirectManager, "redirectManager is null");
 
         queryPurger.scheduleWithFixedDelay(new PurgeQueriesRunnable(queries, queryManager), 200, 200, MILLISECONDS);
     }
@@ -128,6 +140,26 @@ public class StatementResource
     public void stop()
     {
         queryPurger.shutdownNow();
+    }
+
+    @POST
+    @Path("redirect")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(TEXT_PLAIN)
+    public Response updateRedirectRule(RedirectRulesSpec spec)
+            throws WebApplicationException
+    {
+        requireNonNull(spec, "redirect spec is null");
+        try {
+            redirectManager.reset(spec);
+        }
+        catch (Throwable e) {
+            return Response.status(Status.BAD_REQUEST)
+                    .type(TEXT_PLAIN)
+                    .entity("Failed to update redirect rules")
+                    .build();
+        }
+        return Response.ok().build();
     }
 
     @POST
@@ -143,7 +175,7 @@ public class StatementResource
         if (isNullOrEmpty(statement)) {
             throw new WebApplicationException(Response
                     .status(Status.BAD_REQUEST)
-                    .type(MediaType.TEXT_PLAIN)
+                    .type(TEXT_PLAIN)
                     .entity("SQL statement is empty")
                     .build());
         }
@@ -152,6 +184,18 @@ public class StatementResource
         }
 
         SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
+
+        String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER)
+                ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER)
+                : sessionContext.getIdentity().getUser();
+        Optional<URI> match = Stream.of(redirectManager.redirectByMaxTasks(queryManager.getStats().getTotalTasks()), redirectManager.getMatch(user), redirectManager.getMatch(sessionContext.getSource()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+        if (match.isPresent()) {
+            URI redirectUri = uriBuilderFrom(match.get()).replacePath("/v1/statement").build();
+            return Response.temporaryRedirect(redirectUri).build();
+        }
 
         ExchangeClient exchangeClient = exchangeClientSupplier.get(new SimpleLocalMemoryContext(newSimpleAggregatedMemoryContext(), StatementResource.class.getSimpleName()));
         Query query = Query.create(

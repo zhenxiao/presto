@@ -80,6 +80,8 @@ import com.facebook.presto.memory.TotalReservationOnBlockedNodesLowMemoryKiller;
 import com.facebook.presto.metadata.CatalogManager;
 import com.facebook.presto.operator.ForScheduler;
 import com.facebook.presto.server.protocol.StatementResource;
+import com.facebook.presto.server.redirect.RedirectConfig;
+import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.server.remotetask.RemoteTaskStats;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.QueryType;
@@ -169,6 +171,10 @@ public class CoordinatorModule
 
         // presto coordinator announcement
         discoveryBinder(binder).bindHttpAnnouncement("presto-coordinator");
+
+        // redirect rule
+        binder.bind(RedirectManager.class).in(Scopes.SINGLETON);
+        configBinder(binder).bindConfig(RedirectConfig.class);
 
         // statement resource
         jsonCodecBinder(binder).bindJsonCodec(QueryInfo.class);

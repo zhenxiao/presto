@@ -203,6 +203,13 @@ public class SqlQueryManager
             catch (Throwable e) {
                 log.error(e, "Error enforcing query CPU time limits");
             }
+
+            try {
+                updateTotalTasks();
+            }
+            catch (Throwable e) {
+                log.error(e, "Error updating total tasks");
+            }
         }, 1, 1, TimeUnit.SECONDS);
     }
 
@@ -514,6 +521,18 @@ public class SqlQueryManager
                 query.fail(new ExceededCpuLimitException(limit));
             }
         }
+    }
+
+    private void updateTotalTasks()
+    {
+        long tasks = 0;
+        for (QueryExecution query : queryTracker.getAllQueries()) {
+            if (query.getState().isDone()) {
+                continue;
+            }
+            tasks += query.getQueryInfo().getQueryStats().getRunningTasks();
+        }
+        stats.updateTasks(tasks);
     }
 
     private void addStatsListeners(QueryExecution queryExecution)
