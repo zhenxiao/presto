@@ -24,6 +24,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroupState;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import com.google.common.collect.ImmutableList;
 import io.airlift.stats.CounterStat;
+import io.airlift.stats.TimeStat;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 import org.weakref.jmx.Managed;
@@ -32,6 +33,7 @@ import org.weakref.jmx.Nested;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +44,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static com.facebook.presto.SystemSessionProperties.getQueryPriority;
@@ -67,6 +70,7 @@ import static java.lang.Math.min;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * Resource groups form a tree, and all access to a group is guarded by the root of the tree.
@@ -137,6 +141,10 @@ public class InternalResourceGroup
     private long lastStartMillis;
     @GuardedBy("root")
     private final CounterStat timeBetweenStartsSec = new CounterStat();
+    @GuardedBy("root")
+    protected TimeStat runningTime;
+    @GuardedBy("root")
+    protected TimeStat queuedTime;
 
     protected InternalResourceGroup(Optional<InternalResourceGroup> parent, String name, BiConsumer<InternalResourceGroup, Boolean> jmxExportListener, Executor executor)
     {
@@ -465,6 +473,24 @@ public class InternalResourceGroup
         return timeBetweenStartsSec;
     }
 
+    @Managed
+    @Nested
+    public TimeStat getRunningTime()
+    {
+        synchronized (root) {
+            return runningTime;
+        }
+    }
+
+    @Managed
+    @Nested
+    public TimeStat getQueuedTime()
+    {
+        synchronized (root) {
+            return queuedTime;
+        }
+    }
+
     @Override
     public int getSchedulingWeight()
     {
@@ -702,7 +728,7 @@ public class InternalResourceGroup
     }
 
     // Memory usage stats are expensive to maintain, so this method must be called periodically to update them
-    protected void internalRefreshStats()
+    protected void internalRefreshStats(boolean updateRunTimeQueueTimeStats, ArrayList<TimeStat> runTimeStats, ArrayList<TimeStat> queuedTimeStats)
     {
         checkState(Thread.holdsLock(root), "Must hold lock to refresh stats");
         synchronized (root) {
@@ -711,13 +737,50 @@ public class InternalResourceGroup
                 for (ManagedQueryExecution query : runningQueries) {
                     cachedMemoryUsageBytes += query.getUserMemoryReservation().toBytes();
                 }
+                if (updateRunTimeQueueTimeStats) {
+                    /*
+                     * For a leaf RG (has empty subgroups) iterate the runningQueries list and
+                     * queuedQueries list to update the TimeStat objects of each Parent RG in the
+                     * path to Root RG.
+                     */
+                    checkArgument(runTimeStats != null, "runTimeStats is null");
+                    checkArgument(queuedTimeStats != null, "queuedTimeStats is null");
+
+                    TimeStat runTimeStatForThisLeafGroup = new TimeStat(NANOSECONDS);
+                    TimeStat queuedTimeStateForThisLeafGroup = new TimeStat(NANOSECONDS);
+
+                    for (ManagedQueryExecution query : runningQueries) {
+                        // Total run time of the query, excluding planning, queueing etc.
+                        Duration queryRunningTime = query.getBasicQueryInfo().getQueryStats().getExecutionTime();
+                        // Add run time for all Parent RGs of this RG.
+                        runTimeStats.stream().forEachOrdered(s -> s.add(queryRunningTime));
+                        runTimeStatForThisLeafGroup.add(queryRunningTime);
+                    }
+                    runningTime = runTimeStatForThisLeafGroup;
+                    for (ManagedQueryExecution query : queuedQueries) {
+                        Duration queryQueuedTime = query.getBasicQueryInfo().getQueryStats().getQueuedTime();
+                        // Add queued time for all Parent RGs of this RG.
+                        queuedTimeStats.stream().forEachOrdered(s -> s.add(queryQueuedTime));
+                        queuedTimeStateForThisLeafGroup.add(queryQueuedTime);
+                    }
+                    queuedTime = queuedTimeStateForThisLeafGroup;
+                }
             }
             else {
+                /*
+                 * Create new stat objects for this non leaf RG and add it to corresponding
+                 * Arraylist before traversing through the sub groups.
+                 */
+                if (updateRunTimeQueueTimeStats) {
+                    runTimeStats.add(new TimeStat(NANOSECONDS));
+                    queuedTimeStats.add(new TimeStat(NANOSECONDS));
+                }
+
                 for (Iterator<InternalResourceGroup> iterator = dirtySubGroups.iterator(); iterator.hasNext(); ) {
                     InternalResourceGroup subGroup = iterator.next();
                     long oldMemoryUsageBytes = subGroup.cachedMemoryUsageBytes;
                     cachedMemoryUsageBytes -= oldMemoryUsageBytes;
-                    subGroup.internalRefreshStats();
+                    subGroup.internalRefreshStats(updateRunTimeQueueTimeStats, runTimeStats, queuedTimeStats);
                     cachedMemoryUsageBytes += subGroup.cachedMemoryUsageBytes;
                     if (!subGroup.isDirty()) {
                         iterator.remove();
@@ -725,6 +788,15 @@ public class InternalResourceGroup
                     if (oldMemoryUsageBytes != subGroup.cachedMemoryUsageBytes) {
                         subGroup.updateEligibility();
                     }
+                }
+                /*
+                 * Once All subgroups are traversed, update the parent RG's running and queued times
+                 * and remove the runTimeStat and queuedTimeStat of Parent RG from the
+                 * corresponding ArrayLists
+                 */
+                if (updateRunTimeQueueTimeStats) {
+                    runningTime = runTimeStats.remove(runTimeStats.size() - 1);
+                    queuedTime = queuedTimeStats.remove(queuedTimeStats.size() - 1);
                 }
             }
         }
@@ -916,14 +988,32 @@ public class InternalResourceGroup
     public static final class RootInternalResourceGroup
             extends InternalResourceGroup
     {
+        private static final AtomicReference<Long> lastStatRefreshNanos = new AtomicReference<>();
+        private static final AtomicReference<Boolean> updateRunTimeQueueTimeStats = new AtomicReference<>(false);
+
         public RootInternalResourceGroup(String name, BiConsumer<InternalResourceGroup, Boolean> jmxExportListener, Executor executor)
         {
             super(Optional.empty(), name, jmxExportListener, executor);
         }
 
-        public synchronized void processQueuedQueries()
+        public synchronized void processQueuedQueries(long runTimeQueueTimeRefreshIntervalSec)
         {
-            internalRefreshStats();
+            long currentRefreshNanos = System.nanoTime();
+            lastStatRefreshNanos.compareAndSet(null, currentRefreshNanos); //Very first time
+            long elapsedSeconds = NANOSECONDS.toSeconds(currentRefreshNanos - lastStatRefreshNanos.get());
+
+            // Update runtime queue time stats once every configured seconds (default: every 1s)
+            if (elapsedSeconds > runTimeQueueTimeRefreshIntervalSec) {
+                updateRunTimeQueueTimeStats.set(true);
+                ArrayList<TimeStat> runTimeStats = new ArrayList<>();
+                ArrayList<TimeStat> queuedTimeStats = new ArrayList<>();
+                internalRefreshStats(updateRunTimeQueueTimeStats.get(), runTimeStats, queuedTimeStats);
+                lastStatRefreshNanos.set(currentRefreshNanos);
+            }
+            else {
+                updateRunTimeQueueTimeStats.set(false);
+                internalRefreshStats(updateRunTimeQueueTimeStats.get(), null, null);
+            }
             while (internalStartNext()) {
                 // start all the queries we can
             }

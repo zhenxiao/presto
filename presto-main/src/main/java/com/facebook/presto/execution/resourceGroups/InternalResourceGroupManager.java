@@ -71,6 +71,8 @@ public final class InternalResourceGroupManager<C>
     private static final File RESOURCE_GROUPS_CONFIGURATION = new File("etc/resource-groups.properties");
     private static final String CONFIGURATION_MANAGER_PROPERTY_NAME = "resource-groups.configuration-manager";
     private static final String CONFIGURATION_MANAGER_DISABLED = "resource-groups.disabled";
+    private static final String QUERY_TIME_STATS_REFRESH_INTERVAL_SEC = "resource-groups.query-time-stats-refresh-interval-sec";
+    private static final long DEFAULT_QUERY_TIME_STATS_REFRESH_INTERVAL_SEC = 1;
 
     private final ScheduledExecutorService refreshExecutor = newSingleThreadScheduledExecutor(daemonThreadsNamed("ResourceGroupManager"));
     private final List<RootInternalResourceGroup> rootGroups = new CopyOnWriteArrayList<>();
@@ -83,6 +85,7 @@ public final class InternalResourceGroupManager<C>
     private final AtomicLong lastCpuQuotaGenerationNanos = new AtomicLong(System.nanoTime());
     private final Map<String, ResourceGroupConfigurationManagerFactory> configurationManagerFactories = new ConcurrentHashMap<>();
     private boolean resourcesGroupsDisabled;
+    private long runTimeQueueTimeStatsRefreshPeriod;
 
     @Inject
     public InternalResourceGroupManager(LegacyResourceGroupConfigurationManager legacyManager, ClusterMemoryPoolManager memoryPoolManager, NodeInfo nodeInfo, MBeanExporter exporter)
@@ -144,6 +147,13 @@ public final class InternalResourceGroupManager<C>
             String resourceGroupsDisabledStr = properties.remove(CONFIGURATION_MANAGER_DISABLED);
             if (resourceGroupsDisabledStr != null) {
                 this.resourcesGroupsDisabled = Boolean.valueOf(resourceGroupsDisabledStr);
+            }
+
+            if (properties.containsKey(QUERY_TIME_STATS_REFRESH_INTERVAL_SEC)) {
+                runTimeQueueTimeStatsRefreshPeriod = Long.parseLong(properties.remove(QUERY_TIME_STATS_REFRESH_INTERVAL_SEC));
+            }
+            else {
+                runTimeQueueTimeStatsRefreshPeriod = DEFAULT_QUERY_TIME_STATS_REFRESH_INTERVAL_SEC;
             }
 
             String configurationManagerName = properties.remove(CONFIGURATION_MANAGER_PROPERTY_NAME);
@@ -215,7 +225,7 @@ public final class InternalResourceGroupManager<C>
                 log.error(e, "Exception while generation cpu quota for %s", group);
             }
             try {
-                group.processQueuedQueries();
+                group.processQueuedQueries(runTimeQueueTimeStatsRefreshPeriod);
             }
             catch (RuntimeException e) {
                 log.error(e, "Exception while processing queued queries for %s", group);

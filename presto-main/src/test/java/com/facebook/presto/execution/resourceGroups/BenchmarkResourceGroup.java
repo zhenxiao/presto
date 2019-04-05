@@ -48,10 +48,12 @@ import static io.airlift.units.DataSize.Unit.MEGABYTE;
 @BenchmarkMode(Mode.AverageTime)
 public class BenchmarkResourceGroup
 {
+    private final long statsRefreshInterval = 4 * 60 * 60; // Intentionally set ot high value
+
     @Benchmark
     public Object benchmark(BenchmarkData data)
     {
-        data.getRoot().processQueuedQueries();
+        data.getRoot().processQueuedQueries(statsRefreshInterval);
         return data.getRoot();
     }
 

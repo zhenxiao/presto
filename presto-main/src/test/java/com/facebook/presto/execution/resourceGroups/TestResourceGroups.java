@@ -18,15 +18,20 @@ import com.facebook.presto.execution.resourceGroups.InternalResourceGroup.RootIn
 import com.facebook.presto.server.QueryStateInfo;
 import com.facebook.presto.server.ResourceGroupInfo;
 import com.google.common.collect.ImmutableSet;
+import io.airlift.stats.TimeStat;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.distribution.BinomialDistribution;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -51,12 +56,14 @@ import static io.airlift.units.DataSize.Unit.BYTE;
 import static io.airlift.units.DataSize.Unit.GIGABYTE;
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.Collections.reverse;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
 public class TestResourceGroups
 {
+    private final long statsRefreshInterval = 4 * 60 * 60; // Intentionally set to huge value to avoid stats refresh for Test case purposes.
     @Test(timeOut = 10_000)
     public void testQueueFull()
     {
@@ -112,7 +119,7 @@ public class TestResourceGroups
         assertEquals(query3a.getState(), QUEUED);
 
         query1a.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         // 2a and not 1b should have started, as group1 was not eligible to start a second query
         assertEquals(query1b.getState(), QUEUED);
         assertEquals(query2a.getState(), RUNNING);
@@ -120,13 +127,13 @@ public class TestResourceGroups
         assertEquals(query3a.getState(), QUEUED);
 
         query2a.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query3a.getState(), RUNNING);
         assertEquals(query2b.getState(), QUEUED);
         assertEquals(query1b.getState(), QUEUED);
 
         query3a.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query1b.getState(), RUNNING);
         assertEquals(query2b.getState(), QUEUED);
     }
@@ -202,7 +209,7 @@ public class TestResourceGroups
         assertEquals(query2a.getState(), QUEUED);
 
         query1a.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         // 1b and not 2a should have started, as it became queued first and group1 was eligible to run more
         assertEquals(query1b.getState(), RUNNING);
         assertEquals(query1c.getState(), QUEUED);
@@ -210,7 +217,7 @@ public class TestResourceGroups
 
         // 2a and not 1c should have started, as all eligible sub groups get fair sharing
         query1b.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2a.getState(), RUNNING);
         assertEquals(query1c.getState(), QUEUED);
     }
@@ -225,7 +232,7 @@ public class TestResourceGroups
         MockQueryExecution query1 = new MockQueryExecution(2);
         root.run(query1);
         // Process the group to refresh stats
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query1.getState(), RUNNING);
         MockQueryExecution query2 = new MockQueryExecution(0);
         root.run(query2);
@@ -235,7 +242,7 @@ public class TestResourceGroups
         assertEquals(query3.getState(), QUEUED);
 
         query1.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2.getState(), RUNNING);
         assertEquals(query3.getState(), RUNNING);
     }
@@ -255,7 +262,7 @@ public class TestResourceGroups
         MockQueryExecution query1 = new MockQueryExecution(2);
         subgroup.run(query1);
         // Process the group to refresh stats
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query1.getState(), RUNNING);
         MockQueryExecution query2 = new MockQueryExecution(0);
         subgroup.run(query2);
@@ -265,7 +272,7 @@ public class TestResourceGroups
         assertEquals(query3.getState(), QUEUED);
 
         query1.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2.getState(), RUNNING);
         assertEquals(query3.getState(), RUNNING);
     }
@@ -294,12 +301,12 @@ public class TestResourceGroups
         assertEquals(query3.getState(), QUEUED);
 
         query1.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2.getState(), RUNNING);
         assertEquals(query3.getState(), QUEUED);
 
         root.generateCpuQuota(2);
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2.getState(), RUNNING);
         assertEquals(query3.getState(), RUNNING);
     }
@@ -321,11 +328,11 @@ public class TestResourceGroups
         assertEquals(query2.getState(), QUEUED);
 
         query1.complete();
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2.getState(), QUEUED);
 
         root.generateCpuQuota(2);
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(query2.getState(), RUNNING);
     }
 
@@ -373,7 +380,7 @@ public class TestResourceGroups
         reverse(orderedQueries);
 
         for (MockQueryExecution query : orderedQueries) {
-            root.processQueuedQueries();
+            root.processQueuedQueries(statsRefreshInterval);
             assertEquals(query.getState(), RUNNING);
             query.complete();
         }
@@ -414,7 +421,7 @@ public class TestResourceGroups
                 }
             }
             group2Ran += completeGroupQueries(group2Queries);
-            root.processQueuedQueries();
+            root.processQueuedQueries(statsRefreshInterval);
             group1Queries = fillGroupTo(group1, group1Queries, 2);
             group2Queries = fillGroupTo(group2, group2Queries, 2);
         }
@@ -461,7 +468,7 @@ public class TestResourceGroups
         for (int i = 0; i < 1000; i++) {
             group1Ran += completeGroupQueries(group1Queries);
             group2Ran += completeGroupQueries(group2Queries);
-            root.processQueuedQueries();
+            root.processQueuedQueries(statsRefreshInterval);
             group1Queries = fillGroupTo(group1, group1Queries, 4);
             group2Queries = fillGroupTo(group2, group2Queries, 4);
         }
@@ -514,7 +521,7 @@ public class TestResourceGroups
             group1Ran += completeGroupQueries(group1Queries);
             group2Ran += completeGroupQueries(group2Queries);
             group3Ran += completeGroupQueries(group3Queries);
-            root.processQueuedQueries();
+            root.processQueuedQueries(statsRefreshInterval);
             group1Queries = fillGroupTo(group1, group1Queries, 4);
             group2Queries = fillGroupTo(group2, group2Queries, 4);
             group3Queries = fillGroupTo(group3, group3Queries, 4);
@@ -562,7 +569,7 @@ public class TestResourceGroups
         for (int i = 0; i < 2000; i++) {
             group1Ran += completeGroupQueries(group1Queries);
             completeGroupQueries(group2Queries);
-            root.processQueuedQueries();
+            root.processQueuedQueries(statsRefreshInterval);
             group1Queries = fillGroupTo(group1, group1Queries, 4);
             group2Queries = fillGroupTo(group2, group2Queries, 4);
         }
@@ -625,7 +632,7 @@ public class TestResourceGroups
 
         // root.maxRunningQueries = 4, root.a.maxRunningQueries = 2, root.b.maxRunningQueries = 2. Will have 4 queries running and 36 left queued.
         root.setHardConcurrencyLimit(4);
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         info = root.getInfo();
         assertEquals(info.getNumRunningQueries(), 4);
         assertEquals(info.getNumQueuedQueries(), 36);
@@ -641,21 +648,21 @@ public class TestResourceGroups
         }
 
         // 4 more queries start running, 32 left queued.
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         info = root.getInfo();
         assertEquals(info.getNumRunningQueries(), 4);
         assertEquals(info.getNumQueuedQueries(), 32);
 
         // root.maxRunningQueries = 10, root.a.maxRunningQueries = 2, root.b.maxRunningQueries = 2. Still only have 4 running queries and 32 left queued.
         root.setHardConcurrencyLimit(10);
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         info = root.getInfo();
         assertEquals(info.getNumRunningQueries(), 4);
         assertEquals(info.getNumQueuedQueries(), 32);
 
         // root.maxRunningQueries = 10, root.a.maxRunningQueries = 2, root.b.maxRunningQueries = 10. Will have 10 running queries and 26 left queued.
         rootB.setHardConcurrencyLimit(10);
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         info = root.getInfo();
         assertEquals(info.getNumRunningQueries(), 10);
         assertEquals(info.getNumQueuedQueries(), 26);
@@ -783,7 +790,7 @@ public class TestResourceGroups
         assertEquals(rootBY.getWaitingQueuedQueries(), 10);
 
         root.setHardConcurrencyLimit(20);
-        root.processQueuedQueries();
+        root.processQueuedQueries(statsRefreshInterval);
         assertEquals(root.getWaitingQueuedQueries(), 0);
         assertEquals(rootA.getWaitingQueuedQueries(), 5);
         assertEquals(rootAX.getWaitingQueuedQueries(), 6);
@@ -838,5 +845,119 @@ public class TestResourceGroups
                 actual.getSchedulingPolicy() == expected.getSchedulingPolicy() &&
                 Objects.equals(actual.getSoftMemoryLimit(), expected.getSoftMemoryLimit()) &&
                 Objects.equals(actual.getMemoryUsage(), expected.getMemoryUsage()));
+    }
+
+    private List<Pair<InternalResourceGroup, Set<MockQueryExecution>>> setUpForRunTimeQueueTimeStats()
+    {
+        RootInternalResourceGroup root = new RootInternalResourceGroup("root", (group, export) -> {}, directExecutor());
+        root.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        root.setMaxQueuedQueries(3);
+        // Start with zero capacity, so that nothing starts running until we've added all the queries
+        root.setHardConcurrencyLimit(7);
+
+        InternalResourceGroup rootA = root.getOrCreateSubGroup("a");
+        rootA.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        rootA.setMaxQueuedQueries(1);
+        rootA.setHardConcurrencyLimit(2);
+
+        InternalResourceGroup rootB = root.getOrCreateSubGroup("b");
+        rootB.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        rootB.setMaxQueuedQueries(2);
+        rootB.setHardConcurrencyLimit(5);
+
+        InternalResourceGroup rootC = rootB.getOrCreateSubGroup("c");
+        rootC.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        rootC.setMaxQueuedQueries(1);
+        rootC.setHardConcurrencyLimit(3);
+
+        InternalResourceGroup rootD = rootB.getOrCreateSubGroup("d");
+        rootD.setSoftMemoryLimit(new DataSize(1, MEGABYTE));
+        rootD.setMaxQueuedQueries(1);
+        rootD.setHardConcurrencyLimit(2);
+
+        List<Pair<InternalResourceGroup, Set<MockQueryExecution>>> result = new ArrayList<>();
+        Set<MockQueryExecution> queriesA = fillGroupTo(rootA, ImmutableSet.of(), 3, true);
+        result.add(new ImmutablePair(rootA, queriesA));
+        Set<MockQueryExecution> queriesC = fillGroupTo(rootC, ImmutableSet.of(), 4, true);
+        result.add(new ImmutablePair(rootC, queriesC));
+        Set<MockQueryExecution> queriesD = fillGroupTo(rootD, ImmutableSet.of(), 3, true);
+        result.add(new ImmutablePair(rootD, queriesD));
+        Set<MockQueryExecution> queriesB = new HashSet<>();
+        queriesB.addAll(queriesC);
+        queriesB.addAll(queriesD);
+        result.add(new ImmutablePair(rootB, queriesB));
+        Set<MockQueryExecution> queriesRoot = new HashSet<>();
+        queriesRoot.addAll(queriesA);
+        queriesRoot.addAll(queriesB);
+        result.add(new ImmutablePair(root, queriesRoot));
+        // process queued queries with -1 refresh period to force run time queue time stats refresh immediately
+        root.processQueuedQueries(-1);
+        return result;
+    }
+
+    private void assertRunningQueuedQueries(List<Pair<InternalResourceGroup, Set<MockQueryExecution>>> input)
+    {
+        for (Pair<InternalResourceGroup, Set<MockQueryExecution>> entry : input) {
+            InternalResourceGroup rg = entry.getKey();
+            assertEquals(rg.getInfo().getNumRunningQueries(), rg.getInfo().getHardConcurrencyLimit());
+            assertEquals(rg.getInfo().getNumQueuedQueries(), rg.getInfo().getMaxQueuedQueries());
+        }
+    }
+
+    private Map<String, Pair<TimeStat, TimeStat>> buildExpectedValue(List<Pair<InternalResourceGroup, Set<MockQueryExecution>>> input)
+    {
+        Map<String, Pair<TimeStat, TimeStat>> result = new HashMap<>();
+        for (Pair<InternalResourceGroup, Set<MockQueryExecution>> entry : input) {
+            InternalResourceGroup rg = entry.getKey();
+            MockQueryExecution query1 = entry.getValue().iterator().next();
+            TimeStat runningTimes = new TimeStat(NANOSECONDS);
+            TimeStat queuedTimes = new TimeStat(NANOSECONDS);
+            for (int i = 0; i < rg.getInfo().getNumRunningQueries(); i++) {
+                runningTimes.add(query1.getQueryInfo().getQueryStats().getExecutionTime());
+            }
+            for (int i = 0; i < rg.getInfo().getNumQueuedQueries(); i++) {
+                queuedTimes.add(query1.getQueryInfo().getQueryStats().getQueuedTime());
+            }
+            result.put(rg.getId().toString(), new ImmutablePair<>(runningTimes, queuedTimes));
+        }
+        return result;
+    }
+
+    private void compareTimeStatObjects(TimeStat o1, TimeStat o2)
+    {
+        // One minute comparisons
+        assertEquals(o1.getOneMinute().getP50(), o2.getOneMinute().getP50());
+        assertEquals(o1.getOneMinute().getP75(), o2.getOneMinute().getP75());
+        assertEquals(o1.getOneMinute().getP90(), o2.getOneMinute().getP90());
+        assertEquals(o1.getOneMinute().getP95(), o2.getOneMinute().getP95());
+    }
+
+    private void assertRunningAndQueuedTimes(List<Pair<InternalResourceGroup, Set<MockQueryExecution>>> input, Map<String, Pair<TimeStat, TimeStat>> expected)
+            throws InterruptedException
+    {
+        // refresh stats from root RG once
+        RootInternalResourceGroup rootRG = (RootInternalResourceGroup) (input.get(input.size() - 1).getKey());
+        rootRG.processQueuedQueries(-1);
+
+        for (Pair<InternalResourceGroup, Set<MockQueryExecution>> entry : input) {
+            InternalResourceGroup rg = entry.getKey();
+            Pair<TimeStat, TimeStat> expectedTimStats = expected.get(rg.getId().toString());
+            compareTimeStatObjects(rg.getRunningTime(), expectedTimStats.getLeft());
+            compareTimeStatObjects(rg.getQueuedTime(), expectedTimStats.getRight());
+        }
+    }
+
+    @Test
+    public void testRunningTimeStatsForRGs() throws InterruptedException
+    {
+        /*
+         * Asserts for every leaf RG the running time is sum of running times of queries running there and
+         * for intermediate RGS the running times is the aggregate sum of the running times of queries running in
+         * all child RGs.
+         */
+        List<Pair<InternalResourceGroup, Set<MockQueryExecution>>> result = setUpForRunTimeQueueTimeStats();
+        assertRunningQueuedQueries(result);
+        Map<String, Pair<TimeStat, TimeStat>> expectedValue = buildExpectedValue(result);
+        assertRunningAndQueuedTimes(result, expectedValue);
     }
 }
