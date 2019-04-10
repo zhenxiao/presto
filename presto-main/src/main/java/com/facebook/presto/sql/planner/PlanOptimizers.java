@@ -104,6 +104,7 @@ import com.facebook.presto.sql.planner.optimizations.AddExchanges;
 import com.facebook.presto.sql.planner.optimizations.AddLocalExchanges;
 import com.facebook.presto.sql.planner.optimizations.BeginTableWrite;
 import com.facebook.presto.sql.planner.optimizations.CheckSubqueryNodesAreRewritten;
+import com.facebook.presto.sql.planner.optimizations.EnforcePartitionFilter;
 import com.facebook.presto.sql.planner.optimizations.HashGenerationOptimizer;
 import com.facebook.presto.sql.planner.optimizations.ImplementIntersectAndExceptAsUnion;
 import com.facebook.presto.sql.planner.optimizations.IndexJoinOptimizer;
@@ -401,6 +402,7 @@ public class PlanOptimizers
                         ImmutableSet.of(new EliminateCrossJoins())), // This can pull up Filter and Project nodes from between Joins, so we need to push them down again
                 predicatePushDown,
                 simplifyOptimizer, // Should be always run after PredicatePushDown
+                new EnforcePartitionFilter(metadata), // Need to be between PredicatePushdown and PickTableLayout
                 new IterativeOptimizer(
                         ruleStats,
                         statsCalculator,

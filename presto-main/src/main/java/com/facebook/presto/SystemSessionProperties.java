@@ -117,6 +117,8 @@ public final class SystemSessionProperties
     public static final String MAX_DRIVERS_PER_TASK = "max_drivers_per_task";
     public static final String DEFAULT_FILTER_FACTOR_ENABLED = "default_filter_factor_enabled";
     public static final String QUERY_SUBMIT_USER = "query_submit_user";
+    public static final String PARTITION_FILTER = "enforce_partition_filter";
+    public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -549,7 +551,17 @@ public final class SystemSessionProperties
                         QUERY_SUBMIT_USER,
                         "User who submits this query",
                         null,
-                        false));
+                        false),
+                booleanProperty(
+                        PARTITION_FILTER,
+                        "Enforce partition filtering",
+                        featuresConfig.isPartitionFilteringEnforced(),
+                        false),
+                stringProperty(
+                        PARTITION_FILTER_TABLES,
+                        "tables to enforce partition filtering",
+                        featuresConfig.getPartitionFilteringTables(),
+                        true));
     }
 
     public List<PropertyMetadata<?>> getSessionProperties()
@@ -930,5 +942,15 @@ public final class SystemSessionProperties
     public static boolean isDefaultFilterFactorEnabled(Session session)
     {
         return session.getSystemProperty(DEFAULT_FILTER_FACTOR_ENABLED, Boolean.class);
+    }
+
+    public static boolean enforcePartitionFilter(Session session)
+    {
+        return session.getSystemProperty(PARTITION_FILTER, Boolean.class);
+    }
+
+    public static String getPartitionFilterTables(Session session)
+    {
+        return session.getSystemProperty(PARTITION_FILTER_TABLES, String.class);
     }
 }
