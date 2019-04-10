@@ -162,6 +162,7 @@ public class HiveClientConfig
 
     private boolean preloadSplitsForGroupedExecution;
     private Map<String, String> viewFsTempDirMapping = Collections.emptyMap();
+    private boolean hdfsObserverReadEnabled;
 
     private Duration fileStatusCacheExpireAfterWrite = new Duration(1, TimeUnit.MINUTES);
     private long fileStatusCacheMaxSize = 1000 * 1000;
@@ -1326,5 +1327,18 @@ public class HiveClientConfig
     public Map<String, String> getViewFsTempDirMapping()
     {
         return viewFsTempDirMapping;
+    }
+
+    @Config("hive.hdfs-observer-read-enabled")
+    @ConfigDescription("Whether to read from Hdfs ObserverNameNode")
+    public HiveClientConfig setHdfsObserverReadEnabled(boolean hdfsObserverReadEnabled)
+    {
+        this.hdfsObserverReadEnabled = hdfsObserverReadEnabled;
+        return this;
+    }
+
+    public boolean isHdfsObserverReadEnabled()
+    {
+        return this.hdfsObserverReadEnabled;
     }
 }

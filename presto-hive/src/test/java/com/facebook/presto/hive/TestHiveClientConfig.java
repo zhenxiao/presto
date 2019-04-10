@@ -124,7 +124,8 @@ public class TestHiveClientConfig
                 .setViewFsTempDirMapping("")
                 .setFileStatusCacheExpireAfterWrite(new Duration(1, TimeUnit.MINUTES))
                 .setFileStatusCacheMaxSize(1000 * 1000)
-                .setFileStatusCacheTables(""));
+                .setFileStatusCacheTables("")
+                .setHdfsObserverReadEnabled(false));
     }
 
     @Test
@@ -217,6 +218,7 @@ public class TestHiveClientConfig
                 .put("hive.file-status-cache-tables", "foo.bar1, foo.bar2")
                 .put("hive.file-status-cache-size", "1000")
                 .put("hive.file-status-cache-expire-time", "30m")
+                .put("hive.hdfs-observer-read-enabled", "true")
                 .build();
 
         HiveClientConfig expected = new HiveClientConfig()
@@ -305,7 +307,8 @@ public class TestHiveClientConfig
                 .setViewFsTempDirMapping("/tmp/foo#/foo,/tmp/bar#/bar")
                 .setFileStatusCacheTables("foo.bar1,foo.bar2")
                 .setFileStatusCacheMaxSize(1000)
-                .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES));
+                .setFileStatusCacheExpireAfterWrite(new Duration(30, TimeUnit.MINUTES))
+                .setHdfsObserverReadEnabled(true);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }
