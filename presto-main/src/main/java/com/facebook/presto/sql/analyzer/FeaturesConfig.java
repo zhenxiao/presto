@@ -129,6 +129,8 @@ public class FeaturesConfig
 
     private boolean partitionFilteringEnforced;
     private String partitionFilteringTables = "";
+    private int planCacheSize;
+    private Duration planCacheDuration = new Duration(10, MINUTES);
 
     public enum JoinReorderingStrategy
     {
@@ -952,6 +954,31 @@ public class FeaturesConfig
     public FeaturesConfig setPartitionFilteringTables(String tables)
     {
         this.partitionFilteringTables = tables;
+        return this;
+    }
+
+    public int getPlanCacheSize()
+    {
+        return planCacheSize;
+    }
+
+    @Config("plancaching.plan-cache-size")
+    public FeaturesConfig setPlanCacheSize(int planCacheSize)
+    {
+        this.planCacheSize = planCacheSize;
+        return this;
+    }
+
+    @NotNull
+    public Duration getPlanCacheDuration()
+    {
+        return planCacheDuration;
+    }
+
+    @Config("plancaching.plan-cache-duration")
+    public FeaturesConfig setPlanCacheDuration(Duration planCacheDuration)
+    {
+        this.planCacheDuration = planCacheDuration;
         return this;
     }
 }

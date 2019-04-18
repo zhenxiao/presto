@@ -24,6 +24,7 @@ import com.facebook.presto.cost.TaskCountEstimator;
 import com.facebook.presto.event.QueryMonitor;
 import com.facebook.presto.event.QueryMonitorConfig;
 import com.facebook.presto.execution.AddColumnTask;
+import com.facebook.presto.execution.CachingPlanner;
 import com.facebook.presto.execution.CallTask;
 import com.facebook.presto.execution.ClusterSizeMonitor;
 import com.facebook.presto.execution.CommitTask;
@@ -56,6 +57,7 @@ import com.facebook.presto.execution.RevokeTask;
 import com.facebook.presto.execution.RollbackTask;
 import com.facebook.presto.execution.SetPathTask;
 import com.facebook.presto.execution.SetSessionTask;
+import com.facebook.presto.execution.SqlCachingPlanner;
 import com.facebook.presto.execution.SqlQueryManager;
 import com.facebook.presto.execution.StartTransactionTask;
 import com.facebook.presto.execution.TaskInfo;
@@ -243,6 +245,8 @@ public class CoordinatorModule
         jaxrsBinder(binder).bind(ClusterStatsResource.class);
 
         // planner
+        binder.bind(CachingPlanner.class).to(SqlCachingPlanner.class).in(Scopes.SINGLETON);
+        newExporter(binder).export(CachingPlanner.class).withGeneratedName();
         binder.bind(PlanFragmenter.class).in(Scopes.SINGLETON);
         binder.bind(PlanOptimizers.class).in(Scopes.SINGLETON);
 

@@ -110,6 +110,8 @@ public class TestFeaturesConfig
                 .setLegacyUnnestArrayRows(false)
                 .setJsonSerdeCodeGenerationEnabled(false)
                 .setPartitionFilteringEnforced(false)
+                .setPlanCacheDuration(new Duration(10, MINUTES))
+                .setPlanCacheSize(0)
                 .setPartitionFilteringTables(""));
     }
 
@@ -180,6 +182,8 @@ public class TestFeaturesConfig
                 .put("deprecated.legacy-unnest-array-rows", "true")
                 .put("experimental.json-serde-codegen-enabled", "true")
                 .put("optimizer.partition-filtering-enforced", "true")
+                .put("plancaching.plan-cache-size", "10")
+                .put("plancaching.plan-cache-duration", "20m")
                 .put("optimizer.partition-filtering-tables", "dwh.a:hdrone.b")
                 .build();
 
@@ -247,6 +251,8 @@ public class TestFeaturesConfig
                 .setDefaultFilterFactorEnabled(true)
                 .setJsonSerdeCodeGenerationEnabled(true)
                 .setPartitionFilteringEnforced(true)
+                .setPlanCacheDuration(new Duration(20 * 60, SECONDS))
+                .setPlanCacheSize(10)
                 .setPartitionFilteringTables("dwh.a:hdrone.b");
         assertFullMapping(properties, expected);
     }

@@ -56,6 +56,7 @@ import com.facebook.presto.execution.RollbackTask;
 import com.facebook.presto.execution.ScheduledSplit;
 import com.facebook.presto.execution.SetPathTask;
 import com.facebook.presto.execution.SetSessionTask;
+import com.facebook.presto.execution.SqlCachingPlanner;
 import com.facebook.presto.execution.StartTransactionTask;
 import com.facebook.presto.execution.TaskManagerConfig;
 import com.facebook.presto.execution.TaskSource;
@@ -127,7 +128,6 @@ import com.facebook.presto.sql.planner.LogicalPlanner;
 import com.facebook.presto.sql.planner.NodePartitioningManager;
 import com.facebook.presto.sql.planner.Plan;
 import com.facebook.presto.sql.planner.PlanFragmenter;
-import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
 import com.facebook.presto.sql.planner.PlanOptimizers;
 import com.facebook.presto.sql.planner.SubPlan;
 import com.facebook.presto.sql.planner.optimizations.PlanOptimizer;
@@ -831,8 +831,6 @@ public class LocalQueryRunner
 
         assertFormattedSql(sqlParser, createParsingOptions(session), preparedQuery.getStatement());
 
-        PlanNodeIdAllocator idAllocator = new PlanNodeIdAllocator();
-
         QueryExplainer queryExplainer = new QueryExplainer(
                 optimizers,
                 planFragmenter,
@@ -842,12 +840,15 @@ public class LocalQueryRunner
                 statsCalculator,
                 costCalculator,
                 dataDefinitionTask);
+
+        PlanSanityChecker planSanityChecker = new PlanSanityChecker(true);
         Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, Optional.of(queryExplainer), preparedQuery.getParameters(), warningCollector);
-
-        LogicalPlanner logicalPlanner = new LogicalPlanner(session, optimizers, new PlanSanityChecker(true), idAllocator, metadata, sqlParser, statsCalculator, costCalculator, warningCollector);
-
         Analysis analysis = analyzer.analyze(preparedQuery.getStatement());
-        return logicalPlanner.plan(analysis, stage);
+
+        // The plan is not really cached since we are creating new instance of this each time
+        return new SqlCachingPlanner(sqlParser, optimizers, statsCalculator, costCalculator, new Duration(1, TimeUnit.HOURS), 10, planSanityChecker)
+                .getPlanAndStuff(analysis, session, warningCollector, metadata, stage)
+                .getPlan();
     }
 
     private static List<Split> getNextBatch(SplitSource splitSource)

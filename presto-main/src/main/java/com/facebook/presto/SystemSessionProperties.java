@@ -119,6 +119,7 @@ public final class SystemSessionProperties
     public static final String QUERY_SUBMIT_USER = "query_submit_user";
     public static final String PARTITION_FILTER = "enforce_partition_filter";
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
+    public static final String ENABLE_PLAN_CACHING = "enable_plan_caching";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -553,6 +554,11 @@ public final class SystemSessionProperties
                         null,
                         false),
                 booleanProperty(
+                        ENABLE_PLAN_CACHING,
+                        "Enable plan caching",
+                        featuresConfig.getPlanCacheSize() > 0,
+                        false),
+                booleanProperty(
                         PARTITION_FILTER,
                         "Enforce partition filtering",
                         featuresConfig.isPartitionFilteringEnforced(),
@@ -952,5 +958,10 @@ public final class SystemSessionProperties
     public static String getPartitionFilterTables(Session session)
     {
         return session.getSystemProperty(PARTITION_FILTER_TABLES, String.class);
+    }
+
+    public static boolean isPlanCachingEnabled(Session session)
+    {
+        return session.getSystemProperty(ENABLE_PLAN_CACHING, Boolean.class);
     }
 }

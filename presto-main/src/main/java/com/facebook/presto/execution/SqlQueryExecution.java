@@ -16,8 +16,6 @@ package com.facebook.presto.execution;
 import com.facebook.presto.Session;
 import com.facebook.presto.SystemSessionProperties;
 import com.facebook.presto.connector.ConnectorId;
-import com.facebook.presto.cost.CostCalculator;
-import com.facebook.presto.cost.StatsCalculator;
 import com.facebook.presto.execution.QueryPreparer.PreparedQuery;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.OutputBuffers;
@@ -45,18 +43,12 @@ import com.facebook.presto.sql.analyzer.Analyzer;
 import com.facebook.presto.sql.analyzer.QueryExplainer;
 import com.facebook.presto.sql.parser.SqlParser;
 import com.facebook.presto.sql.planner.DistributedExecutionPlanner;
-import com.facebook.presto.sql.planner.InputExtractor;
-import com.facebook.presto.sql.planner.LogicalPlanner;
 import com.facebook.presto.sql.planner.NodePartitioningManager;
-import com.facebook.presto.sql.planner.OutputExtractor;
 import com.facebook.presto.sql.planner.PartitioningHandle;
 import com.facebook.presto.sql.planner.Plan;
 import com.facebook.presto.sql.planner.PlanFragmenter;
-import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
-import com.facebook.presto.sql.planner.PlanOptimizers;
 import com.facebook.presto.sql.planner.StageExecutionPlan;
 import com.facebook.presto.sql.planner.SubPlan;
-import com.facebook.presto.sql.planner.optimizations.PlanOptimizer;
 import com.facebook.presto.sql.tree.Explain;
 import com.facebook.presto.transaction.TransactionManager;
 import com.google.common.collect.ImmutableSet;
@@ -71,7 +63,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
 import java.net.URI;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -84,6 +75,7 @@ import static com.facebook.presto.execution.buffer.OutputBuffers.BROADCAST_PARTI
 import static com.facebook.presto.execution.buffer.OutputBuffers.createInitialEmptyOutputBuffers;
 import static com.facebook.presto.execution.scheduler.SqlQueryScheduler.createSqlQueryScheduler;
 import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
+import static com.facebook.presto.sql.planner.LogicalPlanner.Stage.OPTIMIZED_AND_VALIDATED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Throwables.throwIfInstanceOf;
 import static io.airlift.concurrent.MoreFutures.addExceptionCallback;
@@ -105,11 +97,9 @@ public class SqlQueryExecution
 
     private final ClusterSizeMonitor clusterSizeMonitor;
     private final Metadata metadata;
-    private final SqlParser sqlParser;
     private final SplitManager splitManager;
     private final NodePartitioningManager nodePartitioningManager;
     private final NodeScheduler nodeScheduler;
-    private final List<PlanOptimizer> planOptimizers;
     private final PlanFragmenter planFragmenter;
     private final RemoteTaskFactory remoteTaskFactory;
     private final LocationFactory locationFactory;
@@ -117,6 +107,7 @@ public class SqlQueryExecution
     private final ExecutorService queryExecutor;
     private final ScheduledExecutorService schedulerExecutor;
     private final FailureDetector failureDetector;
+    private final CachingPlanner cachingPlanner;
 
     private final AtomicReference<SqlQueryScheduler> queryScheduler = new AtomicReference<>();
     private final AtomicReference<Plan> queryPlan = new AtomicReference<>();
@@ -124,8 +115,6 @@ public class SqlQueryExecution
     private final ExecutionPolicy executionPolicy;
     private final SplitSchedulerStats schedulerStats;
     private final Analysis analysis;
-    private final StatsCalculator statsCalculator;
-    private final CostCalculator costCalculator;
 
     private SqlQueryExecution(
             String query,
@@ -141,7 +130,6 @@ public class SqlQueryExecution
             SplitManager splitManager,
             NodePartitioningManager nodePartitioningManager,
             NodeScheduler nodeScheduler,
-            List<PlanOptimizer> planOptimizers,
             PlanFragmenter planFragmenter,
             RemoteTaskFactory remoteTaskFactory,
             LocationFactory locationFactory,
@@ -153,18 +141,15 @@ public class SqlQueryExecution
             QueryExplainer queryExplainer,
             ExecutionPolicy executionPolicy,
             SplitSchedulerStats schedulerStats,
-            StatsCalculator statsCalculator,
-            CostCalculator costCalculator,
-            WarningCollector warningCollector)
+            WarningCollector warningCollector,
+            CachingPlanner cachingPlanner)
     {
         try (SetThreadName ignored = new SetThreadName("Query-%s", session.getQueryId())) {
             this.clusterSizeMonitor = requireNonNull(clusterSizeMonitor, "clusterSizeMonitor is null");
             this.metadata = requireNonNull(metadata, "metadata is null");
-            this.sqlParser = requireNonNull(sqlParser, "sqlParser is null");
             this.splitManager = requireNonNull(splitManager, "splitManager is null");
             this.nodePartitioningManager = requireNonNull(nodePartitioningManager, "nodePartitioningManager is null");
             this.nodeScheduler = requireNonNull(nodeScheduler, "nodeScheduler is null");
-            this.planOptimizers = requireNonNull(planOptimizers, "planOptimizers is null");
             this.planFragmenter = requireNonNull(planFragmenter, "planFragmenter is null");
             this.locationFactory = requireNonNull(locationFactory, "locationFactory is null");
             this.queryExecutor = requireNonNull(queryExecutor, "queryExecutor is null");
@@ -173,8 +158,7 @@ public class SqlQueryExecution
             this.nodeTaskMap = requireNonNull(nodeTaskMap, "nodeTaskMap is null");
             this.executionPolicy = requireNonNull(executionPolicy, "executionPolicy is null");
             this.schedulerStats = requireNonNull(schedulerStats, "schedulerStats is null");
-            this.statsCalculator = requireNonNull(statsCalculator, "statsCalculator is null");
-            this.costCalculator = requireNonNull(costCalculator, "costCalculator is null");
+            this.cachingPlanner = requireNonNull(cachingPlanner, "cachingPlanner is null");
 
             checkArgument(scheduleSplitBatchSize > 0, "scheduleSplitBatchSize must be greater than 0");
             this.scheduleSplitBatchSize = scheduleSplitBatchSize;
@@ -420,18 +404,11 @@ public class SqlQueryExecution
         stateMachine.beginAnalysis();
 
         // plan query
-        PlanNodeIdAllocator idAllocator = new PlanNodeIdAllocator();
-        LogicalPlanner logicalPlanner = new LogicalPlanner(stateMachine.getSession(), planOptimizers, idAllocator, metadata, sqlParser, statsCalculator, costCalculator, stateMachine.getWarningCollector());
-        Plan plan = logicalPlanner.plan(analysis);
+        CachingPlanner.PlanDetails planDetails = cachingPlanner.getPlanAndStuff(analysis, stateMachine.getSession(), stateMachine.getWarningCollector(), metadata, OPTIMIZED_AND_VALIDATED);
+        Plan plan = planDetails.getPlan();
+        stateMachine.setInputs(planDetails.getInputs());
+        stateMachine.setOutput(planDetails.getOutput());
         queryPlan.set(plan);
-
-        // extract inputs
-        List<Input> inputs = new InputExtractor(metadata, stateMachine.getSession()).extractInputs(plan.getRoot());
-        stateMachine.setInputs(inputs);
-
-        // extract output
-        Optional<Output> output = new OutputExtractor().extractOutput(plan.getRoot());
-        stateMachine.setOutput(output);
 
         // fragment the plan
         SubPlan fragmentedPlan = planFragmenter.createSubPlans(stateMachine.getSession(), plan, false, stateMachine.getWarningCollector());
@@ -684,7 +661,6 @@ public class SqlQueryExecution
         private final SplitManager splitManager;
         private final NodePartitioningManager nodePartitioningManager;
         private final NodeScheduler nodeScheduler;
-        private final List<PlanOptimizer> planOptimizers;
         private final PlanFragmenter planFragmenter;
         private final RemoteTaskFactory remoteTaskFactory;
         private final TransactionManager transactionManager;
@@ -696,8 +672,7 @@ public class SqlQueryExecution
         private final NodeTaskMap nodeTaskMap;
         private final Map<String, ExecutionPolicy> executionPolicies;
         private final ClusterSizeMonitor clusterSizeMonitor;
-        private final StatsCalculator statsCalculator;
-        private final CostCalculator costCalculator;
+        private final CachingPlanner cachingPlanner;
 
         @Inject
         SqlQueryExecutionFactory(QueryManagerConfig config,
@@ -708,7 +683,6 @@ public class SqlQueryExecution
                 SplitManager splitManager,
                 NodePartitioningManager nodePartitioningManager,
                 NodeScheduler nodeScheduler,
-                PlanOptimizers planOptimizers,
                 PlanFragmenter planFragmenter,
                 RemoteTaskFactory remoteTaskFactory,
                 TransactionManager transactionManager,
@@ -720,8 +694,7 @@ public class SqlQueryExecution
                 Map<String, ExecutionPolicy> executionPolicies,
                 SplitSchedulerStats schedulerStats,
                 ClusterSizeMonitor clusterSizeMonitor,
-                StatsCalculator statsCalculator,
-                CostCalculator costCalculator)
+                CachingPlanner cachingPlanner)
         {
             requireNonNull(config, "config is null");
             this.schedulerStats = requireNonNull(schedulerStats, "schedulerStats is null");
@@ -733,7 +706,6 @@ public class SqlQueryExecution
             this.splitManager = requireNonNull(splitManager, "splitManager is null");
             this.nodePartitioningManager = requireNonNull(nodePartitioningManager, "nodePartitioningManager is null");
             this.nodeScheduler = requireNonNull(nodeScheduler, "nodeScheduler is null");
-            requireNonNull(planOptimizers, "planOptimizers is null");
             this.planFragmenter = requireNonNull(planFragmenter, "planFragmenter is null");
             this.remoteTaskFactory = requireNonNull(remoteTaskFactory, "remoteTaskFactory is null");
             this.transactionManager = requireNonNull(transactionManager, "transactionManager is null");
@@ -744,9 +716,7 @@ public class SqlQueryExecution
             this.queryExplainer = requireNonNull(queryExplainer, "queryExplainer is null");
             this.executionPolicies = requireNonNull(executionPolicies, "schedulerPolicies is null");
             this.clusterSizeMonitor = requireNonNull(clusterSizeMonitor, "clusterSizeMonitor is null");
-            this.planOptimizers = planOptimizers.get();
-            this.statsCalculator = requireNonNull(statsCalculator, "statsCalculator is null");
-            this.costCalculator = requireNonNull(costCalculator, "costCalculator is null");
+            this.cachingPlanner = requireNonNull(cachingPlanner, "cachingPlanner is null");
         }
 
         @Override
@@ -775,7 +745,6 @@ public class SqlQueryExecution
                     splitManager,
                     nodePartitioningManager,
                     nodeScheduler,
-                    planOptimizers,
                     planFragmenter,
                     remoteTaskFactory,
                     locationFactory,
@@ -787,9 +756,8 @@ public class SqlQueryExecution
                     queryExplainer,
                     executionPolicy,
                     schedulerStats,
-                    statsCalculator,
-                    costCalculator,
-                    warningCollector);
+                    warningCollector,
+                    cachingPlanner);
 
             return execution;
         }
