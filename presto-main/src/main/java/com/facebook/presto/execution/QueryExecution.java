@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -39,6 +40,8 @@ public interface QueryExecution
     QueryState getState();
 
     ListenableFuture<QueryState> getStateChange(QueryState currentState);
+
+    ListenableFuture<Optional<QueryInfo>> getFinalQueryInfoChange(Optional<QueryInfo> currentInfo);
 
     void addOutputInfoListener(Consumer<QueryOutputInfo> listener);
 

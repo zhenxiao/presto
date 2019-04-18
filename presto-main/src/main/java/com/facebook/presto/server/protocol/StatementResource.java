@@ -79,6 +79,7 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_PATH;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SCHEMA;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_STARTED_TRANSACTION_ID;
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_WAIT_FOR_ENTIRE_RESPONSE_MS;
 import static com.facebook.presto.memory.context.AggregatedMemoryContext.newSimpleAggregatedMemoryContext;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.net.HttpHeaders.X_FORWARDED_PROTO;
@@ -164,11 +165,13 @@ public class StatementResource
 
     @POST
     @Produces(MediaType.APPLICATION_JSON)
-    public Response createQuery(
+    public void createQuery(
             String statement,
             @HeaderParam(X_FORWARDED_PROTO) String proto,
+            @HeaderParam(PRESTO_WAIT_FOR_ENTIRE_RESPONSE_MS) String waitForEntireResponseMs,
             @Context HttpServletRequest servletRequest,
-            @Context UriInfo uriInfo)
+            @Context UriInfo uriInfo,
+            @Suspended AsyncResponse asyncResponse)
     {
         createQueryRequests.update(1);
 
@@ -194,7 +197,8 @@ public class StatementResource
                 .findFirst();
         if (match.isPresent()) {
             URI redirectUri = uriBuilderFrom(match.get()).replacePath("/v1/statement").build();
-            return Response.temporaryRedirect(redirectUri).build();
+            bindAsyncResponse(asyncResponse, Futures.immediateFuture(Response.temporaryRedirect(redirectUri).build()), responseExecutor);
+            return;
         }
 
         ExchangeClient exchangeClient = exchangeClientSupplier.get(new SimpleLocalMemoryContext(newSimpleAggregatedMemoryContext(), StatementResource.class.getSimpleName()));
@@ -209,8 +213,16 @@ public class StatementResource
                 blockEncodingSerde);
         queries.put(query.getQueryId(), query);
 
-        QueryResults queryResults = query.getNextResult(OptionalLong.empty(), uriInfo, proto, DEFAULT_TARGET_RESULT_SIZE);
-        return toResponse(query, queryResults);
+        if (isNullOrEmpty(waitForEntireResponseMs)) {
+            // Just respond saying that the query has been created but not yet submitted
+            Response respondImmediately = toResponse(query, query.getNextResult(OptionalLong.empty(), uriInfo, proto, DEFAULT_TARGET_RESULT_SIZE));
+            bindAsyncResponse(asyncResponse, Futures.immediateFuture(respondImmediately), responseExecutor);
+        }
+        else {
+            // Respond when the query is finally done or cancelled/timed-out within the waitForEntireResponseDuration
+            Duration waitForEntireResponseDuration = new Duration(Long.valueOf(waitForEntireResponseMs), MILLISECONDS);
+            asyncGetEntireQueryResults(query, uriInfo, proto, waitForEntireResponseDuration, asyncResponse);
+        }
     }
 
     @GET
@@ -237,6 +249,18 @@ public class StatementResource
         asyncQueryResults(query, OptionalLong.of(token), maxWait, targetResultSize, uriInfo, proto, asyncResponse);
     }
 
+    private void asyncGetEntireQueryResults(
+            Query query,
+            UriInfo uriInfo,
+            String scheme,
+            Duration timeout,
+            AsyncResponse asyncResponse)
+    {
+        ListenableFuture<QueryResults> queryResultsFuture = query.waitForEntireResults(OptionalLong.empty(), uriInfo, scheme, timeout, MAX_TARGET_RESULT_SIZE);
+        ListenableFuture<Response> response = Futures.transform(queryResultsFuture, queryResults -> toResponse(query, queryResults), directExecutor());
+        bindAsyncResponse(asyncResponse, response, responseExecutor);
+    }
+
     private void asyncQueryResults(
             Query query,
             OptionalLong token,
@@ -253,7 +277,9 @@ public class StatementResource
         else {
             targetResultSize = Ordering.natural().min(targetResultSize, MAX_TARGET_RESULT_SIZE);
         }
-        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, scheme, wait, targetResultSize);
+
+        ListenableFuture<QueryResults> queryResultsFuture;
+        queryResultsFuture = query.waitForResults(token, uriInfo, scheme, wait, targetResultSize);
 
         ListenableFuture<Response> response = Futures.transform(queryResultsFuture, queryResults -> toResponse(query, queryResults), directExecutor());
 
