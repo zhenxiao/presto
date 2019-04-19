@@ -57,7 +57,6 @@ import static com.facebook.presto.spi.StandardErrorCode.QUERY_REJECTED;
 import static com.facebook.presto.util.PropertiesUtil.loadProperties;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.base.Strings.isNullOrEmpty;
 import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -71,6 +70,7 @@ public final class InternalResourceGroupManager<C>
     private static final Logger log = Logger.get(InternalResourceGroupManager.class);
     private static final File RESOURCE_GROUPS_CONFIGURATION = new File("etc/resource-groups.properties");
     private static final String CONFIGURATION_MANAGER_PROPERTY_NAME = "resource-groups.configuration-manager";
+    private static final String CONFIGURATION_MANAGER_DISABLED = "resource-groups.disabled";
 
     private final ScheduledExecutorService refreshExecutor = newSingleThreadScheduledExecutor(daemonThreadsNamed("ResourceGroupManager"));
     private final List<RootInternalResourceGroup> rootGroups = new CopyOnWriteArrayList<>();
@@ -82,6 +82,7 @@ public final class InternalResourceGroupManager<C>
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicLong lastCpuQuotaGenerationNanos = new AtomicLong(System.nanoTime());
     private final Map<String, ResourceGroupConfigurationManagerFactory> configurationManagerFactories = new ConcurrentHashMap<>();
+    private boolean resourcesGroupsDisabled;
 
     @Inject
     public InternalResourceGroupManager(LegacyResourceGroupConfigurationManager legacyManager, ClusterMemoryPoolManager memoryPoolManager, NodeInfo nodeInfo, MBeanExporter exporter)
@@ -109,6 +110,10 @@ public final class InternalResourceGroupManager<C>
     @Override
     public void submit(Statement statement, ManagedQueryExecution queryExecution, SelectionContext<C> selectionContext, Executor executor)
     {
+        if (resourcesGroupsDisabled) {
+            executor.execute(queryExecution::start);
+            return;
+        }
         checkState(configurationManager.get() != null, "configurationManager not set");
         createGroupIfNecessary(selectionContext, executor);
         groups.get(selectionContext.getResourceGroupId()).run(queryExecution);
@@ -136,11 +141,15 @@ public final class InternalResourceGroupManager<C>
         if (RESOURCE_GROUPS_CONFIGURATION.exists()) {
             Map<String, String> properties = new HashMap<>(loadProperties(RESOURCE_GROUPS_CONFIGURATION));
 
-            String configurationManagerName = properties.remove(CONFIGURATION_MANAGER_PROPERTY_NAME);
-            checkArgument(!isNullOrEmpty(configurationManagerName),
-                    "Resource groups configuration %s does not contain %s", RESOURCE_GROUPS_CONFIGURATION.getAbsoluteFile(), CONFIGURATION_MANAGER_PROPERTY_NAME);
+            String resourceGroupsDisabledStr = properties.remove(CONFIGURATION_MANAGER_DISABLED);
+            if (resourceGroupsDisabledStr != null) {
+                this.resourcesGroupsDisabled = Boolean.valueOf(resourceGroupsDisabledStr);
+            }
 
-            setConfigurationManager(configurationManagerName, properties);
+            String configurationManagerName = properties.remove(CONFIGURATION_MANAGER_PROPERTY_NAME);
+            if (configurationManagerName != null) {
+                setConfigurationManager(configurationManagerName, properties);
+            }
         }
     }
 
