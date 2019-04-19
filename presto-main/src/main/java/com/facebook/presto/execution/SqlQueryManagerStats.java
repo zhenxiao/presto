@@ -44,6 +44,7 @@ public class SqlQueryManagerStats
     private final CounterStat consumedInputRows = new CounterStat();
     private final CounterStat consumedInputBytes = new CounterStat();
     private final CounterStat consumedCpuTimeSecs = new CounterStat();
+    private final TimeStat elapsedTime = new TimeStat(MILLISECONDS);
     private final TimeStat executionTime = new TimeStat(MILLISECONDS);
     private final TimeStat queuedTime = new TimeStat(MILLISECONDS);
     private final DistributionStat wallInputBytesRate = new DistributionStat();
@@ -83,6 +84,7 @@ public class SqlQueryManagerStats
         consumedInputBytes.update(info.getQueryStats().getRawInputDataSize().toBytes());
         consumedInputRows.update(info.getQueryStats().getRawInputPositions());
         executionTime.add(info.getQueryStats().getExecutionTime());
+        elapsedTime.add(info.getQueryStats().getElapsedTime());
         queuedTime.add(info.getQueryStats().getQueuedTime());
 
         long executionWallMillis = info.getQueryStats().getExecutionTime().toMillis();
@@ -187,6 +189,13 @@ public class SqlQueryManagerStats
     public CounterStat getConsumedCpuTimeSecs()
     {
         return consumedCpuTimeSecs;
+    }
+
+    @Managed
+    @Nested
+    public TimeStat getElapsedTime()
+    {
+        return elapsedTime;
     }
 
     @Managed
