@@ -45,12 +45,6 @@ public class TablePipelineNode
         this.rowType = requireNonNull(rowType, "rowType is null");
     }
 
-    @Override
-    public PipelineType getType()
-    {
-        return PipelineType.TABLE;
-    }
-
     @JsonProperty
     public List<ColumnHandle> getInputColumns()
     {

@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
@@ -21,15 +20,11 @@ import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
-import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.FinalLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.PartialLimitPushDown;
-import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.TwoPhaseLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.iterative.rule.test.RuleAssert;
 import com.facebook.presto.testing.TestingMetadata;
-import com.facebook.presto.testing.TestingMetadata.TestingTableHandle;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
@@ -39,8 +34,6 @@ import java.util.Optional;
 
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.strictTableScan;
-import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.LOCAL;
-import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.REMOTE;
 
 public class TestPushLimitIntoTableScan
         extends BasePushDownRuleTest
@@ -48,13 +41,6 @@ public class TestPushLimitIntoTableScan
     public TestPushLimitIntoTableScan()
     {
         super(new LimitPushDownMetadata());
-    }
-
-    @Test
-    public void pushDownLimitIntoTableScan()
-    {
-        testHelper(getTwoPhaseLimitTest(50), true);
-        testHelper(getTwoPhaseLimitTest(20000), false);
     }
 
     @Test
@@ -75,49 +61,7 @@ public class TestPushLimitIntoTableScan
     {
         // select c1, c2 from table(c1, c2) limit n (and there are multiple splits and limits (final, partial) are on each side of the exchange)
         return assertThat(partial ? new PartialLimitPushDown(tester.getMetadata()) : new FinalLimitPushDown(tester.getMetadata()))
-                .on(p -> {
-                    Symbol c1 = p.symbol("c1", INTEGER);
-                    Symbol c2 = p.symbol("c2", INTEGER);
-                    return p.limit(
-                            limit,
-                            partial,
-                            p.tableScan(
-                                    new TableHandle(
-                                            CONNECTOR_ID,
-                                            new TestingTableHandle()),
-                                    ImmutableList.of(c1, c2),
-                                    ImmutableMap.of(
-                                            c1, new TestingMetadata.TestingColumnHandle("c1", 0, INTEGER),
-                                            c2, new TestingMetadata.TestingColumnHandle("c2", 1, INTEGER))));
-                });
-    }
-
-    private RuleAssert getTwoPhaseLimitTest(long limit)
-    {
-        // select c1, c2 from table(c1, c2) limit n (and there is final limit on top of the table scan)
-        return assertThat(new TwoPhaseLimitPushDown(tester.getMetadata()))
-                .on(p -> {
-                    Symbol c1 = p.symbol("c1", INTEGER);
-                    Symbol c2 = p.symbol("c2", INTEGER);
-                    return p.limit(
-                            limit,
-                            false,
-                            p.gatheringExchange(
-                                    REMOTE,
-                                    p.gatheringExchange(
-                                            LOCAL,
-                                            p.limit(
-                                                    limit,
-                                                    true,
-                                                    p.tableScan(
-                                                            new TableHandle(
-                                                                    CONNECTOR_ID,
-                                                                    new TestingTableHandle()),
-                                                            ImmutableList.of(c1, c2),
-                                                            ImmutableMap.of(
-                                                                    c1, new TestingMetadata.TestingColumnHandle("c1", 0, INTEGER),
-                                                                    c2, new TestingMetadata.TestingColumnHandle("c2", 1, INTEGER)))))));
-                });
+                .on(p -> p.limit(limit, partial, createTestScan(p)));
     }
 
     private void testHelper(RuleAssert ruleAssert, boolean expectedPushdown)

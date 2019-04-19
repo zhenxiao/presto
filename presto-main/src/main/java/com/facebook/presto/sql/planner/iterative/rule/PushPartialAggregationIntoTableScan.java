@@ -33,6 +33,7 @@ import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.newTa
 import static com.facebook.presto.sql.planner.plan.AggregationNode.Step.PARTIAL;
 import static com.facebook.presto.sql.planner.plan.Patterns.Aggregation.groupingColumns;
 import static com.facebook.presto.sql.planner.plan.Patterns.Aggregation.step;
+import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.hasPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.aggregation;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
@@ -64,7 +65,7 @@ public class PushPartialAggregationIntoTableScan
             .with(empty(groupingColumns()))
             // Only consider aggregations without ORDER BY clause
             .matching(node -> !node.hasOrderings())
-            .with(source().matching(tableScan().capturedAs(TABLE_SCAN)));
+            .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private final Metadata metadata;
 
@@ -86,6 +87,7 @@ public class PushPartialAggregationIntoTableScan
         TypeProvider typeProvider = context.getSymbolAllocator().getTypes();
 
         Optional<AggregationPipelineNode> aggPipelineNode = convertAggregationToPushDownFormat(
+                true,
                 aggregation.getOutputSymbols(),
                 aggregation.getAggregations(),
                 aggregation.getGroupingKeys(),

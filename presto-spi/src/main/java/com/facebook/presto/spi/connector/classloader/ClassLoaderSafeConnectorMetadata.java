@@ -39,6 +39,7 @@ import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -494,6 +495,14 @@ public class ClassLoaderSafeConnectorMetadata
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
             return delegate.getNestedColumnHandles(session, tableHandle, dereferences);
+        }
+    }
+
+    @Override
+    public Optional<TableScanPipeline> convertToTableScanPipeline(ConnectorSession session, ConnectorTableHandle tableHandle, TablePipelineNode tablePipelineNode)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.convertToTableScanPipeline(session, tableHandle, tablePipelineNode);
         }
     }
 

@@ -15,10 +15,12 @@ package com.facebook.presto.sql.planner.iterative.rule.test;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.connector.ConnectorId;
+import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorHandleResolver;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
+import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
@@ -28,12 +30,18 @@ import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.pipeline.PipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.transaction.IsolationLevel;
+import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.iterative.Rule;
+import com.facebook.presto.sql.planner.plan.TableScanNode;
 import com.facebook.presto.testing.LocalQueryRunner;
 import com.facebook.presto.testing.TestingHandleResolver;
 import com.facebook.presto.testing.TestingMetadata;
+import com.facebook.presto.testing.TestingMetadata.TestingColumnHandle;
+import com.facebook.presto.testing.TestingMetadata.TestingTableHandle;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -43,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static java.util.Objects.requireNonNull;
 
@@ -65,13 +74,50 @@ public class BasePushDownRuleTest
         List<ColumnHandle> newColumnHandles = new ArrayList<>();
         int index = 0;
         for (String outputColumn : pipelineNode.getOutputColumns()) {
-            newColumnHandles.add(new TestingMetadata.TestingColumnHandle(outputColumn, index, pipelineNode.getRowType().get(index)));
+            newColumnHandles.add(new TestingColumnHandle(outputColumn, index, pipelineNode.getRowType().get(index)));
             index++;
         }
 
         existingPipeline.addPipeline(pipelineNode, newColumnHandles);
 
         return Optional.of(existingPipeline);
+    }
+
+    protected TableScanNode createTestScan(PlanBuilder planBuilder)
+    {
+        return createTestScan(planBuilder, new TestingTableHandle());
+    }
+
+    protected TableScanNode createTestScan(PlanBuilder planBuilder, ConnectorTableHandle tableHandle)
+    {
+        Symbol c1 = planBuilder.symbol("c1", INTEGER);
+        Symbol c2 = planBuilder.symbol("c2", INTEGER);
+
+        return planBuilder.tableScan(
+                new TableHandle(CONNECTOR_ID, tableHandle),
+                ImmutableList.of(c1, c2),
+                ImmutableMap.of(
+                        c1, new TestingColumnHandle("c1", 0, INTEGER),
+                        c2, new TestingColumnHandle("c2", 1, INTEGER)),
+                Optional.empty(),
+                createTestScanPipeline());
+    }
+
+    protected Optional<TableScanPipeline> createTestScanPipeline()
+    {
+        TableScanPipeline scanPipeline = new TableScanPipeline();
+
+        TablePipelineNode pipelineNode = new TablePipelineNode(
+                new TestingTableHandle(),
+                ImmutableList.of(
+                        new TestingColumnHandle("c1", 0, INTEGER),
+                        new TestingColumnHandle("c2", 1, INTEGER)),
+                ImmutableList.of("c1", "c2"),
+                ImmutableList.of(INTEGER, INTEGER));
+
+        scanPipeline.addPipeline(pipelineNode, pipelineNode.getInputColumns());
+
+        return Optional.of(scanPipeline);
     }
 
     public RuleAssert assertThat(Rule rule)

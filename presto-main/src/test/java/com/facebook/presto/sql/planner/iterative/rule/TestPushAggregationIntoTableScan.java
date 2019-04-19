@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
@@ -79,21 +78,11 @@ public class TestPushAggregationIntoTableScan
             // SQL: select count(c1) from table(c1, c2) or select sum(c1) from table(c1, c2)
             RuleAssert ruleAssert = assertThat(new PushPartialAggregationIntoTableScan(tester.getMetadata()))
                     .on(p -> {
-                        Symbol c1 = p.symbol("c1", INTEGER);
-                        Symbol c2 = p.symbol("c2", INTEGER);
                         return p.aggregation(
                                 b -> b.globalGrouping()
                                         .step(AggregationNode.Step.PARTIAL)
                                         .addAggregation(p.symbol("cnt"), pushDownExpression, ImmutableList.of(BIGINT))
-                                        .source(
-                                                p.tableScan(
-                                                        new TableHandle(
-                                                                CONNECTOR_ID,
-                                                                new TestingTableHandle(new SchemaTableName("schema", "partial"))),
-                                                        ImmutableList.of(c1, c2),
-                                                        ImmutableMap.of(
-                                                                c1, new TestingMetadata.TestingColumnHandle("c1", 0, INTEGER),
-                                                                c2, new TestingMetadata.TestingColumnHandle("c2", 1, INTEGER)))));
+                                        .source(createTestScan(p, new TestingTableHandle(new SchemaTableName("schema", "partial")))));
                     });
 
             if (expectedPushdown) {
@@ -124,16 +113,9 @@ public class TestPushAggregationIntoTableScan
                                                                         b -> (hasGroupBy ? b.singleGroupingSet(c2) : b.globalGrouping())
                                                                                 .step(AggregationNode.Step.PARTIAL)
                                                                                 .addAggregation(p.symbol("cnt"), pushDownExpression, ImmutableList.of(BIGINT))
-                                                                                .source(
-                                                                                        p.tableScan(
-                                                                                                new TableHandle(
-                                                                                                        CONNECTOR_ID,
-                                                                                                        new TestingTableHandle(new SchemaTableName("schema",
-                                                                                                                hasGroupBy ? "completewithgroupby" : "completewithnogroupby"))),
-                                                                                                ImmutableList.of(c1, c2),
-                                                                                                ImmutableMap.of(
-                                                                                                        c1, new TestingMetadata.TestingColumnHandle("c1", 0, INTEGER),
-                                                                                                        c2, new TestingMetadata.TestingColumnHandle("c2", 1, INTEGER)))))))));
+                                                                                .source(createTestScan(p,
+                                                                                        new TestingTableHandle(new SchemaTableName("schema",
+                                                                                                hasGroupBy ? "completewithgroupby" : "completewithnogroupby")))))))));
                     });
 
             if (expectedPushdown) {
@@ -154,6 +136,16 @@ public class TestPushAggregationIntoTableScan
         @Override
         public Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, AggregationPipelineNode aggregation)
         {
+            TestingTableHandle testingTableHandle = (TestingTableHandle) connectorTableHandle;
+
+            if (aggregation.isPartial() && !testingTableHandle.getTableName().getTableName().equalsIgnoreCase("partial")) {
+                return Optional.empty();
+            }
+
+            if (!aggregation.isPartial() && testingTableHandle.getTableName().getTableName().equalsIgnoreCase("partial")) {
+                return Optional.empty();
+            }
+
             for (Node node : aggregation.getNodes()) {
                 if (node.getExprType() == AGGREGATE) {
                     AggregationPipelineNode.Aggregation aggNode = (AggregationPipelineNode.Aggregation) node;

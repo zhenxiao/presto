@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.sql.planner;
 
+import com.facebook.presto.spi.pipeline.PushDownArithmeticExpression;
 import com.facebook.presto.spi.pipeline.PushDownBetweenExpression;
 import com.facebook.presto.spi.pipeline.PushDownCastExpression;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
@@ -21,6 +22,9 @@ import com.facebook.presto.spi.pipeline.PushDownInExpression;
 import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
+import com.facebook.presto.spi.pipeline.PushDownNotExpression;
+import com.facebook.presto.sql.tree.ArithmeticBinaryExpression;
+import com.facebook.presto.sql.tree.ArithmeticUnaryExpression;
 import com.facebook.presto.sql.tree.AstVisitor;
 import com.facebook.presto.sql.tree.BetweenPredicate;
 import com.facebook.presto.sql.tree.BooleanLiteral;
@@ -35,6 +39,7 @@ import com.facebook.presto.sql.tree.InListExpression;
 import com.facebook.presto.sql.tree.InPredicate;
 import com.facebook.presto.sql.tree.LogicalBinaryExpression;
 import com.facebook.presto.sql.tree.LongLiteral;
+import com.facebook.presto.sql.tree.NotExpression;
 import com.facebook.presto.sql.tree.StringLiteral;
 import com.facebook.presto.sql.tree.SymbolReference;
 
@@ -112,7 +117,18 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownInExpression(value, arguments);
+        return new PushDownInExpression(true, value, arguments);
+    }
+
+    @Override
+    protected PushDownExpression visitNotExpression(NotExpression node, Void context)
+    {
+        PushDownExpression input = this.process(node.getValue());
+        if (input == null) {
+            return null;
+        }
+
+        return new PushDownNotExpression(input);
     }
 
     @Override
@@ -213,5 +229,29 @@ public class PushDownExpressionGenerator
         }
 
         return new PushDownLogicalBinaryExpression(left, operator, right);
+    }
+
+    @Override
+    protected PushDownExpression visitArithmeticBinary(ArithmeticBinaryExpression node, Void context)
+    {
+        PushDownExpression left = this.process(node.getLeft());
+        PushDownExpression right = this.process(node.getRight());
+        String operator = node.getOperator().getValue();
+
+        if (left == null || right == null) {
+            return null;
+        }
+
+        return new PushDownArithmeticExpression(left, operator, right);
+    }
+
+    @Override
+    protected PushDownExpression visitArithmeticUnary(ArithmeticUnaryExpression node, Void context)
+    {
+        PushDownExpression right = this.process(node.getValue());
+        if (right == null) {
+            return null;
+        }
+        return new PushDownArithmeticExpression(null, node.getSign() == ArithmeticUnaryExpression.Sign.MINUS ? "-" : "+", right);
     }
 }

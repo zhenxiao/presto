@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 import static com.facebook.presto.matching.Capture.newCapture;
 import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.newTableScanWithPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.Limit.partial;
-import static com.facebook.presto.sql.planner.plan.Patterns.exchange;
+import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.hasPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.limit;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
@@ -41,20 +41,13 @@ public abstract class PushLimitIntoTableScan
 {
     private static final Capture<TableScanNode> TABLE_SCAN = newCapture();
 
-    private static final Pattern<LimitNode> TWO_PHASE_LIMIT_PATTERN = limit()
-            .with(partial().equalTo(false))
-            .with(source().matching(exchange().with(
-                    source().matching(exchange().with(
-                            source().matching(limit().with(partial().equalTo(true)).with(
-                                    source().matching(tableScan().capturedAs(TABLE_SCAN)))))))));
-
     private static final Pattern<LimitNode> PARTIAL_LIMIT_PATTERN = limit()
             .with(partial().equalTo(true))
-            .with(source().matching(tableScan().capturedAs(TABLE_SCAN)));
+            .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private static final Pattern<LimitNode> FINAL_LIMIT_PATTERN = limit()
             .with(partial().equalTo(false))
-            .with(source().matching(tableScan().capturedAs(TABLE_SCAN)));
+            .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private final Metadata metadata;
     private final Pattern<LimitNode> pattern;
@@ -93,33 +86,6 @@ public abstract class PushLimitIntoTableScan
         }
 
         return Rule.Result.empty();
-    }
-
-    /**
-     * Pushes limit that is split into two phases into the table scan.
-     *
-     * <p>
-     * From:
-     * <pre>
-     * - Limit (Partial = false)
-     *   - Exchange (Local)
-     *      - Exchange (Remote)
-     *          - Limit (Partial = true)
-     *              - TableScan
-     * </pre>
-     * To:
-     * <pre>
-     * - TableScan (with limit pushed into the scan)
-     * </pre>
-     * <p>
-     */
-    public static class TwoPhaseLimitPushDown
-            extends PushLimitIntoTableScan
-    {
-        public TwoPhaseLimitPushDown(Metadata metadata)
-        {
-            super(metadata, TWO_PHASE_LIMIT_PATTERN, false);
-        }
     }
 
     /**

@@ -23,7 +23,7 @@ import com.facebook.presto.sql.planner.plan.TableScanNode;
 
 import java.util.Optional;
 
-import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.pipeline;
+import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.hasPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
 import static java.util.Objects.requireNonNull;
 
@@ -51,7 +51,7 @@ public class GenerateTableLayoutWithPipeline
         implements Rule<TableScanNode>
 {
     private static final Pattern<TableScanNode> PATTERN = tableScan()
-            .with(pipeline().matching(t -> t != null));
+            .with(hasPipeline().matching(t -> t));
 
     private final Metadata metadata;
 

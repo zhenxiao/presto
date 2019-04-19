@@ -64,11 +64,11 @@ public class PushDownUtils
     /**
      * Convert planner based objects into connector format
      */
-    static Optional<AggregationPipelineNode> convertAggregationToPushDownFormat(List<Symbol> aggOutputSymbols, Map<Symbol, AggregationNode.Aggregation> aggregations,
+    static Optional<AggregationPipelineNode> convertAggregationToPushDownFormat(boolean isPartial, List<Symbol> aggOutputSymbols, Map<Symbol, AggregationNode.Aggregation> aggregations,
             List<Symbol> groupByKeys, List<Symbol> finalOutputSymbols, TypeProvider typeProvider)
     {
         int groupByKeyIndex = 0;
-        AggregationPipelineNode aggPipelineNode = new AggregationPipelineNode(false);
+        AggregationPipelineNode aggPipelineNode = new AggregationPipelineNode(isPartial);
         for (int fieldId = 0; fieldId < finalOutputSymbols.size(); fieldId++) {
             Symbol aggOutputSymbol = aggOutputSymbols.get(fieldId);
             Symbol finalOutputSymbol = finalOutputSymbols.get(fieldId);

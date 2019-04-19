@@ -27,6 +27,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = PushDownFunction.class, name = "function"),
         @JsonSubTypes.Type(value = PushDownInExpression.class, name = "in"),
         @JsonSubTypes.Type(value = PushDownBetweenExpression.class, name = "between"),
+        @JsonSubTypes.Type(value = PushDownNotExpression.class, name = "not"),
+        @JsonSubTypes.Type(value = PushDownArithmeticExpression.class, name = "arithmetic"),
         @JsonSubTypes.Type(value = PushDownCastExpression.class, name = "cast")})
 public abstract class PushDownExpression
 {

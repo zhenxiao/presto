@@ -28,6 +28,7 @@ import com.facebook.presto.sql.planner.iterative.Rule;
 import com.facebook.presto.sql.planner.iterative.rule.AddIntermediateAggregations;
 import com.facebook.presto.sql.planner.iterative.rule.CanonicalizeExpressions;
 import com.facebook.presto.sql.planner.iterative.rule.CreatePartialTopN;
+import com.facebook.presto.sql.planner.iterative.rule.CreateTableScanPipeline;
 import com.facebook.presto.sql.planner.iterative.rule.DesugarAtTimeZone;
 import com.facebook.presto.sql.planner.iterative.rule.DesugarCurrentPath;
 import com.facebook.presto.sql.planner.iterative.rule.DesugarCurrentUser;
@@ -75,7 +76,6 @@ import com.facebook.presto.sql.planner.iterative.rule.PushAggregationThroughOute
 import com.facebook.presto.sql.planner.iterative.rule.PushFilterIntoTableScan;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.FinalLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.PartialLimitPushDown;
-import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.TwoPhaseLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughMarkDistinct;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughOuterJoin;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughProject;
@@ -519,18 +519,28 @@ public class PlanOptimizers
                         new AddIntermediateAggregations(),
                         new RemoveRedundantIdentityProjections())));
 
+        // For Pushdowns: try pushing the complete operations into the connector. For example aggregation is divided into two operations: partial and final. Some connectors
+        // support complete aggregation pushdowns, some don't support anything and some support both. We want to pushdown the complete aggregation first and if it is not pushed
+        // down (connector didn't accept), try the partial operations in next set of rules.
         builder.add(new IterativeOptimizer(
                 ruleStats,
                 statsCalculator,
                 costCalculator,
                 ImmutableSet.of(
+                        new CreateTableScanPipeline(metadata),
                         new PushFilterIntoTableScan(metadata),
                         new PushProjectIntoTableScan(metadata),
                         new PushAggregationIntoTableScan(metadata),
-                        new PushPartialAggregationIntoTableScan(metadata),
-                        new TwoPhaseLimitPushDown(metadata),
-                        new PartialLimitPushDown(metadata),
                         new FinalLimitPushDown(metadata))));
+
+        // Partial operation pushdown rules
+        builder.add(new IterativeOptimizer(
+                ruleStats,
+                statsCalculator,
+                costCalculator,
+                ImmutableSet.of(
+                        new PushPartialAggregationIntoTableScan(metadata),
+                        new PartialLimitPushDown(metadata))));
 
         builder.add(new IterativeOptimizer(
                 ruleStats,

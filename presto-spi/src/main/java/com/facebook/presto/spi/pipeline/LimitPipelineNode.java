@@ -46,12 +46,6 @@ public class LimitPipelineNode
     }
 
     @Override
-    public PipelineType getType()
-    {
-        return partial ? PipelineType.LIMIT_PARTIAL : PipelineType.LIMIT_FINAL;
-    }
-
-    @Override
     @JsonProperty
     public List<String> getOutputColumns()
     {

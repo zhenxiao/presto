@@ -17,18 +17,36 @@ public abstract class TableScanPipelineVisitor<R, C>
 {
     public R visitNode(PipelineNode node, C context)
     {
-        throw new UnsupportedOperationException("Unsupported node type: " + node.getType());
+        throw new UnsupportedOperationException("Unsupported pipeline node: " + String.valueOf(node));
     }
 
-    public abstract R visitTableNode(TablePipelineNode table, C context);
+    public R visitTableNode(TablePipelineNode table, C context)
+    {
+        return visitNode(table, context);
+    }
 
-    public abstract R visitProjectNode(ProjectPipelineNode project, C context);
+    public R visitProjectNode(ProjectPipelineNode project, C context)
+    {
+        return visitNode(project, context);
+    }
 
-    public abstract R visitFilterNode(FilterPipelineNode filter, C context);
+    public R visitFilterNode(FilterPipelineNode filter, C context)
+    {
+        return visitNode(filter, context);
+    }
 
-    public abstract R visitAggregationNode(AggregationPipelineNode aggregation, C context);
+    public R visitAggregationNode(AggregationPipelineNode aggregation, C context)
+    {
+        return visitNode(aggregation, context);
+    }
 
-    public abstract R visitLimitNode(LimitPipelineNode limit, C context);
+    public R visitLimitNode(LimitPipelineNode limit, C context)
+    {
+        return visitNode(limit, context);
+    }
 
-    public abstract R visitSortNode(SortPipelineNode limit, C context);
+    public R visitSortNode(SortPipelineNode sort, C context)
+    {
+        return visitNode(sort, context);
+    }
 }

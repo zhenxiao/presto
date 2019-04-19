@@ -22,6 +22,7 @@ import com.facebook.presto.metadata.TableLayoutHandle;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.block.SortOrder;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.ExpressionUtils;
@@ -392,8 +393,30 @@ public class PlanBuilder
             List<Symbol> symbols,
             Map<Symbol, ColumnHandle> assignments,
             Optional<TableLayoutHandle> tableLayout,
+            Optional<TableScanPipeline> scanPipeline)
+    {
+        return tableScan(tableHandle, symbols, assignments, tableLayout, TupleDomain.all(), TupleDomain.all(), scanPipeline);
+    }
+
+    public TableScanNode tableScan(
+            TableHandle tableHandle,
+            List<Symbol> symbols,
+            Map<Symbol, ColumnHandle> assignments,
+            Optional<TableLayoutHandle> tableLayout,
             TupleDomain<ColumnHandle> currentConstraint,
             TupleDomain<ColumnHandle> enforcedConstraint)
+    {
+        return tableScan(tableHandle, symbols, assignments, tableLayout, currentConstraint, enforcedConstraint, Optional.empty());
+    }
+
+    public TableScanNode tableScan(
+            TableHandle tableHandle,
+            List<Symbol> symbols,
+            Map<Symbol, ColumnHandle> assignments,
+            Optional<TableLayoutHandle> tableLayout,
+            TupleDomain<ColumnHandle> currentConstraint,
+            TupleDomain<ColumnHandle> enforcedConstraint,
+            Optional<TableScanPipeline> scanPipeline)
     {
         return new TableScanNode(
                 idAllocator.getNextId(),
@@ -403,7 +426,7 @@ public class PlanBuilder
                 tableLayout,
                 currentConstraint,
                 enforcedConstraint,
-                Optional.empty());
+                scanPipeline);
     }
 
     public TableFinishNode tableDelete(SchemaTableName schemaTableName, PlanNode deleteSource, Symbol deleteRowId)

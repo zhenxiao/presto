@@ -29,6 +29,7 @@ import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -327,6 +328,12 @@ public interface Metadata
      * Gets the privileges for the specified table available to the given grantee
      */
     List<GrantInfo> listTablePrivileges(Session session, QualifiedTablePrefix prefix);
+
+    /**
+     * Convert the given the scan to a pipeline
+     * @return New {@link TableScanPipeline} if the connector supports scan pipeline. Otherwise empty.
+     */
+    Optional<TableScanPipeline> convertToTableScanPipeline(Session session, TableHandle tableHandle, TablePipelineNode tablePipelineNode);
 
     /**
      * Push aggregation into table scan

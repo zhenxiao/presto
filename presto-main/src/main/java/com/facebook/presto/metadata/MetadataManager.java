@@ -46,6 +46,7 @@ import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -1090,6 +1091,16 @@ public class MetadataManager
     public Map<String, Collection<ConnectorMetadata>> getCatalogsByQueryId()
     {
         return ImmutableMap.copyOf(catalogsByQueryId);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> convertToTableScanPipeline(Session session, TableHandle tableHandle, TablePipelineNode tablePipelineNode)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        ConnectorMetadata metadata = getMetadata(session, connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        return metadata.convertToTableScanPipeline(connectorSession, tableHandle.getConnectorHandle(), tablePipelineNode);
     }
 
     @Override

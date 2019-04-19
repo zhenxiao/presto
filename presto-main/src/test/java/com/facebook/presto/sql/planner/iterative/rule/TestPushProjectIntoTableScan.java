@@ -54,19 +54,11 @@ public class TestPushProjectIntoTableScan
         assertThat(new PushProjectIntoTableScan(tester.getMetadata()))
                 .on(p -> {
                     Symbol c1 = p.symbol("c1", INTEGER);
-                    Symbol c2 = p.symbol("c2", INTEGER);
                     return p.project(
                             Assignments.of(
                                     c1, c1.toSymbolReference(),
                                     p.symbol("e1", INTEGER), p.expression("fun(c2)")),
-                            p.tableScan(
-                                    new TableHandle(
-                                            CONNECTOR_ID,
-                                            new TestingTableHandle()),
-                                    ImmutableList.of(c1, c2),
-                                    ImmutableMap.of(
-                                            c1, new TestingMetadata.TestingColumnHandle("c1", 0, INTEGER),
-                                            c2, new TestingMetadata.TestingColumnHandle("c2", 1, INTEGER))));
+                            createTestScan(p));
                 })
                 .matches(
                         strictTableScan("test",

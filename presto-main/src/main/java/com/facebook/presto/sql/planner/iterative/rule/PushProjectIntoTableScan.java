@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 
 import static com.facebook.presto.matching.Capture.newCapture;
 import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.newTableScanWithPipeline;
+import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.hasPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.project;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
@@ -62,7 +63,7 @@ public class PushProjectIntoTableScan
 {
     private static final Capture<TableScanNode> TABLE_SCAN = newCapture();
     private static final Pattern<ProjectNode> PATTERN = project()
-            .with(source().matching(tableScan().capturedAs(TABLE_SCAN)));
+            .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private final Metadata metadata;
 

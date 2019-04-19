@@ -32,8 +32,6 @@ import java.util.List;
         @JsonSubTypes.Type(value = SortPipelineNode.class, name = "sort")})
 public abstract class PipelineNode
 {
-    public abstract PipelineType getType();
-
     public abstract List<String> getOutputColumns();
 
     public abstract List<Type> getRowType();
@@ -46,17 +44,5 @@ public abstract class PipelineNode
     public <R, C> R accept(TableScanPipelineVisitor<R, C> visitor, C context)
     {
         return visitor.visitNode(this, context);
-    }
-
-    enum PipelineType
-    {
-        TABLE,
-        PROJECT,
-        FILTER,
-        AGGREGATE_PARTIAL,
-        AGGREGATE_FINAL,
-        LIMIT_PARTIAL,
-        LIMIT_FINAL,
-        SORT,
     }
 }

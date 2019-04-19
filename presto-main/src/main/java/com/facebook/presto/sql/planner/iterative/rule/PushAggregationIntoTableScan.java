@@ -36,6 +36,7 @@ import static com.facebook.presto.sql.planner.plan.AggregationNode.Step.PARTIAL;
 import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.REMOTE;
 import static com.facebook.presto.sql.planner.plan.ExchangeNode.gatheringExchange;
 import static com.facebook.presto.sql.planner.plan.Patterns.Aggregation.step;
+import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.hasPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.aggregation;
 import static com.facebook.presto.sql.planner.plan.Patterns.exchange;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
@@ -75,7 +76,7 @@ public class PushAggregationIntoTableScan
                     source().matching(exchange().with(
                             source().matching(exchange().with(
                                     source().matching(aggregation().capturedAs(PARTIAL_AGGREGATION).with(step().equalTo(PARTIAL)).with(
-                                            source().matching(tableScan().capturedAs(TABLE_SCAN)))))))));
+                                            source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)))))))));
 
     private final Metadata metadata;
 
@@ -98,6 +99,7 @@ public class PushAggregationIntoTableScan
         TypeProvider typeProvider = context.getSymbolAllocator().getTypes();
 
         Optional<AggregationPipelineNode> aggPipelineNode = convertAggregationToPushDownFormat(
+                false,
                 partialAggregation.getOutputSymbols(),
                 partialAggregation.getAggregations(),
                 partialAggregation.getGroupingKeys(),

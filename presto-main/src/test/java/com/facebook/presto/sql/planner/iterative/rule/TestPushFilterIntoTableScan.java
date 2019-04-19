@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
@@ -30,13 +29,9 @@ import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
-import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.iterative.rule.test.RuleAssert;
 import com.facebook.presto.testing.TestingMetadata;
-import com.facebook.presto.testing.TestingMetadata.TestingColumnHandle;
-import com.facebook.presto.testing.TestingMetadata.TestingTableHandle;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
@@ -77,20 +72,9 @@ public class TestPushFilterIntoTableScan
     private void testHelper(String predicate, boolean expectedPushDown)
     {
         RuleAssert ruleAssert = assertThat(new PushFilterIntoTableScan(tester.getMetadata()))
-                .on(p -> {
-                    Symbol c1 = p.symbol("c1", INTEGER);
-                    Symbol c2 = p.symbol("c2", INTEGER);
-                    return p.filter(
-                            expression(predicate),
-                            p.tableScan(
-                                    new TableHandle(
-                                            CONNECTOR_ID,
-                                            new TestingTableHandle()),
-                                    ImmutableList.of(c1, c2),
-                                    ImmutableMap.of(
-                                            c1, new TestingColumnHandle("c1", 0, INTEGER),
-                                            c2, new TestingColumnHandle("c2", 1, INTEGER))));
-                });
+                .on(p ->
+                        p.filter(expression(predicate),
+                                createTestScan(p)));
 
         if (expectedPushDown) {
             ruleAssert.matches(

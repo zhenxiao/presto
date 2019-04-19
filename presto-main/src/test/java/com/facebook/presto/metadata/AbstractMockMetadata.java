@@ -28,6 +28,7 @@ import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -469,6 +470,12 @@ public abstract class AbstractMockMetadata
     public boolean catalogExists(Session session, String catalogName)
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> convertToTableScanPipeline(Session session, TableHandle tableHandle, TablePipelineNode tablePipelineNode)
+    {
+        return Optional.empty();
     }
 
     @Override

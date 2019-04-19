@@ -44,12 +44,6 @@ public class SortPipelineNode
     }
 
     @Override
-    public PipelineType getType()
-    {
-        return PipelineType.SORT;
-    }
-
-    @Override
     @JsonProperty
     public List<String> getOutputColumns()
     {

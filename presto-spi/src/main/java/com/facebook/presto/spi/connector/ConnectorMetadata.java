@@ -36,6 +36,7 @@ import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
@@ -512,6 +513,15 @@ public interface ConnectorMetadata
     default Map<NestedColumn, ColumnHandle> getNestedColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle, Collection<NestedColumn> dereferences)
     {
         return new HashMap<>();
+    }
+
+    /**
+     * Convert the given the scan to a pipeline
+     * @return New {@link TableScanPipeline} if the connector supports scan pipeline. Otherwise empty.
+     */
+    default Optional<TableScanPipeline> convertToTableScanPipeline(ConnectorSession session, ConnectorTableHandle tableHandle, TablePipelineNode tablePipelineNode)
+    {
+        return Optional.empty();
     }
 
     /**

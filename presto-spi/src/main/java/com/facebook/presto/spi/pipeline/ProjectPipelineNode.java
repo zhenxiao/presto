@@ -41,12 +41,6 @@ public class ProjectPipelineNode
     }
 
     @Override
-    public PipelineType getType()
-    {
-        return PipelineType.PROJECT;
-    }
-
-    @Override
     @JsonProperty
     public List<String> getOutputColumns()
     {

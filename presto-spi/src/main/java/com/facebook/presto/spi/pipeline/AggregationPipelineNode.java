@@ -54,12 +54,6 @@ public class AggregationPipelineNode
         nodes.add(new GroupByColumn(inputColumn, outputColumn, type));
     }
 
-    @Override
-    public PipelineType getType()
-    {
-        return partial ? PipelineType.AGGREGATE_PARTIAL : PipelineType.AGGREGATE_FINAL;
-    }
-
     @JsonProperty("nodes")
     public List<Node> getNodes()
     {

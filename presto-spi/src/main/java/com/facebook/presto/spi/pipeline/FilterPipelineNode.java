@@ -40,12 +40,6 @@ public class FilterPipelineNode
     }
 
     @Override
-    public PipelineType getType()
-    {
-        return PipelineType.FILTER;
-    }
-
-    @Override
     @JsonProperty
     public List<String> getOutputColumns()
     {

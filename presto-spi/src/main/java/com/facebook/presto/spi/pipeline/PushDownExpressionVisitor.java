@@ -35,6 +35,11 @@ public abstract class PushDownExpressionVisitor<R, C>
         return visitExpression(comparision, context);
     }
 
+    public R visitArithmeticExpression(PushDownArithmeticExpression expression, C context)
+    {
+        return visitExpression(expression, context);
+    }
+
     public R visitInExpression(PushDownInExpression in, C context)
     {
         return visitExpression(in, context);
@@ -53,5 +58,10 @@ public abstract class PushDownExpressionVisitor<R, C>
     public R visitCastExpression(PushDownCastExpression cast, C context)
     {
         return visitExpression(cast, context);
+    }
+
+    public R visitNotExpression(PushDownNotExpression not, C context)
+    {
+        return visitExpression(not, context);
     }
 }

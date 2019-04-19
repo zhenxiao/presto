@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.sql.planner;
 
+import com.facebook.presto.spi.pipeline.PushDownArithmeticExpression;
 import com.facebook.presto.spi.pipeline.PushDownBetweenExpression;
 import com.facebook.presto.spi.pipeline.PushDownCastExpression;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
@@ -21,13 +22,16 @@ import com.facebook.presto.spi.pipeline.PushDownInExpression;
 import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
+import com.facebook.presto.spi.pipeline.PushDownNotExpression;
 import com.facebook.presto.sql.tree.Expression;
-import com.facebook.presto.testing.assertions.Assert;
+import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
 import static com.facebook.presto.sql.planner.iterative.rule.test.PlanBuilder.expression;
+import static java.lang.String.format;
+import static org.testng.Assert.assertEquals;
 
 public class TestPushDownExpressionGenerator
 {
@@ -35,7 +39,7 @@ public class TestPushDownExpressionGenerator
     {
         Expression expression = expression(inputSql);
         PushDownExpression actual = new PushDownExpressionGenerator().process(expression);
-        Assert.assertEquals(actual.toString(), expected.toString());
+        assertEquals(actual.toString(), expected.toString());
     }
 
     private static PushDownExpression pdInputColumn(String column)
@@ -63,9 +67,14 @@ public class TestPushDownExpressionGenerator
         return new PushDownBetweenExpression(value, l, r);
     }
 
-    private static PushDownExpression pdIn(PushDownExpression value, PushDownExpression... inList)
+    private static PushDownExpression pdIn(boolean whiteList, PushDownExpression value, PushDownExpression... inList)
     {
-        return new PushDownInExpression(value, Arrays.asList(inList));
+        return new PushDownInExpression(whiteList, value, Arrays.asList(inList));
+    }
+
+    private static PushDownExpression pdNot(PushDownExpression input)
+    {
+        return new PushDownNotExpression(input);
     }
 
     private static PushDownExpression pdLogicalBinary(PushDownExpression left, String op, PushDownExpression right)
@@ -78,6 +87,11 @@ public class TestPushDownExpressionGenerator
         return new PushDownCastExpression(input, type);
     }
 
+    private static PushDownExpression pdArith(PushDownExpression left, String op, PushDownExpression right)
+    {
+        return new PushDownArithmeticExpression(left, op, right);
+    }
+
     @Test
     public void testAll()
     {
@@ -86,8 +100,12 @@ public class TestPushDownExpressionGenerator
         test("fun(1, b)", pdFunction("fun", pdLiteral(1L), pdInputColumn("b")));
 
         // IN list
-        test("col in (1, 2, 3)", pdIn(pdInputColumn("col"), pdLiteral(1L), pdLiteral(2L), pdLiteral(3L)));
-        test("col in ('val1', 'val2', 'val3')", pdIn(pdInputColumn("col"), pdLiteral("val1"), pdLiteral("val2"), pdLiteral("val3")));
+        test("col in (1, 2, 3)", pdIn(true, pdInputColumn("col"), pdLiteral(1L), pdLiteral(2L), pdLiteral(3L)));
+        test("col in ('val1', 'val2', 'val3')", pdIn(true, pdInputColumn("col"), pdLiteral("val1"), pdLiteral("val2"), pdLiteral("val3")));
+
+        // NOT IN
+        test("col not in (1, 2, 3)", pdNot(pdIn(true, pdInputColumn("col"), pdLiteral(1L), pdLiteral(2L), pdLiteral(3L))));
+        test("col not in ('val1', 'val2', 'val3')", pdNot(pdIn(true, pdInputColumn("col"), pdLiteral("val1"), pdLiteral("val2"), pdLiteral("val3"))));
 
         // logical binary
         test("a and b", pdLogicalBinary(pdInputColumn("a"), "AND", pdInputColumn("b")));
@@ -95,6 +113,17 @@ public class TestPushDownExpressionGenerator
 
         // between
         test("a between 234 and 235", pdBetween(pdInputColumn("a"), pdLiteral(234L), pdLiteral(235L)));
+
+        // arithmetic (two operands)
+        for (String op : ImmutableList.of("+", "-", "*", "/")) {
+            test(format("a %s b", op), pdArith(pdInputColumn("a"), op, pdInputColumn("b")));
+            test(format("a %s 1", op), pdArith(pdInputColumn("a"), op, pdLiteral(1L)));
+            test(format("2 %s b", op), pdArith(pdLiteral(2L), op, pdInputColumn("b")));
+            test(format("2 %s 4", op), pdArith(pdLiteral(2L), op, pdLiteral(4L)));
+        }
+
+        // arithmetic unary operator
+        test("-1", pdArith(null, "-", pdLiteral(1L)));
 
         // combination
         test("fun(a) and fun(b) or log(1) = 23",
@@ -107,8 +136,8 @@ public class TestPushDownExpressionGenerator
                 pdFunction("date_trunc",
                         pdLiteral("hour"),
                         pdCast(pdFunction(
-                                        "from_unixtime",
-                                        pdInputColumn("secondssinceepoch")),
+                                "from_unixtime",
+                                pdInputColumn("secondssinceepoch")),
                                 "timestamp")));
     }
 }

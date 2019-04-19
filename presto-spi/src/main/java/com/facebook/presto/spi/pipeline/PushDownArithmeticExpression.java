@@ -16,9 +16,7 @@ package com.facebook.presto.spi.pipeline;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import static java.util.Objects.requireNonNull;
-
-public class PushDownLogicalBinaryExpression
+public class PushDownArithmeticExpression
         extends PushDownExpression
 {
     private final PushDownExpression left;
@@ -26,14 +24,11 @@ public class PushDownLogicalBinaryExpression
     private final PushDownExpression right;
 
     @JsonCreator
-    public PushDownLogicalBinaryExpression(
-            @JsonProperty("left") PushDownExpression left,
-            @JsonProperty("operator") String operator,
-            @JsonProperty("right") PushDownExpression right)
+    public PushDownArithmeticExpression(PushDownExpression left, String operator, PushDownExpression right)
     {
-        this.operator = requireNonNull(operator, "operator is null");
-        this.left = requireNonNull(left, "left is null");
-        this.right = requireNonNull(right, "right is null");
+        this.operator = operator;
+        this.left = left;
+        this.right = right;
     }
 
     @JsonProperty
@@ -57,12 +52,13 @@ public class PushDownLogicalBinaryExpression
     @Override
     public String toString()
     {
-        return "(" + left + " " + operator + " " + right + ")";
+        // This should be only used for debugging
+        return String.format("(%s) %s (%s)", left, operator, right);
     }
 
     @Override
     public <R, C> R accept(PushDownExpressionVisitor<R, C> visitor, C context)
     {
-        return visitor.visitLogicalBinary(this, context);
+        return visitor.visitArithmeticExpression(this, context);
     }
 }

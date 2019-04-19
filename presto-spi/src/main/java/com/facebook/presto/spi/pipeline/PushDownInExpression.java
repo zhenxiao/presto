@@ -25,16 +25,25 @@ import static java.util.Objects.requireNonNull;
 public class PushDownInExpression
         extends PushDownExpression
 {
+    private final boolean isWhiteList;
     private final PushDownExpression value;
     private final List<PushDownExpression> arguments;
 
     @JsonCreator
     public PushDownInExpression(
+            @JsonProperty("isWhiteList") boolean isWhiteList,
             @JsonProperty("value") PushDownExpression value,
             @JsonProperty("arguments") List<PushDownExpression> arguments)
     {
+        this.isWhiteList = isWhiteList;
         this.value = requireNonNull(value, "value is null");
         this.arguments = requireNonNull(arguments, "arguments is null");
+    }
+
+    @JsonProperty
+    public boolean isWhiteList()
+    {
+        return isWhiteList;
     }
 
     @JsonProperty
@@ -52,7 +61,7 @@ public class PushDownInExpression
     @Override
     public String toString()
     {
-        return value + " IN " + "(" + arguments.stream().map(a -> a.toString()).collect(Collectors.joining(", ")) + ")";
+        return value + (isWhiteList ? " IN " : " NOT IN ") + "(" + arguments.stream().map(a -> a.toString()).collect(Collectors.joining(", ")) + ")";
     }
 
     @Override
