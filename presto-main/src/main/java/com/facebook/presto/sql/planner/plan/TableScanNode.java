@@ -55,6 +55,8 @@ public class TableScanNode
 
     private final TupleDomain<ColumnHandle> enforcedConstraint;
 
+    private final TupleDomain<? extends ColumnHandle> compactEffectiveConstraint;
+
     @JsonCreator
     public TableScanNode(
             @JsonProperty("id") PlanNodeId id,
@@ -74,6 +76,7 @@ public class TableScanNode
         this.currentConstraint = null;
         this.enforcedConstraint = null;
         this.scanPipeline = scanPipeline;
+        this.compactEffectiveConstraint = null;
     }
 
     public TableScanNode(
@@ -95,6 +98,20 @@ public class TableScanNode
             TupleDomain<ColumnHandle> enforcedConstraint,
             Optional<TableScanPipeline> scanPipeline)
     {
+        this(id, table, outputs, assignments, tableLayout, currentConstraint, enforcedConstraint, TupleDomain.all(), scanPipeline);
+    }
+
+    public TableScanNode(
+            PlanNodeId id,
+            TableHandle table,
+            List<Symbol> outputs,
+            Map<Symbol, ColumnHandle> assignments,
+            Optional<TableLayoutHandle> tableLayout,
+            TupleDomain<ColumnHandle> currentConstraint,
+            TupleDomain<ColumnHandle> enforcedConstraint,
+            TupleDomain<? extends ColumnHandle> compactEffectiveConstraint,
+            Optional<TableScanPipeline> scanPipeline)
+    {
         super(id);
         this.table = requireNonNull(table, "table is null");
         this.outputSymbols = ImmutableList.copyOf(requireNonNull(outputs, "outputs is null"));
@@ -107,6 +124,7 @@ public class TableScanNode
             checkArgument(tableLayout.isPresent(), "tableLayout must be present when currentConstraint or enforcedConstraint is non-trivial");
         }
         this.scanPipeline = scanPipeline;
+        this.compactEffectiveConstraint = requireNonNull(compactEffectiveConstraint, "compactEffectiveConstraint is null");
     }
 
     @JsonProperty("table")
@@ -186,6 +204,12 @@ public class TableScanNode
         newScanPipeline.addPipeline(tablePipelineNode, outputSymbols.stream().map(s -> assignments.get(s)).collect(Collectors.toList()));
 
         return newScanPipeline;
+    }
+
+    public TupleDomain<? extends ColumnHandle> getCompactEffectiveConstraint()
+    {
+        checkState(compactEffectiveConstraint != null, "compactEffectiveConstraint should only be used in planner. It is not transported to workers.");
+        return compactEffectiveConstraint;
     }
 
     @Override

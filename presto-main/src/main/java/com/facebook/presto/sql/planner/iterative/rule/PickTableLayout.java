@@ -321,6 +321,7 @@ public class PickTableLayout
                             Optional.of(layout.getLayout().getHandle()),
                             layout.getLayout().getPredicate(),
                             computeEnforced(newDomain, layout.getUnenforcedConstraint()),
+                            layout.getLayout().getCompactEffectivePredicate(),
                             Optional.empty());
 
                     // The order of the arguments to combineConjuncts matters:

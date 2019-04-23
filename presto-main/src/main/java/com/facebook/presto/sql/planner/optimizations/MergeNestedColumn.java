@@ -179,7 +179,7 @@ public class MergeNestedColumn
             ImmutableMap<Symbol, ColumnHandle> nestedColumnsMap = columnHandleBuilder.build();
 
             TableScanNode newTableScan = new TableScanNode(idAllocator.getNextId(), tableScanNode.getTable(), ImmutableList.copyOf(nestedColumnsMap.keySet()), nestedColumnsMap,
-                    tableScanNode.getLayout(), tableScanNode.getCurrentConstraint(), tableScanNode.getEnforcedConstraint(), Optional.empty());
+                    tableScanNode.getLayout(), tableScanNode.getCurrentConstraint(), tableScanNode.getEnforcedConstraint(), tableScanNode.getCompactEffectiveConstraint(), Optional.empty());
 
             Rewriter rewriter = new Rewriter(symbolExpressionBuilder.build());
             Map<Symbol, Expression> assignments = node.getAssignments().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> ExpressionTreeRewriter.rewriteWith(rewriter, entry.getValue())));

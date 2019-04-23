@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.event;
 
+import com.facebook.presto.Session;
 import com.facebook.presto.SessionRepresentation;
 import com.facebook.presto.client.NodeVersion;
 import com.facebook.presto.connector.ConnectorId;
@@ -162,7 +163,7 @@ public class QueryMonitor
                         ImmutableList.of(),
                         Optional.empty()),
                 createQueryContext(queryInfo.getSession(), queryInfo.getResourceGroupId()),
-                new QueryIOMetadata(ImmutableList.of(), Optional.empty()),
+                new QueryIOMetadata(ImmutableList.of(), Optional.empty(), ImmutableList.of()),
                 createQueryFailureInfo(failure, Optional.empty()),
                 ImmutableList.of(),
                 ofEpochMilli(queryInfo.getQueryStats().getCreateTime().getMillis()),
@@ -180,7 +181,7 @@ public class QueryMonitor
                         createQueryMetadata(queryInfo),
                         createQueryStatistics(queryInfo),
                         createQueryContext(queryInfo.getSession(), queryInfo.getResourceGroupId()),
-                        getQueryIOMetadata(queryInfo),
+                        getQueryIOMetadata(queryInfo, functionManager, queryInfo.getSession().toSession(sessionPropertyManager)),
                         createQueryFailureInfo(queryInfo.getFailureInfo(), queryInfo.getOutputStage()),
                         queryInfo.getWarnings(),
                         ofEpochMilli(queryStats.getCreateTime().getMillis()),
@@ -277,7 +278,7 @@ public class QueryMonitor
         return Optional.empty();
     }
 
-    private static QueryIOMetadata getQueryIOMetadata(QueryInfo queryInfo)
+    private static QueryIOMetadata getQueryIOMetadata(QueryInfo queryInfo, FunctionManager functionManager, Session session)
     {
         ImmutableList.Builder<QueryInputMetadata> inputs = ImmutableList.builder();
         for (Input input : queryInfo.getInputs()) {
@@ -291,8 +292,6 @@ public class QueryMonitor
         }
 
         Optional<QueryOutputMetadata> output = Optional.empty();
-        Optional<String> plan = Optional.empty();
-        ImmutableList.Builder<String> predicates = ImmutableList.builder();
         if (queryInfo.getOutput().isPresent()) {
             Optional<TableFinishInfo> tableFinishInfo = queryInfo.getQueryStats().getOperatorSummaries().stream()
                     .map(OperatorStats::getInfo)
@@ -308,7 +307,12 @@ public class QueryMonitor
                             tableFinishInfo.map(TableFinishInfo::getConnectorOutputMetadata),
                             tableFinishInfo.map(TableFinishInfo::isJsonLengthLimitExceeded)));
         }
-        return new QueryIOMetadata(inputs.build(), output);
+        ImmutableList.Builder<String> predicateBuilder = ImmutableList.builder();
+        if (queryInfo.getOutputStage().isPresent()) {
+            PredicateFormatter.getColumnPredicates(queryInfo.getOutputStage().get(), functionManager, session).forEach(predicateBuilder::add);
+        }
+        ImmutableList<String> predicates = predicateBuilder.build();
+        return new QueryIOMetadata(inputs.build(), output, predicates);
     }
 
     private Optional<QueryFailureInfo> createQueryFailureInfo(ExecutionFailureInfo failureInfo, Optional<StageInfo> outputStage)

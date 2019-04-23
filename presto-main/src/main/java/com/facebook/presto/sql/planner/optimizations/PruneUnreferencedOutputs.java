@@ -430,6 +430,7 @@ public class PruneUnreferencedOutputs
                     node.getLayout(),
                     node.getCurrentConstraint(),
                     node.getEnforcedConstraint(),
+                    node.getCompactEffectiveConstraint(),
                     Optional.empty());
         }
 

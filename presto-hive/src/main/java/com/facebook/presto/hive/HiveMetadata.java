@@ -1706,6 +1706,7 @@ public class HiveMetadata
                 hiveLayoutHandle,
                 Optional.empty(),
                 predicate,
+                hiveLayoutHandle.getCompactEffectivePredicate(),
                 tablePartitioning,
                 Optional.empty(),
                 discretePredicates,

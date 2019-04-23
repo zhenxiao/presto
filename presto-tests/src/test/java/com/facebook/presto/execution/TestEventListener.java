@@ -127,14 +127,14 @@ public class TestEventListener
         // We expect the following events
         // QueryCreated: 1, QueryCompleted: 1, Splits: SPLITS_PER_NODE (leaf splits) + LocalExchange[SINGLE] split + Aggregation/Output split
         int expectedEvents = 1 + 1 + SPLITS_PER_NODE + 1 + 1;
-        runQueryAndWaitForEvents("SELECT sum(linenumber) FROM lineitem", expectedEvents);
+        runQueryAndWaitForEvents("SELECT sum(linenumber) FROM lineitem WHERE linenumber = 7 or (linenumber > 10 and linenumber != 15)", expectedEvents);
 
         QueryCreatedEvent queryCreatedEvent = getOnlyElement(generatedEvents.getQueryCreatedEvents());
         assertEquals(queryCreatedEvent.getContext().getServerVersion(), "testversion");
         assertEquals(queryCreatedEvent.getContext().getServerAddress(), "127.0.0.1");
         assertEquals(queryCreatedEvent.getContext().getEnvironment(), "testing");
         assertEquals(queryCreatedEvent.getContext().getClientInfo().get(), "{\"clientVersion\":\"testVersion\"}");
-        assertEquals(queryCreatedEvent.getMetadata().getQuery(), "SELECT sum(linenumber) FROM lineitem");
+        assertEquals(queryCreatedEvent.getMetadata().getQuery(), "SELECT sum(linenumber) FROM lineitem WHERE linenumber = 7 or (linenumber > 10 and linenumber != 15)");
 
         QueryCompletedEvent queryCompletedEvent = getOnlyElement(generatedEvents.getQueryCompletedEvents());
         assertTrue(queryCompletedEvent.getContext().getResourceGroupId().isPresent());
@@ -145,7 +145,31 @@ public class TestEventListener
         assertEquals(getOnlyElement(queryCompletedEvent.getIoMetadata().getInputs()).getCatalogName(), "tpch");
         assertEquals(queryCreatedEvent.getMetadata().getQueryId(), queryCompletedEvent.getMetadata().getQueryId());
         assertEquals(queryCompletedEvent.getStatistics().getCompletedSplits(), SPLITS_PER_NODE + 2);
-
+        assertEquals(queryCompletedEvent.getIoMetadata().getColumnDomains().size(), 1);
+        String expectedPredicate = "{\n" +
+                "  \"tableHandle\" : {\n" +
+                "    \"tableName\" : \"lineitem\",\n" +
+                "    \"scaleFactor\" : 0.01\n" +
+                "  },\n" +
+                "  \"columnHandle\" : {\n" +
+                "    \"columnName\" : \"linenumber\",\n" +
+                "    \"type\" : \"integer\"\n" +
+                "  },\n" +
+                "  \"predicates\" : [ {\n" +
+                "    \"singleValue\" : \"7\"\n" +
+                "  }, {\n" +
+                "    \"rangeValue\" : {\n" +
+                "      \"min\" : \"10\",\n" +
+                "      \"max\" : \"15\"\n" +
+                "    }\n" +
+                "  }, {\n" +
+                "    \"rangeValue\" : {\n" +
+                "      \"min\" : \"15\",\n" +
+                "      \"max\" : \"MAX_INFINITY\"\n" +
+                "    }\n" +
+                "  } ]\n" +
+                "}";
+        assertEquals(queryCompletedEvent.getIoMetadata().getColumnDomains().get(0), expectedPredicate);
         List<SplitCompletedEvent> splitCompletedEvents = generatedEvents.getSplitCompletedEvents();
         assertEquals(splitCompletedEvents.size(), SPLITS_PER_NODE + 2); // leaf splits + aggregation split
 

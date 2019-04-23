@@ -69,6 +69,11 @@ public class TableLayout
         return handle;
     }
 
+    public TupleDomain<? extends ColumnHandle> getCompactEffectivePredicate()
+    {
+        return layout.getCompactEffectivePredicate();
+    }
+
     public Optional<TablePartitioning> getTablePartitioning()
     {
         return layout.getTablePartitioning()

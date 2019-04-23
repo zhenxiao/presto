@@ -28,6 +28,8 @@ public class ConnectorTableLayout
     private final ConnectorTableLayoutHandle handle;
     private final Optional<List<ColumnHandle>> columns;
     private final TupleDomain<ColumnHandle> predicate;
+
+    private final TupleDomain<? extends ColumnHandle> compactEffectivePredicate;
     private final Optional<ConnectorTablePartitioning> tablePartitioning;
     private final Optional<Set<ColumnHandle>> streamPartitioningColumns;
     private final Optional<DiscretePredicates> discretePredicates;
@@ -37,6 +39,7 @@ public class ConnectorTableLayout
     {
         this(handle,
                 Optional.empty(),
+                TupleDomain.all(),
                 TupleDomain.all(),
                 Optional.empty(),
                 Optional.empty(),
@@ -53,11 +56,32 @@ public class ConnectorTableLayout
             Optional<DiscretePredicates> discretePredicates,
             List<LocalProperty<ColumnHandle>> localProperties)
     {
+        this(handle,
+                columns,
+                predicate,
+                TupleDomain.all(),
+                tablePartitioning,
+                streamPartitioningColumns,
+                discretePredicates,
+                localProperties);
+    }
+
+    public ConnectorTableLayout(
+            ConnectorTableLayoutHandle handle,
+            Optional<List<ColumnHandle>> columns,
+            TupleDomain<ColumnHandle> predicate,
+            TupleDomain<? extends ColumnHandle> compactEffectivePredicate,
+            Optional<ConnectorTablePartitioning> tablePartitioning,
+            Optional<Set<ColumnHandle>> streamPartitioningColumns,
+            Optional<DiscretePredicates> discretePredicates,
+            List<LocalProperty<ColumnHandle>> localProperties)
+    {
         requireNonNull(handle, "handle is null");
         requireNonNull(columns, "columns is null");
         requireNonNull(streamPartitioningColumns, "partitioningColumns is null");
         requireNonNull(tablePartitioning, "tablePartitioning is null");
         requireNonNull(predicate, "predicate is null");
+        requireNonNull(compactEffectivePredicate, "compactEffectivePredicate is null");
         requireNonNull(discretePredicates, "discretePredicates is null");
         requireNonNull(localProperties, "localProperties is null");
 
@@ -66,6 +90,7 @@ public class ConnectorTableLayout
         this.tablePartitioning = tablePartitioning;
         this.streamPartitioningColumns = streamPartitioningColumns;
         this.predicate = predicate;
+        this.compactEffectivePredicate = compactEffectivePredicate;
         this.discretePredicates = discretePredicates;
         this.localProperties = localProperties;
     }
@@ -93,6 +118,14 @@ public class ConnectorTableLayout
     public TupleDomain<ColumnHandle> getPredicate()
     {
         return predicate;
+    }
+
+    /**
+     * A TupleDomain that represents a predicate that pushed down to Reader
+     */
+    public TupleDomain<? extends ColumnHandle> getCompactEffectivePredicate()
+    {
+        return compactEffectivePredicate;
     }
 
     /**

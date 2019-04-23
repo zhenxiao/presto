@@ -244,6 +244,7 @@ public class TpchMetadata
                 new TpchTableLayoutHandle(tableHandle, predicate),
                 Optional.empty(),
                 predicate, // TODO: conditionally return well-known properties (e.g., orderkey > 0, etc)
+                unenforcedConstraint, // TODO: Hack !!! use unenforcedConstraint as pushdown predicates for testing in TestEventListener
                 tablePartitioning,
                 partitioningColumns,
                 Optional.empty(),

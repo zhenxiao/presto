@@ -1189,7 +1189,7 @@ public class PlanPrinter
         }
     }
 
-    private static String castToVarchar(Type type, Object value, FunctionManager functionManager, Session session)
+    public static String castToVarchar(Type type, Object value, FunctionManager functionManager, Session session)
     {
         if (value == null) {
             return "NULL";
