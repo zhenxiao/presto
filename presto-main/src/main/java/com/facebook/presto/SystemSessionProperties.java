@@ -120,6 +120,7 @@ public final class SystemSessionProperties
     public static final String PARTITION_FILTER = "enforce_partition_filter";
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
     public static final String ENABLE_PLAN_CACHING = "enable_plan_caching";
+    public static final String NESTED_COLUMN_PUSHDOWN = "nested_column_pushdown";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -567,7 +568,12 @@ public final class SystemSessionProperties
                         PARTITION_FILTER_TABLES,
                         "tables to enforce partition filtering",
                         featuresConfig.getPartitionFilteringTables(),
-                        true));
+                        true),
+                booleanProperty(
+                        NESTED_COLUMN_PUSHDOWN,
+                        "enable nested column pushdown",
+                        featuresConfig.isNestedColumnPushdown(),
+                        false));
     }
 
     public List<PropertyMetadata<?>> getSessionProperties()
@@ -963,5 +969,10 @@ public final class SystemSessionProperties
     public static boolean isPlanCachingEnabled(Session session)
     {
         return session.getSystemProperty(ENABLE_PLAN_CACHING, Boolean.class);
+    }
+
+    public static boolean isNestedColumnPushdown(Session session)
+    {
+        return session.getSystemProperty(NESTED_COLUMN_PUSHDOWN, Boolean.class);
     }
 }

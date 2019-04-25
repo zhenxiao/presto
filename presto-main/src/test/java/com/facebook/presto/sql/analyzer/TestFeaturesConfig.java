@@ -112,7 +112,8 @@ public class TestFeaturesConfig
                 .setPartitionFilteringEnforced(false)
                 .setPlanCacheDuration(new Duration(10, MINUTES))
                 .setPlanCacheSize(0)
-                .setPartitionFilteringTables(""));
+                .setPartitionFilteringTables("")
+                .setNestedColumnPushdown(true));
     }
 
     @Test
@@ -185,6 +186,7 @@ public class TestFeaturesConfig
                 .put("plancaching.plan-cache-size", "10")
                 .put("plancaching.plan-cache-duration", "20m")
                 .put("optimizer.partition-filtering-tables", "dwh.a:hdrone.b")
+                .put("optimizer.nested-column-pushdown", "false")
                 .build();
 
         FeaturesConfig expected = new FeaturesConfig()
@@ -253,7 +255,8 @@ public class TestFeaturesConfig
                 .setPartitionFilteringEnforced(true)
                 .setPlanCacheDuration(new Duration(20 * 60, SECONDS))
                 .setPlanCacheSize(10)
-                .setPartitionFilteringTables("dwh.a:hdrone.b");
+                .setPartitionFilteringTables("dwh.a:hdrone.b")
+                .setNestedColumnPushdown(false);
         assertFullMapping(properties, expected);
     }
 

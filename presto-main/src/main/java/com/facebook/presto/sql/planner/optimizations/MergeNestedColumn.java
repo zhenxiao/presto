@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.planner.optimizations;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.SystemSessionProperties;
 import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.TableHandle;
@@ -73,7 +74,10 @@ public class MergeNestedColumn
     @Override
     public PlanNode optimize(PlanNode plan, Session session, TypeProvider types, SymbolAllocator symbolAllocator, PlanNodeIdAllocator idAllocator, WarningCollector warningCollector)
     {
-        return SimplePlanRewriter.rewriteWith(new Optimizer(session, symbolAllocator, idAllocator, metadata, sqlParser, warningCollector), plan);
+        if (SystemSessionProperties.isNestedColumnPushdown(session)) {
+            return SimplePlanRewriter.rewriteWith(new Optimizer(session, symbolAllocator, idAllocator, metadata, sqlParser, warningCollector), plan);
+        }
+        return plan;
     }
 
     public static boolean prefixExist(Expression expression, final Set<Expression> allDereferences)
