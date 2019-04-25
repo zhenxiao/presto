@@ -152,6 +152,12 @@
         </artifact>
     </artifactSet>
 
+    <artifactSet to="plugin/aresdb">
+        <artifact id="${project.groupId}:presto-aresdb:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
     <artifactSet to="plugin/redis">
         <artifact id="${project.groupId}:presto-redis:zip:${project.version}">
             <unpack />
