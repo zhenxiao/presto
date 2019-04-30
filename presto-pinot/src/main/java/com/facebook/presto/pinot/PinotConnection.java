@@ -15,7 +15,6 @@ package com.facebook.presto.pinot;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -26,6 +25,7 @@ import io.airlift.log.Logger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class PinotConnection
@@ -44,14 +44,7 @@ public class PinotConnection
         final long cacheExpiryMs = pinotConfig.getMetadataCacheExpiry().roundTo(TimeUnit.MILLISECONDS);
 
         this.allTablesCache = Suppliers.memoizeWithExpiration(
-                () -> {
-                    try {
-                        return pinotClusterInfoFetcher.getAllTables();
-                    }
-                    catch (Exception e) {
-                        throw Throwables.propagate(e);
-                    }
-                },
+                () -> pinotClusterInfoFetcher.getAllTables(),
                 cacheExpiryMs,
                 TimeUnit.MILLISECONDS);
 
@@ -127,15 +120,18 @@ public class PinotConnection
     }
 
     public List<String> getTableNames()
-            throws Exception
     {
         return allTablesCache.get();
     }
 
     public PinotTable getTable(String tableName)
-            throws Exception
     {
-        return pinotTableCache.get(tableName);
+        try {
+            return pinotTableCache.get(tableName);
+        }
+        catch (Exception e) {
+            throw new PinotException(PinotErrorCode.PINOT_UNCLASSIFIED_ERROR, Optional.empty(), "Error when getting table " + tableName, e);
+        }
     }
 
     private List<PinotColumn> getPinotColumnsForTable(String tableName)

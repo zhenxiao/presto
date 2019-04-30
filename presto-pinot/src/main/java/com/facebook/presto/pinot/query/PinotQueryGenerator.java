@@ -56,33 +56,43 @@ public class PinotQueryGenerator
     {
     }
 
-    public static GeneratedPql generate(TableScanPipeline scanPipeline, Optional<List<PinotColumnHandle>> columnHandles, Optional<String> tableNameSuffix,
+    public static GeneratedPql generateForSingleBrokerRequest(TableScanPipeline scanPipeline, Optional<List<PinotColumnHandle>> columnHandles, Optional<PinotConfig> pinotConfig)
+    {
+        return generateHelper(scanPipeline, columnHandles, new PinotPushDownPipelineConverter(Optional.empty(), Optional.empty()), pinotConfig, true);
+    }
+
+    public static GeneratedPql generateForSegmentSplits(TableScanPipeline scanPipeline, Optional<String> tableNameSuffix,
             Optional<String> timeBoundaryFilter, Optional<PinotConfig> pinotConfig)
     {
-        PinotQueryGeneratorContext context = null;
+        return generateHelper(scanPipeline, Optional.empty(), new PinotPushDownPipelineConverter(tableNameSuffix, timeBoundaryFilter), pinotConfig, false);
+    }
 
-        PinotPushDownPipelineConverter visitor = new PinotPushDownPipelineConverter(tableNameSuffix, timeBoundaryFilter);
+    private static GeneratedPql generateHelper(TableScanPipeline scanPipeline, Optional<List<PinotColumnHandle>> columnHandles, PinotPushDownPipelineConverter visitor, Optional<PinotConfig> pinotConfig, boolean forBrokerPageResource)
+    {
+        PinotQueryGeneratorContext context = null;
 
         for (PipelineNode node : scanPipeline.getPipelineNodes()) {
             context = node.accept(visitor, context);
         }
 
-        return context.toQuery(columnHandles, pinotConfig);
+        return context.toQuery(columnHandles, pinotConfig, forBrokerPageResource);
     }
 
-    public static String generatePQL(TableScanPipeline scanPipeline)
+    public static String generatePQL(TableScanPipeline scanPipeline, Optional<PinotConfig> pinotConfig)
     {
-        return generate(scanPipeline, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()).getPql();
+        return generateForSegmentSplits(scanPipeline, Optional.empty(), Optional.empty(), pinotConfig).getPql();
     }
 
     public static class GeneratedPql
     {
+        final String table;
         final String pql;
         final Optional<List<Integer>> columnIndicesExpected;
         final int numGroupByClauses;
 
-        public GeneratedPql(String pql, Optional<List<Integer>> columnIndicesExpected, int numGroupByClauses)
+        public GeneratedPql(String table, String pql, Optional<List<Integer>> columnIndicesExpected, int numGroupByClauses)
         {
+            this.table = table;
             this.pql = pql;
             this.columnIndicesExpected = columnIndicesExpected;
             this.numGroupByClauses = numGroupByClauses;
@@ -103,11 +113,17 @@ public class PinotQueryGenerator
             return numGroupByClauses;
         }
 
+        public String getTable()
+        {
+            return table;
+        }
+
         @Override
         public String toString()
         {
             return toStringHelper(this)
                     .add("pql", pql)
+                    .add("table", table)
                     .add("columnIndicesExpected", columnIndicesExpected)
                     .add("numGroupByClauses", numGroupByClauses)
                     .toString();
@@ -211,9 +227,8 @@ public class PinotQueryGenerator
 
             LinkedHashMap<String, Selection> newSelections = new LinkedHashMap<>();
             List<String> groupByColumns = new ArrayList<>();
+            int numAggregations = 0;
 
-            boolean groupByExists = false;
-            int numberOfAggregations = 0;
             for (AggregationPipelineNode.Node expr : aggregation.getNodes()) {
                 switch (expr.getExprType()) {
                     case GROUP_BY: {
@@ -223,14 +238,13 @@ public class PinotQueryGenerator
 
                         groupByColumns.add(pinotColumn.getDefinition());
                         newSelections.put(groupByColumn.getOutputColumn(), new Selection(pinotColumn.getDefinition(), pinotColumn.getOrigin(), groupByColumn.getOutputType()));
-                        groupByExists = true;
                         break;
                     }
                     case AGGREGATE: {
                         Aggregation aggr = (Aggregation) expr;
                         String pinotAggFunction = handleAggregationFunction(aggr, context.getSelections());
                         newSelections.put(aggr.getOutputColumn(), new Selection(pinotAggFunction, DERIVED, aggr.getOutputType()));
-                        numberOfAggregations++;
+                        ++numAggregations;
                         break;
                     }
                     default:
@@ -238,11 +252,7 @@ public class PinotQueryGenerator
                 }
             }
 
-            if (numberOfAggregations > 1 && groupByExists) {
-                throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "Pinot doesn't support semantically SQL equivalent multiple aggregations with GROUP BY in a query");
-            }
-
-            return context.withAggregation(newSelections, groupByColumns);
+            return context.withAggregation(newSelections, groupByColumns, numAggregations);
         }
 
         @Override
@@ -278,7 +288,7 @@ public class PinotQueryGenerator
         public PinotQueryGeneratorContext visitLimitNode(LimitPipelineNode limit, PinotQueryGeneratorContext context)
         {
             requireNonNull(context, "context is null");
-            return context.withLimit(limit.getLimit());
+            return context.withLimit(limit.getLimit(), limit.isPartial());
         }
 
         @Override

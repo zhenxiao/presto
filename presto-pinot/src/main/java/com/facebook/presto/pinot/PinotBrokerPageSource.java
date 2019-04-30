@@ -31,16 +31,17 @@ import com.facebook.presto.spi.type.TimestampType;
 import com.facebook.presto.spi.type.TinyintType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import io.airlift.http.client.Request;
-import io.airlift.http.client.StaticBodyGenerator;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -105,10 +106,17 @@ public class PinotBrokerPageSource
         }
     }
 
-    private static boolean isValidException(JSONObject exception)
+    private static void setValuesForGroupby(List<BlockBuilder> blockBuilders, List<Type> types, int numGroupByClause, JSONArray group, String[] values)
     {
-        Integer errorCode = exception.getInteger("errorCode");
-        return (errorCode == null || !PinotUtils.isValidPinotHttpResponseCode(errorCode));
+        for (int k = 0; k < group.size(); k++) {
+            setValue(types.get(k), blockBuilders.get(k), group.getString(k));
+        }
+        for (int aggrIndex = 0; aggrIndex < values.length; ++aggrIndex) {
+            int metricColumnIndex = aggrIndex + numGroupByClause;
+            if (metricColumnIndex < blockBuilders.size()) {
+                setValue(types.get(metricColumnIndex), blockBuilders.get(metricColumnIndex), values[aggrIndex]);
+            }
+        }
     }
 
     @Override
@@ -137,7 +145,7 @@ public class PinotBrokerPageSource
         }
 
         long start = System.nanoTime();
-        PinotQueryGenerator.GeneratedPql psql = PinotQueryGenerator.generate(scanPipeline, Optional.of(columnHandles), Optional.empty(), Optional.empty(), Optional.of(pinotConfig));
+        PinotQueryGenerator.GeneratedPql psql = PinotQueryGenerator.generateForSingleBrokerRequest(scanPipeline, Optional.of(columnHandles), Optional.of(pinotConfig));
         try {
             List<Type> expectedTypes = columnHandles.stream().map(PinotColumnHandle::getDataType).collect(Collectors.toList());
             PageBuilder pageBuilder = new PageBuilder(expectedTypes);
@@ -149,7 +157,7 @@ public class PinotBrokerPageSource
                 columnTypes.add(expectedTypes.get(idx));
             }
 
-            int counter = issuePqlAndPopulate(psql.getPql(), psql.getNumGroupByClauses(), columnBlockBuilders.build(), columnTypes.build());
+            int counter = issuePqlAndPopulate(psql.getTable(), psql.getPql(), psql.getNumGroupByClauses(), columnBlockBuilders.build(), columnTypes.build());
             pageBuilder.declarePositions(counter);
             Page page = pageBuilder.build();
 
@@ -163,14 +171,28 @@ public class PinotBrokerPageSource
         }
     }
 
-    private int issuePqlAndPopulate(String psql, int numGroupByClause, List<BlockBuilder> blockBuilders, List<Type> types)
+    private int issuePqlAndPopulate(String table, String psql, int numGroupByClause, List<BlockBuilder> blockBuilders, List<Type> types)
     {
+        String queryHost;
+        Optional<String> rpcService;
+        if (pinotConfig.isQueryUsingController()) {
+            queryHost = pinotConfig.getControllerUrl();
+            rpcService = Optional.of(pinotConfig.getControllerRestService());
+        }
+        else {
+            queryHost = clusterInfoFetcher.getBrokerHost(table);
+            rpcService = Optional.empty();
+        }
         Request.Builder builder = Request.Builder
                 .preparePost()
-                .setUri(URI.create(String.format(QUERY_URL_TEMPLATE, pinotConfig.getBrokerUrl())))
-                .setBodyGenerator(StaticBodyGenerator.createStaticBodyGenerator(String.format(REQUEST_PAYLOAD_TEMPLATE, psql), StandardCharsets.UTF_8));
-        String body = clusterInfoFetcher.doHttpActionWithHeaders(builder, pinotConfig.getBrokerRestService());
+                .setUri(URI.create(String.format(QUERY_URL_TEMPLATE, queryHost)));
+        String body = clusterInfoFetcher.doHttpActionWithHeaders(builder, Optional.of(String.format(REQUEST_PAYLOAD_TEMPLATE, psql)), rpcService);
+        return populateFromPqlResults(psql, numGroupByClause, blockBuilders, types, body);
+    }
 
+    @VisibleForTesting
+    public static int populateFromPqlResults(String psql, int numGroupByClause, List<BlockBuilder> blockBuilders, List<Type> types, String body)
+    {
         JSONObject jsonBody = JSONObject.parseObject(body);
 
         Integer numServersResponded = jsonBody.getInteger("numServersResponded");
@@ -187,69 +209,111 @@ public class PinotBrokerPageSource
         if (exceptions != null) {
             for (int i = 0; i < exceptions.size(); ++i) {
                 JSONObject exception = exceptions.getJSONObject(i);
-                if (isValidException(exception)) {
-                    throw new PinotException(PinotErrorCode.PINOT_EXCEPTION,
-                            Optional.of(psql),
-                            String.format("Query %s encountered exception %s", psql, exception));
-                }
+                // Pinot is known to return exceptions with benign errorcodes like 200
+                // so we treat any exception as an error
+                throw new PinotException(PinotErrorCode.PINOT_EXCEPTION,
+                        Optional.of(psql),
+                        String.format("Query %s encountered exception %s", psql, exception));
             }
         }
 
         JSONArray aggResults = jsonBody.getJSONArray("aggregationResults");
+        JSONObject selectionResults = jsonBody.getJSONObject("selectionResults");
 
-        if (aggResults == null) {
+        int rowCount;
+        if (aggResults != null) {
+            // This is map is populated only when we have multiple aggregates with a group by
+            Preconditions.checkState(aggResults.size() >= 1, "Expected atleast one metric to be present");
+            Map<JSONArray, String[]> groupToValue = aggResults.size() == 1 || numGroupByClause == 0 ? null : new HashMap<>();
+            rowCount = 0;
+            String[] singleAgg = new String[1];
+            Boolean sawGroupByResult = null;
+            int actualNumColumns = aggResults.size() + numGroupByClause;
+            if (actualNumColumns != blockBuilders.size()) {
+                throw new PinotException(PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
+                        Optional.of(psql),
+                        String.format("Expected %d columns but got %s instead from pinot", blockBuilders.size(), actualNumColumns));
+            }
+            for (int aggrIndex = 0; aggrIndex < aggResults.size(); aggrIndex++) {
+                JSONObject result = aggResults.getJSONObject(aggrIndex);
+
+                JSONArray metricValuesForEachGroup = result.getJSONArray("groupByResult");
+
+                if (metricValuesForEachGroup != null) {
+                    Preconditions.checkState(sawGroupByResult == null || sawGroupByResult);
+                    sawGroupByResult = true;
+                    Preconditions.checkState(numGroupByClause > 0, "Expected having non zero group by clauses");
+                    JSONArray groupByColumns = Preconditions.checkNotNull(result.getJSONArray("groupByColumns"), "groupByColumns missing in %s", psql);
+                    if (groupByColumns.size() != numGroupByClause) {
+                        throw new PinotException(PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
+                                Optional.of(psql),
+                                String.format("Expected %d gby columns but got %s instead from pinot", numGroupByClause, groupByColumns));
+                    }
+                    // group by aggregation
+                    for (int groupByIndex = 0; groupByIndex < metricValuesForEachGroup.size(); groupByIndex++) {
+                        JSONObject row = metricValuesForEachGroup.getJSONObject(groupByIndex);
+                        JSONArray group = row.getJSONArray("group");
+                        if (group == null || group.size() != numGroupByClause) {
+                            throw new PinotException(PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
+                                    Optional.of(psql),
+                                    String.format("Expected %d group by columns but got only a group of size %d (%s)", numGroupByClause, group.size(), group));
+                        }
+                        if (groupToValue == null) {
+                            singleAgg[0] = row.getString("value");
+                            setValuesForGroupby(blockBuilders, types, numGroupByClause, group, singleAgg);
+                            ++rowCount;
+                        }
+                        else {
+                            groupToValue.computeIfAbsent(group, (ignored) -> new String[aggResults.size()])[aggrIndex] = row.getString("value");
+                        }
+                    }
+                }
+                else {
+                    Preconditions.checkState(sawGroupByResult == null || !sawGroupByResult);
+                    sawGroupByResult = false;
+                    // simple aggregation
+                    // TODO: Validate that this is expected semantically
+                    Preconditions.checkState(numGroupByClause == 0, "Expected no group by columns in pinot");
+                    setValue(types.get(aggrIndex), blockBuilders.get(aggrIndex), result.getString("value"));
+                    rowCount = 1;
+                }
+            }
+
+            if (groupToValue != null) {
+                Preconditions.checkState(rowCount == 0, "Row count shouldn't have changed from zero");
+                groupToValue.forEach((group, values) ->
+                        setValuesForGroupby(blockBuilders, types, numGroupByClause, group, values));
+                rowCount = groupToValue.size();
+            }
+        }
+        else if (selectionResults != null) {
+            JSONArray columns = selectionResults.getJSONArray("columns");
+            JSONArray results = selectionResults.getJSONArray("results");
+            if (columns == null || results == null || columns.size() != blockBuilders.size()) {
+                throw new PinotException(
+                        PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
+                        Optional.of(psql),
+                        String.format("Columns and results expected for %s, expected %d columns but got %d", psql, blockBuilders.size(), columns == null ? 0 : columns.size()));
+            }
+            for (int rowNumber = 0; rowNumber < results.size(); ++rowNumber) {
+                JSONArray result = results.getJSONArray(rowNumber);
+                if (result == null || result.size() != blockBuilders.size()) {
+                    throw new PinotException(
+                            PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
+                            Optional.of(psql),
+                            String.format("Expected row of %d columns", blockBuilders.size()));
+                }
+                for (int columnNumber = 0; columnNumber < blockBuilders.size(); ++columnNumber) {
+                    setValue(types.get(columnNumber), blockBuilders.get(columnNumber), result.getString(columnNumber));
+                }
+            }
+            rowCount = results.size();
+        }
+        else {
             throw new PinotException(
                     PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
                     Optional.of(psql),
-                    "Expected aggregationResults to be present");
-        }
-
-        int rowCount = -1;
-        checkState(aggResults.size() == 1, "Expected exactly one metric to be present");
-        for (int aggrIndex = 0; aggrIndex < aggResults.size(); aggrIndex++) {
-            JSONObject result = aggResults.getJSONObject(aggrIndex);
-
-            JSONArray metricValuesForEachGroup = result.getJSONArray("groupByResult");
-
-            if (metricValuesForEachGroup != null) {
-                checkState(numGroupByClause > 0, "Expected having non zero GROUP BY clauses");
-                if (aggResults.size() != 1) {
-                    throw new PinotException(PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
-                            Optional.of(psql),
-                            "We shouldn't have asked for multiple metrics, but we did get " + aggResults.size());
-                }
-                JSONArray groupByColumns = Preconditions.checkNotNull(result.getJSONArray("groupByColumns"), "groupByColumns missing in %s", psql);
-                if (groupByColumns.size() != numGroupByClause) {
-                    throw new PinotException(PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
-                            Optional.of(psql),
-                            String.format("Expected %d GROUP BY columns but got %s instead from Pinot", numGroupByClause, groupByColumns));
-                }
-                // group by aggregation
-                for (int groupByIndex = 0; groupByIndex < metricValuesForEachGroup.size(); groupByIndex++) {
-                    JSONObject row = metricValuesForEachGroup.getJSONObject(groupByIndex);
-                    JSONArray group = row.getJSONArray("group");
-                    if (group == null || group.size() != numGroupByClause) {
-                        throw new PinotException(PinotErrorCode.PINOT_UNEXPECTED_RESPONSE,
-                                Optional.of(psql),
-                                String.format("Expected %d group by columns but got only a group of size %d (%s)", numGroupByClause, group.size(), group));
-                    }
-                    for (int k = 0; k < group.size(); k++) {
-                        setValue(types.get(k), blockBuilders.get(k), group.getString(k));
-                    }
-                    int metricColumnIndex = numGroupByClause;
-                    setValue(types.get(metricColumnIndex), blockBuilders.get(metricColumnIndex), row.getString("value"));
-                }
-
-                // There is only one metric, so the row count is the last metric's number's results
-                rowCount = metricValuesForEachGroup.size();
-            }
-            else {
-                // simple aggregation
-                // TODO: Validate that this is expected semantically
-                checkState(numGroupByClause == 0, "Expected no group by columns in pinot");
-                setValue(types.get(aggrIndex), blockBuilders.get(aggrIndex), result.getString("value"));
-                rowCount = 1;
-            }
+                    "Expected one of aggregationResults or selectionResults to be present");
         }
 
         checkState(rowCount >= 0, "Expected row count to be initialized");

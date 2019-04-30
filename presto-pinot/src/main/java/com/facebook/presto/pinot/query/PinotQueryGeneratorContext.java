@@ -15,9 +15,10 @@ package com.facebook.presto.pinot.query;
 
 import com.facebook.presto.pinot.PinotColumnHandle;
 import com.facebook.presto.pinot.PinotConfig;
+import com.facebook.presto.pinot.PinotErrorCode;
+import com.facebook.presto.pinot.PinotException;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import java.util.HashMap;
@@ -28,7 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
@@ -44,20 +45,20 @@ class PinotQueryGeneratorContext
     private final String from;
     private final String filter;
     private final Optional<String> timeBoundaryFilter;
-    private final Long limit;
-    private final boolean aggregationApplied;
+    private final Optional<Long> limit;
+    private final int numAggregations;
 
     PinotQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeBoundaryFilter)
     {
-        this(selections, from, null, timeBoundaryFilter, false, ImmutableList.of(), null);
+        this(selections, from, null, timeBoundaryFilter, 0, ImmutableList.of(), Optional.empty());
     }
 
     private PinotQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, String filter, Optional<String> timeBoundaryFilter,
-            boolean aggregationApplied, List<String> groupByColumns, Long limit)
+            int numAggregations, List<String> groupByColumns, Optional<Long> limit)
     {
         this.selections = requireNonNull(selections, "selections can't be null");
         this.from = requireNonNull(from, "source can't be null");
-        this.aggregationApplied = aggregationApplied;
+        this.numAggregations = numAggregations;
         this.groupByColumns = requireNonNull(groupByColumns, "groupByColumns can't be null. It could be empty if not available");
         this.filter = filter;
         this.timeBoundaryFilter = requireNonNull(timeBoundaryFilter, "timeBoundaryFilter can't be null");
@@ -69,21 +70,21 @@ class PinotQueryGeneratorContext
      */
     PinotQueryGeneratorContext withFilter(String filter)
     {
-        checkArgument(!hasFilter(), "There already exists a filter. Pinot doesn't support filters at multiple levels");
-        checkArgument(!hasAggregation(), "Pinot doesn't support filtering the results of aggregation");
-        checkArgument(!hasLimit(), "Pinot doesn't support filtering on top of the limit");
-        return new PinotQueryGeneratorContext(selections, from, filter, timeBoundaryFilter, aggregationApplied, groupByColumns, limit);
+        checkState(!hasFilter(), "There already exists a filter. Pinot doesn't support filters at multiple levels");
+        checkState(!hasAggregation(), "Pinot doesn't support filtering the results of aggregation");
+        checkState(!hasLimit(), "Pinot doesn't support filtering on top of the limit");
+        return new PinotQueryGeneratorContext(selections, from, filter, timeBoundaryFilter, numAggregations, groupByColumns, limit);
     }
 
     /**
      * Apply the aggregation to current context and return the updated context. Throws error for invalid operations.
      */
-    PinotQueryGeneratorContext withAggregation(LinkedHashMap<String, Selection> newSelections, List<String> groupByColumns)
+    PinotQueryGeneratorContext withAggregation(LinkedHashMap<String, Selection> newSelections, List<String> groupByColumns, int numAggregations)
     {
         // there is only one aggregation supported.
-        checkArgument(!hasAggregation(), "Pinot doesn't support aggregation on top of the aggregated data");
-        checkArgument(!hasLimit(), "Pinot doesn't support aggregation on top of the limit");
-        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, true, groupByColumns, limit);
+        checkState(!hasAggregation(), "Pinot doesn't support aggregation on top of the aggregated data");
+        checkState(!hasLimit(), "Pinot doesn't support aggregation on top of the limit");
+        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, this.numAggregations + numAggregations, groupByColumns, limit);
     }
 
     /**
@@ -91,16 +92,22 @@ class PinotQueryGeneratorContext
      */
     PinotQueryGeneratorContext withProject(LinkedHashMap<String, Selection> newSelections)
     {
-        checkArgument(!hasAggregation(), "Pinot doesn't support new selections on top of the aggregated data");
-        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, false, ImmutableList.of(), limit);
+        checkState(!hasAggregation(), "Pinot doesn't support new selections on top of the aggregated data");
+        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, 0, ImmutableList.of(), limit);
     }
 
     /**
      * Apply limit to current context and return the updated context. Throws error for invalid operations.
      */
-    PinotQueryGeneratorContext withLimit(long limit)
+    PinotQueryGeneratorContext withLimit(long limit, boolean isPartial)
     {
-        return new PinotQueryGeneratorContext(selections, from, filter, timeBoundaryFilter, aggregationApplied, groupByColumns, limit);
+        if (!isPartial) {
+            // We support final limit only on top of the aggregated data.
+            checkState(hasAggregation(), "Final limit pushdown is supported only on top of the aggregated data");
+        }
+
+        checkState(!hasLimit(), "Limit already exists. Pinot doesn't support limit on top of another limit");
+        return new PinotQueryGeneratorContext(selections, from, filter, timeBoundaryFilter, numAggregations, groupByColumns, Optional.of(limit));
     }
 
     private boolean hasFilter()
@@ -108,14 +115,14 @@ class PinotQueryGeneratorContext
         return filter != null;
     }
 
-    private boolean hasAggregation()
-    {
-        return aggregationApplied;
-    }
-
     private boolean hasLimit()
     {
-        return limit != null;
+        return limit.isPresent();
+    }
+
+    private boolean hasAggregation()
+    {
+        return numAggregations > 0;
     }
 
     public LinkedHashMap<String, Selection> getSelections()
@@ -126,8 +133,16 @@ class PinotQueryGeneratorContext
     /**
      * Convert the current context to a PQL
      */
-    PinotQueryGenerator.GeneratedPql toQuery(Optional<List<PinotColumnHandle>> columnHandles, Optional<PinotConfig> pinotConfig)
+    PinotQueryGenerator.GeneratedPql toQuery(Optional<List<PinotColumnHandle>> columnHandles, Optional<PinotConfig> pinotConfig, boolean forSinglePageSource)
     {
+        if (pinotConfig.isPresent() && !pinotConfig.get().isAllowMultipleAggregations() && numAggregations > 1 && !groupByColumns.isEmpty()) {
+            throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.empty(), "Multiple aggregates in the presence of group by is forbidden");
+        }
+
+        if (hasLimit() && numAggregations > 1 && !groupByColumns.isEmpty()) {
+            throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.empty(), "Multiple aggregates in the presence of group by and limit is forbidden");
+        }
+
         String exprs = selections.values().stream()
                 .filter(c -> !groupByColumns.contains(c.definition)) // remove the group by columns from the query as Pinot barfs if the group by column is an expression
                 .map(c -> c.definition)
@@ -149,14 +164,53 @@ class PinotQueryGeneratorContext
             query = query + " GROUP BY " + groupByExpr;
         }
 
-        if (limit != null) {
-            query += " LIMIT " + limit;
+        // Rules for limit:
+        // - If its a selection query:
+        //      + given limit or configured limit
+        // - Else if has group by:
+        //      + ensure that only one aggregation
+        //      + default limit or configured top limit
+        // - Fail if limit is invalid
+
+        String limitKeyWord = "";
+        long limitLong = -1;
+        long defaultLimit = pinotConfig.map(PinotConfig::getLimitLarge).orElse(PinotConfig.DEFAULT_LIMIT_LARGE);
+
+        if (!hasAggregation()) {
+            if (forSinglePageSource && limit.isPresent() && pinotConfig.isPresent()) {
+                long maxLimit = pinotConfig.get().getMaxSelectLimitWhenSinglePage();
+                long givenLimit = limit.get();
+                if (givenLimit > maxLimit) {
+                    throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.empty(), String.format("Given limit %d more than max select limit %d", givenLimit, maxLimit));
+                }
+            }
+            limitLong = limit.orElse(defaultLimit);
+            limitKeyWord = "LIMIT";
         }
-        else if (pinotConfig.isPresent()) {
-            query += " LIMIT " + pinotConfig.get().getLimitLarge();
+        else if (!groupByColumns.isEmpty()) {
+            limitKeyWord = "TOP";
+            if (limit.isPresent()) {
+                if (numAggregations > 1) {
+                    throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.of(query),
+                            String.format("Pinot has weird semantics with group by and multiple aggregation functions and limits"));
+                }
+                else {
+                    limitLong = limit.get();
+                }
+            }
+            else {
+                limitLong = defaultLimit;
+            }
         }
 
-        return new PinotQueryGenerator.GeneratedPql(query, getIndicesMappingFromPinotSchemaToPrestoSchema(columnHandles, query), groupByColumns.size());
+        if (!limitKeyWord.isEmpty()) {
+            if (limitLong <= 0 || limitLong > Integer.MAX_VALUE) {
+                throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.empty(), "Limit " + limitLong + " not supported: Limit is not being pushed down");
+            }
+            query += " " + limitKeyWord + " " + (int) limitLong;
+        }
+
+        return new PinotQueryGenerator.GeneratedPql(from, query, getIndicesMappingFromPinotSchemaToPrestoSchema(columnHandles, query), groupByColumns.size());
     }
 
     /**
@@ -203,7 +257,7 @@ class PinotQueryGeneratorContext
         expressionsInOrder.addAll(selections.keySet());
 
         return columnHandles.map(handles -> {
-            Preconditions.checkState(handles.size() == expressionsInOrder.size(), "Expected returned expressions %s to match columm handles %s",
+            checkState(handles.size() == expressionsInOrder.size(), "Expected returned expressions %s to match columm handles %s",
                     Joiner.on(",").join(expressionsInOrder), Joiner.on(",").join(handles));
             Map<String, Integer> nameToIndex = new HashMap<>();
             for (int i = 0; i < handles.size(); ++i) {

@@ -16,11 +16,13 @@ package com.facebook.presto.pinot;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Ticker;
 import com.google.inject.Inject;
 import com.linkedin.pinot.client.DynamicBrokerSelector;
 import com.linkedin.pinot.common.data.Schema;
 import io.airlift.http.client.HttpClient;
 import io.airlift.http.client.Request;
+import io.airlift.http.client.StaticBodyGenerator;
 import io.airlift.http.client.StringResponseHandler;
 import io.airlift.log.Logger;
 import org.apache.http.HttpHeaders;
@@ -28,11 +30,14 @@ import org.apache.http.HttpHeaders;
 import javax.annotation.concurrent.GuardedBy;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.linkedin.pinot.common.config.TableNameBuilder.extractRawTableName;
@@ -43,21 +48,24 @@ public class PinotClusterInfoFetcher
     private static final Logger log = Logger.get(PinotClusterInfoFetcher.class);
     private static final String APPLICATION_JSON = "application/json";
 
-    private static final String GET_ALL_TABLES_API_TEMPLATE = "http://%s/tables";
-    private static final String TABLE_SCHEMA_API_TEMPLATE = "http://%s/tables/%s/schema";
-    private static final String ROUTING_TABLE_API_TEMPLATE = "http://%s/debug/routingTable/%s";
-    private static final String TIME_BOUNDARY_API_TEMPLATE = "http://%s/debug/timeBoundary/%s";
+    private static final String GET_ALL_TABLES_API_TEMPLATE = "/tables";
+    private static final String TABLE_SCHEMA_API_TEMPLATE = "/tables/%s/schema";
+    private static final String ROUTING_TABLE_API_TEMPLATE = "/debug/routingTable/%s";
+    private static final String TIME_BOUNDARY_API_TEMPLATE = "/debug/timeBoundary/%s";
 
-    private final HttpClient httpClient;
     private final PinotConfig pinotConfig;
+    private final PinotMetrics pinotMetrics;
+    private final HttpClient httpClient;
+    private final Ticker ticker = Ticker.systemTicker();
 
     @GuardedBy("this")
     private DynamicBrokerSelector dynamicBrokerSelector;
 
     @Inject
-    public PinotClusterInfoFetcher(PinotConfig pinotConfig, @ForPinot HttpClient httpClient)
+    public PinotClusterInfoFetcher(PinotConfig pinotConfig, PinotMetrics pinotMetrics, @ForPinot HttpClient httpClient)
     {
         this.pinotConfig = pinotConfig;
+        this.pinotMetrics = pinotMetrics;
         this.httpClient = httpClient;
     }
 
@@ -66,30 +74,57 @@ public class PinotClusterInfoFetcher
         return pinotConfig.getZkUrl() + "/" + pinotConfig.getPinotCluster();
     }
 
-    public String doHttpActionWithHeaders(Request.Builder requestBuilder, String rpcService)
+    public String doHttpActionWithHeaders(Request.Builder requestBuilder, Optional<String> requestBody, Optional<String> rpcService)
     {
         requestBuilder = requestBuilder
                 .setHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
-                .setHeader(pinotConfig.getCallerHeaderParam(), pinotConfig.getCallerHeaderValue())
-                .setHeader(pinotConfig.getServiceHeaderParam(), rpcService);
+                .setHeader(HttpHeaders.ACCEPT, APPLICATION_JSON);
+        if (rpcService.isPresent()) {
+            requestBuilder
+                    .setHeader(pinotConfig.getCallerHeaderParam(), pinotConfig.getCallerHeaderValue())
+                    .setHeader(pinotConfig.getServiceHeaderParam(), rpcService.get());
+        }
+        if (requestBody.isPresent()) {
+            requestBuilder.setBodyGenerator(StaticBodyGenerator.createStaticBodyGenerator(requestBody.get(), StandardCharsets.UTF_8));
+        }
         pinotConfig.getExtraHttpHeaders().forEach(requestBuilder::setHeader);
         Request request = requestBuilder.build();
-        StringResponseHandler.StringResponse response = httpClient.execute(request, createStringResponseHandler());
 
+        long startTime = ticker.read();
+        long duration;
+        StringResponseHandler.StringResponse response;
+        try {
+            response = httpClient.execute(request, createStringResponseHandler());
+        }
+        finally {
+            duration = ticker.read() - startTime;
+        }
+        pinotMetrics.monitorRequest(request, response, duration, TimeUnit.NANOSECONDS);
+        String responseBody = response.getBody();
         if (PinotUtils.isValidPinotHttpResponseCode(response.getStatusCode())) {
-            return response.getBody();
+            return responseBody;
         }
         else {
             throw new PinotException(PinotErrorCode.PINOT_HTTP_ERROR,
                     Optional.empty(),
-                    "Unexpected response status: " + response.getStatusCode() + " for request " + request);
+                    String.format("Unexpected response status: %d for request %s, full response %s", response.getStatusCode(), requestBody.orElse(""), responseBody));
         }
     }
 
-    public String sendHttpGet(final String url, boolean forBroker)
+    public String sendHttpGetToController(String path)
     {
-        return doHttpActionWithHeaders(Request.builder().prepareGet().setUri(URI.create(url)),
-                forBroker ? pinotConfig.getBrokerRestService() : pinotConfig.getControllerRestService());
+        return doHttpActionWithHeaders(
+                Request.builder().prepareGet().setUri(URI.create(String.format("http://%s/%s", getControllerUrl(), path))),
+                Optional.empty(),
+                Optional.of(pinotConfig.getControllerRestService()));
+    }
+
+    public String sendHttpGetToBroker(String table, String path)
+    {
+        return doHttpActionWithHeaders(
+                Request.builder().prepareGet().setUri(URI.create(String.format("http://%s/%s", getBrokerHost(table), path))),
+                Optional.empty(),
+                Optional.empty());
     }
 
     private String getControllerUrl()
@@ -99,19 +134,20 @@ public class PinotClusterInfoFetcher
 
     @SuppressWarnings("unchecked")
     public List<String> getAllTables()
-            throws Exception
     {
-        final String url = String.format(GET_ALL_TABLES_API_TEMPLATE, getControllerUrl());
-        String responseBody = sendHttpGet(url, true);
-        Map<String, List<String>> responseMap = new ObjectMapper().readValue(responseBody, Map.class);
-        return responseMap.get("tables");
+        String responseBody = sendHttpGetToController(GET_ALL_TABLES_API_TEMPLATE);
+        JSONObject jsonObject = JSONObject.parseObject(responseBody);
+        JSONArray tables = jsonObject.getJSONArray("tables");
+        if (tables == null) {
+            throw new PinotException(PinotErrorCode.PINOT_DECODE_ERROR, Optional.empty(), "tables not found");
+        }
+        return Arrays.asList(tables.toArray(new String[tables.size()]));
     }
 
     public Schema getTableSchema(String table)
             throws Exception
     {
-        final String url = String.format(TABLE_SCHEMA_API_TEMPLATE, getControllerUrl(), table);
-        String responseBody = sendHttpGet(url, true);
+        String responseBody = sendHttpGetToController(String.format(TABLE_SCHEMA_API_TEMPLATE, table));
         return Schema.fromString(responseBody);
     }
 
@@ -130,9 +166,8 @@ public class PinotClusterInfoFetcher
             throws Exception
     {
         final Map<String, Map<String, List<String>>> routingTableMap = new HashMap<>();
-        final String url = String.format(ROUTING_TABLE_API_TEMPLATE, getBrokerHost(tableName), tableName);
-        String responseBody = sendHttpGet(url, false);
-        log.debug("Trying to get routingTable for %s. url: %s", tableName, url);
+        log.debug("Trying to get routingTable for %s from broker", tableName);
+        String responseBody = sendHttpGetToBroker(tableName, String.format(ROUTING_TABLE_API_TEMPLATE, tableName));
         JSONObject resp = JSONObject.parseObject(responseBody);
         JSONArray routingTableSnapshots = resp.getJSONArray("routingTableSnapshot");
         for (int i = 0; i < routingTableSnapshots.size(); i++) {
@@ -165,10 +200,8 @@ public class PinotClusterInfoFetcher
     }
 
     public Map<String, String> getTimeBoundaryForTable(String table)
-            throws Exception
     {
-        final String url = String.format(TIME_BOUNDARY_API_TEMPLATE, getBrokerHost(table), table);
-        String responseBody = sendHttpGet(url, false);
+        String responseBody = sendHttpGetToBroker(table, String.format(TIME_BOUNDARY_API_TEMPLATE, table));
         JSONObject resp = JSONObject.parseObject(responseBody);
         Map<String, String> timeBoundary = new HashMap<>();
         if (resp.containsKey("timeColumnName")) {

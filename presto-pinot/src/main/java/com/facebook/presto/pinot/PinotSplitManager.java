@@ -233,7 +233,7 @@ public class PinotSplitManager
 
         TableScanPipeline scanPipeline = getScanPipeline(pinotLayoutHandle);
 
-        if (ScanParallelismFinder.canParallelize(scanPipeline)) {
+        if (pinotConfig.isScanParallelismEnabled() && ScanParallelismFinder.canParallelize(scanPipeline)) {
             scanPipeline = addTupleDomainToScanPipelineIfNeeded(pinotLayoutHandle.getConstraint(), scanPipeline);
 
             return generateSplitsForSegmentBasedScan(pinotLayoutHandle, scanPipeline);
@@ -295,7 +295,7 @@ public class PinotSplitManager
                 continue;
             }
 
-            String pql = PinotQueryGenerator.generate(scanPipeline, Optional.empty(), Optional.of(tableNameSuffix), timePredicate, Optional.of(pinotConfig)).getPql();
+            String pql = PinotQueryGenerator.generateForSegmentSplits(scanPipeline, Optional.of(tableNameSuffix), timePredicate, Optional.of(pinotConfig)).getPql();
 
             Map<String, List<String>> hostToSegmentsMap = routingTable.get(routingTableName);
             for (String host : hostToSegmentsMap.keySet()) {

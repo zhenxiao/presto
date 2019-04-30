@@ -24,7 +24,12 @@ public class PinotException
 
     public PinotException(PinotErrorCode errorCode, Optional<String> pql, String message)
     {
-        super(errorCode, message);
+        this(errorCode, pql, message, null);
+    }
+
+    public PinotException(PinotErrorCode errorCode, Optional<String> pql, String message, Throwable throwable)
+    {
+        super(errorCode, message, throwable);
         this.pql = pql;
     }
 

@@ -29,7 +29,10 @@ public enum PinotErrorCode
     PINOT_EXCEPTION(3, EXTERNAL), // Exception reported by pinot
     PINOT_HTTP_ERROR(4, EXTERNAL), // Some non okay http error code
     PINOT_UNEXPECTED_RESPONSE(5, EXTERNAL), // Invalid json response with okay http return code
-    PINOT_UNSUPPORTED_EXPRESSION(6, INTERNAL_ERROR); // Unsupported function
+    PINOT_UNSUPPORTED_EXPRESSION(6, INTERNAL_ERROR), // Unsupported function
+    PINOT_UNABLE_TO_FIND_BROKER(7, EXTERNAL),
+    PINOT_DECODE_ERROR(8, EXTERNAL),
+    PINOT_UNCLASSIFIED_ERROR(100, EXTERNAL);
 
     /**
      * Connectors can use error codes starting at the range 0x0100_0000

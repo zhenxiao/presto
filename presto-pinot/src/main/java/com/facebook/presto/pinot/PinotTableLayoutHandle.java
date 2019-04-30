@@ -90,7 +90,7 @@ public class PinotTableLayoutHandle
             result.append(", constraint=" + constraint.get().toString());
         }
         if (scanPipeline.isPresent()) {
-            result.append(", pql=").append(PinotQueryGenerator.generatePQL(scanPipeline.get()));
+            result.append(", pql=").append(PinotQueryGenerator.generatePQL(scanPipeline.get(), Optional.empty()));
         }
         return result.toString();
     }

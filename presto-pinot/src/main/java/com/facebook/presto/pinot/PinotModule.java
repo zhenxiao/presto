@@ -55,8 +55,8 @@ public class PinotModule
         binder.bind(PinotConnection.class).in(Scopes.SINGLETON);
         httpClientBinder(binder).bindHttpClient("pinot", ForPinot.class)
                 .withConfigDefaults(cfg -> {
-                    cfg.setIdleTimeout(new Duration(60, SECONDS));
-                    cfg.setRequestTimeout(new Duration(60, SECONDS));
+                    cfg.setIdleTimeout(new Duration(300, SECONDS));
+                    cfg.setRequestTimeout(new Duration(300, SECONDS));
                     cfg.setMaxConnectionsPerServer(250);
                     cfg.setMaxContentLength(new DataSize(32, MEGABYTE));
                 });

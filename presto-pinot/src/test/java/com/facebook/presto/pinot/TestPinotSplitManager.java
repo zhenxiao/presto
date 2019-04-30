@@ -267,7 +267,7 @@ public class TestPinotSplitManager
     {
         public MockPinotClusterInfoFetcher()
         {
-            super(pinotConfig, new TestingHttpClient(request -> null));
+            super(pinotConfig, new PinotMetrics(), new TestingHttpClient(request -> null));
         }
 
         @Override
@@ -292,7 +292,6 @@ public class TestPinotSplitManager
 
         @Override
         public Map<String, String> getTimeBoundaryForTable(String table)
-                throws Exception
         {
             if (hybridTable.getTableName().equalsIgnoreCase(table)) {
                 return ImmutableMap.of(
@@ -301,12 +300,6 @@ public class TestPinotSplitManager
             }
 
             return ImmutableMap.of();
-        }
-
-        @Override
-        public String sendHttpGet(String url, boolean forBroker)
-        {
-            return "broker";
         }
     }
 }

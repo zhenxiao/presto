@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 
 public class PinotConfig
 {
+    public static final long DEFAULT_LIMIT_LARGE = 1_000_000;
+
     private static final long DEFAULT_IDLE_TIMEOUT_MINUTE = 5L; // 5 minutes
     private static final long DEFAULT_CONNECTION_TIMEOUT_MINUTE = 1L; // 1 minute
     private static final int DEFAULT_MIN_CONNECTIONS_PER_SERVER = 10;
@@ -33,26 +35,18 @@ public class PinotConfig
     private static final int DEFAULT_MAX_BACKLOG_PER_SERVER = 30;
     private static final int DEFAULT_THREAD_POOL_SIZE = 30;
 
-    private static final long DEFAULT_LIMIT_ALL = 2147483647;
-    private static final long DEFAULT_LIMIT_LARGE = 10000;
-    private static final long DEFAULT_LIMIT_MEDIUM = 1000;
-
     private static final int DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN = 20;
 
     private String zkUrl;
     private String pinotCluster;
-    private String brokerRestService;
     private String controllerRestService;
     private String serviceHeaderParam = "RPC-Service";
     private String callerHeaderValue = "presto";
     private String callerHeaderParam = "RPC-Caller";
 
     private String controllerUrl;
-    private String brokerUrl;
 
-    private long limitAll = DEFAULT_LIMIT_ALL;
     private long limitLarge = DEFAULT_LIMIT_LARGE;
-    private long limitMedium = DEFAULT_LIMIT_MEDIUM;
 
     private Duration idleTimeout = new Duration(DEFAULT_IDLE_TIMEOUT_MINUTE, TimeUnit.MINUTES);
     private Duration connectionTimeout = new Duration(DEFAULT_CONNECTION_TIMEOUT_MINUTE, TimeUnit.MINUTES);
@@ -63,12 +57,17 @@ public class PinotConfig
     private int maxBacklogPerServer = DEFAULT_MAX_BACKLOG_PER_SERVER;
     private int estimatedSizeInBytesForNonNumericColumn = DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN;
     private Map<String, String> extraHttpHeaders = ImmutableMap.of();
-    private Duration metadataCacheExpiry = new Duration(1, TimeUnit.DAYS);
+    private Duration metadataCacheExpiry = new Duration(2, TimeUnit.MINUTES);
 
     private boolean aggregationPushDownEnabled = true;
     private boolean filterPushDownEnabled = true;
     private boolean projectPushDownEnabled = true;
     private boolean limitPushDownEnabled = true;
+
+    private boolean allowMultipleAggregations;
+    private long maxSelectLimitWhenSinglePage = 1_000;
+    private boolean scanParallelismEnabled = true;
+    private boolean queryUsingController;
 
     @NotNull
     public String getZkUrl()
@@ -139,46 +138,15 @@ public class PinotConfig
     }
 
     @NotNull
-    public String getBrokerUrl()
+    public boolean isAllowMultipleAggregations()
     {
-        return brokerUrl;
+        return allowMultipleAggregations;
     }
 
-    @Config("broker-url")
-    public PinotConfig setBrokerUrl(String brokerUrl)
+    @Config("allow-multiple-aggregations")
+    public PinotConfig setAllowMultipleAggregations(boolean allowMultipleAggregations)
     {
-        this.brokerUrl = brokerUrl;
-        return this;
-    }
-
-    @NotNull
-    public String getBrokerRestService()
-    {
-        return brokerRestService;
-    }
-
-    @Config("broker-rest-service")
-    public PinotConfig setBrokerRestService(String brokerRestService)
-    {
-        this.brokerRestService = brokerRestService;
-        return this;
-    }
-
-    @NotNull
-    public long getLimitAll()
-    {
-        return limitAll;
-    }
-
-    @Config("limit-all")
-    public PinotConfig setLimitAll(String limitAll)
-    {
-        try {
-            this.limitAll = Long.valueOf(limitAll);
-        }
-        catch (Exception e) {
-            this.limitAll = DEFAULT_LIMIT_ALL;
-        }
+        this.allowMultipleAggregations = allowMultipleAggregations;
         return this;
     }
 
@@ -196,24 +164,6 @@ public class PinotConfig
         }
         catch (Exception e) {
             this.limitLarge = DEFAULT_LIMIT_LARGE;
-        }
-        return this;
-    }
-
-    @NotNull
-    public long getLimitMedium()
-    {
-        return limitMedium;
-    }
-
-    @Config("limit-medium")
-    public PinotConfig setLimitMedium(String limitMedium)
-    {
-        try {
-            this.limitMedium = Long.valueOf(limitMedium);
-        }
-        catch (Exception e) {
-            this.limitMedium = DEFAULT_LIMIT_MEDIUM;
         }
         return this;
     }
@@ -434,6 +384,42 @@ public class PinotConfig
     public PinotConfig setLimitPushDownEnabled(boolean limitPushDownEnabled)
     {
         this.limitPushDownEnabled = limitPushDownEnabled;
+        return this;
+    }
+
+    public long getMaxSelectLimitWhenSinglePage()
+    {
+        return maxSelectLimitWhenSinglePage;
+    }
+
+    @Config("max-select-limit-when-single-page")
+    public PinotConfig setMaxSelectLimitWhenSinglePage(long maxSelectLimitWhenSinglePage)
+    {
+        this.maxSelectLimitWhenSinglePage = maxSelectLimitWhenSinglePage;
+        return this;
+    }
+
+    public boolean isScanParallelismEnabled()
+    {
+        return scanParallelismEnabled;
+    }
+
+    @Config("scan-parallelism-enabled")
+    public PinotConfig setScanParallelismEnabled(boolean scanParallelismEnabled)
+    {
+        this.scanParallelismEnabled = scanParallelismEnabled;
+        return this;
+    }
+
+    public boolean isQueryUsingController()
+    {
+        return queryUsingController;
+    }
+
+    @Config("query-using-controller")
+    public PinotConfig setQueryUsingController(boolean queryUsingController)
+    {
+        this.queryUsingController = queryUsingController;
         return this;
     }
 }
