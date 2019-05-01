@@ -36,6 +36,7 @@ public class PinotColumnUtils
     public static List<PinotColumn> getPinotColumnsForPinotSchema(Schema pinotTableSchema)
     {
         return pinotTableSchema.getColumnNames().stream()
+                .filter(columnName -> !columnName.startsWith("$")) // Hidden columns starts with "$", ignore them as we can't use them in PQL
                 .map(columnName -> new PinotColumn(columnName, getPrestoTypeFromPinotType(pinotTableSchema.getFieldSpecFor(columnName))))
                 .collect(Collectors.toList());
     }
