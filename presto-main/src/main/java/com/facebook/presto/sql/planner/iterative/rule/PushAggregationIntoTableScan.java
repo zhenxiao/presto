@@ -23,7 +23,6 @@ import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
 import com.facebook.presto.sql.planner.TypeProvider;
 import com.facebook.presto.sql.planner.iterative.Rule;
 import com.facebook.presto.sql.planner.plan.AggregationNode;
-import com.facebook.presto.sql.planner.plan.ExchangeNode;
 import com.facebook.presto.sql.planner.plan.TableScanNode;
 
 import java.util.Optional;
@@ -31,14 +30,10 @@ import java.util.Optional;
 import static com.facebook.presto.matching.Capture.newCapture;
 import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.convertAggregationToPushDownFormat;
 import static com.facebook.presto.sql.planner.iterative.rule.PushDownUtils.newTableScanWithPipeline;
-import static com.facebook.presto.sql.planner.plan.AggregationNode.Step.FINAL;
-import static com.facebook.presto.sql.planner.plan.AggregationNode.Step.PARTIAL;
-import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.REMOTE;
-import static com.facebook.presto.sql.planner.plan.ExchangeNode.gatheringExchange;
+import static com.facebook.presto.sql.planner.plan.AggregationNode.Step.SINGLE;
 import static com.facebook.presto.sql.planner.plan.Patterns.Aggregation.step;
 import static com.facebook.presto.sql.planner.plan.Patterns.ScanNode.hasPipeline;
 import static com.facebook.presto.sql.planner.plan.Patterns.aggregation;
-import static com.facebook.presto.sql.planner.plan.Patterns.exchange;
 import static com.facebook.presto.sql.planner.plan.Patterns.source;
 import static com.facebook.presto.sql.planner.plan.Patterns.tableScan;
 import static java.util.Objects.requireNonNull;
@@ -50,11 +45,8 @@ import static java.util.Objects.requireNonNull;
  * <p>
  * From:
  * <pre>
- * - Aggregation (FINAL)
- *   - Exchange (Local)
- *      - Exchange (Remote)
- *          - Aggregation (PARTIAL)
- *              - TableScan
+ * - Aggregation (SINGLE)
+ *   - TableScan
  * </pre>
  * To:
  * <pre>
@@ -66,17 +58,12 @@ public class PushAggregationIntoTableScan
         implements Rule<AggregationNode>
 {
     private static final Capture<TableScanNode> TABLE_SCAN = newCapture();
-    private static final Capture<AggregationNode> PARTIAL_AGGREGATION = newCapture();
     private static final Pattern<AggregationNode> PATTERN = aggregation()
             // Only consider FINAL un-grouped aggregations
-            .with(step().equalTo(FINAL))
+            .with(step().equalTo(SINGLE))
             // Only consider aggregations without ORDER BY clause
             .matching(node -> !node.hasOrderings())
-            .with(
-                    source().matching(exchange().with(
-                            source().matching(exchange().with(
-                                    source().matching(aggregation().capturedAs(PARTIAL_AGGREGATION).with(step().equalTo(PARTIAL)).with(
-                                            source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)))))))));
+            .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private final Metadata metadata;
 
@@ -95,14 +82,13 @@ public class PushAggregationIntoTableScan
     public Result apply(AggregationNode aggregation, Captures captures, Context context)
     {
         TableScanNode scanNode = captures.get(TABLE_SCAN);
-        AggregationNode partialAggregation = captures.get(PARTIAL_AGGREGATION);
         TypeProvider typeProvider = context.getSymbolAllocator().getTypes();
 
         Optional<AggregationPipelineNode> aggPipelineNode = convertAggregationToPushDownFormat(
                 false,
-                partialAggregation.getOutputSymbols(),
-                partialAggregation.getAggregations(),
-                partialAggregation.getGroupingKeys(),
+                aggregation.getOutputSymbols(),
+                aggregation.getAggregations(),
+                aggregation.getGroupingKeys(),
                 aggregation.getOutputSymbols(),
                 context.getSymbolAllocator().getTypes());
 
@@ -115,13 +101,8 @@ public class PushAggregationIntoTableScan
 
         if (newScanPipeline.isPresent()) {
             PlanNodeIdAllocator idAllocator = context.getIdAllocator();
-
             TableScanNode newScanNode = newTableScanWithPipeline(scanNode, idAllocator.getNextId(), aggregation.getOutputSymbols(), newScanPipeline.get());
-
-            // add a REMOTE GATHER exchange in between so, that the distribution of the fragment having scan and fragment having output node are different
-            ExchangeNode exchangeNode = gatheringExchange(idAllocator.getNextId(), REMOTE, newScanNode);
-
-            return Result.ofPlanNode(exchangeNode);
+            return Result.ofPlanNode(newScanNode);
         }
 
         return Result.empty();

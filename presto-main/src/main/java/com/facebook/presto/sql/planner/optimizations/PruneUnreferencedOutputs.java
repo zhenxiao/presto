@@ -431,7 +431,7 @@ public class PruneUnreferencedOutputs
                     node.getCurrentConstraint(),
                     node.getEnforcedConstraint(),
                     node.getCompactEffectiveConstraint(),
-                    Optional.empty());
+                    node.getScanPipeline());
         }
 
         @Override

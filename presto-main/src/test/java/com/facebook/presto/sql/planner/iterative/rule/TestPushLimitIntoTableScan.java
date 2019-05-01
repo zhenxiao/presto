@@ -51,7 +51,7 @@ public class TestPushLimitIntoTableScan
     }
 
     @Test
-    public void pushDownFinalLimitIntoTableScan()
+    public void pushDownCompleteLimitIntoTableScan()
     {
         testHelper(getSinglePhaseLimitTest(50, false), true);
         testHelper(getSinglePhaseLimitTest(20000, false), false);

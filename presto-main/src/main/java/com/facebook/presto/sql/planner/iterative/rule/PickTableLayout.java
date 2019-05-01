@@ -322,7 +322,7 @@ public class PickTableLayout
                             layout.getLayout().getPredicate(),
                             computeEnforced(newDomain, layout.getUnenforcedConstraint()),
                             layout.getLayout().getCompactEffectivePredicate(),
-                            Optional.empty());
+                            node.getScanPipeline());
 
                     // The order of the arguments to combineConjuncts matters:
                     // * Unenforced constraints go first because they can only be simple column references,

@@ -452,6 +452,21 @@ public class PlanOptimizers
                         .add(new InlineProjections())
                         .build()));
 
+        // For Pushdowns: try pushing the complete operations into the connector. For example aggregation is divided into two operations: partial and final. Some connectors
+        // support complete aggregation pushdowns, some don't support anything and some support both. We want to pushdown the complete aggregation first and if it is not pushed
+        // down (connector didn't accept), try the partial operations in next set of rules.
+        // NOTE: MUST run before AddExchanges
+        builder.add(new IterativeOptimizer(
+                ruleStats,
+                statsCalculator,
+                costCalculator,
+                ImmutableSet.of(
+                        new CreateTableScanPipeline(metadata),
+                        new PushFilterIntoTableScan(metadata),
+                        new PushProjectIntoTableScan(metadata),
+                        new PushAggregationIntoTableScan(metadata),
+                        new FinalLimitPushDown(metadata))));
+
         if (!forceSingleNode) {
             builder.add(new ReplicateSemiJoinInDelete()); // Must run before AddExchanges
             builder.add((new IterativeOptimizer(
@@ -518,20 +533,6 @@ public class PlanOptimizers
                 ImmutableSet.of(
                         new AddIntermediateAggregations(),
                         new RemoveRedundantIdentityProjections())));
-
-        // For Pushdowns: try pushing the complete operations into the connector. For example aggregation is divided into two operations: partial and final. Some connectors
-        // support complete aggregation pushdowns, some don't support anything and some support both. We want to pushdown the complete aggregation first and if it is not pushed
-        // down (connector didn't accept), try the partial operations in next set of rules.
-        builder.add(new IterativeOptimizer(
-                ruleStats,
-                statsCalculator,
-                costCalculator,
-                ImmutableSet.of(
-                        new CreateTableScanPipeline(metadata),
-                        new PushFilterIntoTableScan(metadata),
-                        new PushProjectIntoTableScan(metadata),
-                        new PushAggregationIntoTableScan(metadata),
-                        new FinalLimitPushDown(metadata))));
 
         // Partial operation pushdown rules
         builder.add(new IterativeOptimizer(
