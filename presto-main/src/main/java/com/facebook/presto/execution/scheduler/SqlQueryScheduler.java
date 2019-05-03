@@ -137,7 +137,8 @@ public class SqlQueryScheduler
             OutputBuffers rootOutputBuffers,
             NodeTaskMap nodeTaskMap,
             ExecutionPolicy executionPolicy,
-            SplitSchedulerStats schedulerStats)
+            SplitSchedulerStats schedulerStats,
+            boolean doDelayedTaskStart)
     {
         SqlQueryScheduler sqlQueryScheduler = new SqlQueryScheduler(
                 queryStateMachine,
@@ -155,7 +156,8 @@ public class SqlQueryScheduler
                 rootOutputBuffers,
                 nodeTaskMap,
                 executionPolicy,
-                schedulerStats);
+                schedulerStats,
+                doDelayedTaskStart);
         sqlQueryScheduler.initialize();
         return sqlQueryScheduler;
     }
@@ -176,7 +178,8 @@ public class SqlQueryScheduler
             OutputBuffers rootOutputBuffers,
             NodeTaskMap nodeTaskMap,
             ExecutionPolicy executionPolicy,
-            SplitSchedulerStats schedulerStats)
+            SplitSchedulerStats schedulerStats,
+            boolean doDelayedTaskStart)
     {
         this.queryStateMachine = requireNonNull(queryStateMachine, "queryStateMachine is null");
         this.executionPolicy = requireNonNull(executionPolicy, "schedulerPolicyFactory is null");
@@ -207,7 +210,8 @@ public class SqlQueryScheduler
                 failureDetector,
                 nodeTaskMap,
                 stageSchedulers,
-                stageLinkages);
+                stageLinkages,
+                doDelayedTaskStart);
 
         SqlStageExecution rootStage = stages.get(0);
         rootStage.setOutputBuffers(rootOutputBuffers);
@@ -293,7 +297,8 @@ public class SqlQueryScheduler
             FailureDetector failureDetector,
             NodeTaskMap nodeTaskMap,
             ImmutableMap.Builder<StageId, StageScheduler> stageSchedulers,
-            ImmutableMap.Builder<StageId, StageLinkage> stageLinkages)
+            ImmutableMap.Builder<StageId, StageLinkage> stageLinkages,
+            boolean doDelayedTaskStart)
     {
         ImmutableList.Builder<SqlStageExecution> stages = ImmutableList.builder();
 
@@ -327,7 +332,7 @@ public class SqlQueryScheduler
             SplitPlacementPolicy placementPolicy = new DynamicSplitPlacementPolicy(nodeSelector, stage::getAllTasks);
 
             checkArgument(!plan.getFragment().getStageExecutionDescriptor().isStageGroupedExecution());
-            stageSchedulers.put(stageId, newSourcePartitionedSchedulerAsStageScheduler(stage, planNodeId, splitSource, placementPolicy, splitBatchSize));
+            stageSchedulers.put(stageId, newSourcePartitionedSchedulerAsStageScheduler(stage, planNodeId, splitSource, placementPolicy, splitBatchSize, doDelayedTaskStart));
             bucketToPartition = Optional.of(new int[1]);
         }
         else if (partitioningHandle.equals(SCALED_WRITER_DISTRIBUTION)) {
@@ -387,7 +392,8 @@ public class SqlQueryScheduler
                         splitBatchSize,
                         getConcurrentLifespansPerNode(session),
                         nodeScheduler.createNodeSelector(connectorId),
-                        connectorPartitionHandles));
+                        connectorPartitionHandles,
+                        doDelayedTaskStart));
             }
             else {
                 // all sources are remote
@@ -418,7 +424,8 @@ public class SqlQueryScheduler
                     failureDetector,
                     nodeTaskMap,
                     stageSchedulers,
-                    stageLinkages);
+                    stageLinkages,
+                    doDelayedTaskStart);
             stages.addAll(subTree);
 
             SqlStageExecution childStage = subTree.get(0);

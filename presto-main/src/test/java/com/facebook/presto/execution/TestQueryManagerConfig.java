@@ -49,6 +49,7 @@ public class TestQueryManagerConfig
                 .setInitializationRequiredWorkers(1)
                 .setInitializationTimeout(new Duration(5, TimeUnit.MINUTES))
                 .setRequiredWorkers(1)
+                .setDelayTaskStartUntilNoMoreSplits(false)
                 .setRequiredWorkersMaxWait(new Duration(5, TimeUnit.MINUTES)));
     }
 
@@ -78,6 +79,7 @@ public class TestQueryManagerConfig
                 .put("query-manager.initialization-required-workers", "200")
                 .put("query-manager.initialization-timeout", "1m")
                 .put("query-manager.required-workers", "333")
+                .put("query.delay-task-start", "true")
                 .put("query-manager.required-workers-max-wait", "33m")
                 .build();
 
@@ -104,6 +106,7 @@ public class TestQueryManagerConfig
                 .setInitializationRequiredWorkers(200)
                 .setInitializationTimeout(new Duration(1, TimeUnit.MINUTES))
                 .setRequiredWorkers(333)
+                .setDelayTaskStartUntilNoMoreSplits(true)
                 .setRequiredWorkersMaxWait(new Duration(33, TimeUnit.MINUTES));
 
         ConfigAssertions.assertFullMapping(properties, expected);

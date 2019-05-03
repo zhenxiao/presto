@@ -90,6 +90,7 @@ public class SourcePartitionedScheduler
     private final int splitBatchSize;
     private final PlanNodeId partitionedNode;
     private final boolean groupedExecution;
+    private final boolean doDelayedTaskStart;
 
     private final Map<Lifespan, ScheduleGroup> scheduleGroups = new HashMap<>();
     private boolean noMoreScheduleGroups;
@@ -103,7 +104,8 @@ public class SourcePartitionedScheduler
             SplitSource splitSource,
             SplitPlacementPolicy splitPlacementPolicy,
             int splitBatchSize,
-            boolean groupedExecution)
+            boolean groupedExecution,
+            boolean doDelayedTaskStart)
     {
         this.stage = requireNonNull(stage, "stage is null");
         this.partitionedNode = requireNonNull(partitionedNode, "partitionedNode is null");
@@ -113,6 +115,7 @@ public class SourcePartitionedScheduler
         checkArgument(splitBatchSize > 0, "splitBatchSize must be at least one");
         this.splitBatchSize = splitBatchSize;
         this.groupedExecution = groupedExecution;
+        this.doDelayedTaskStart = doDelayedTaskStart;
     }
 
     public PlanNodeId getPlanNodeId()
@@ -132,13 +135,15 @@ public class SourcePartitionedScheduler
             PlanNodeId partitionedNode,
             SplitSource splitSource,
             SplitPlacementPolicy splitPlacementPolicy,
-            int splitBatchSize)
+            int splitBatchSize,
+            boolean doDelayedTaskStart)
     {
-        SourcePartitionedScheduler sourcePartitionedScheduler = new SourcePartitionedScheduler(stage, partitionedNode, splitSource, splitPlacementPolicy, splitBatchSize, false);
+        SourcePartitionedScheduler sourcePartitionedScheduler = new SourcePartitionedScheduler(stage, partitionedNode, splitSource, splitPlacementPolicy, splitBatchSize, false, doDelayedTaskStart);
         sourcePartitionedScheduler.startLifespan(Lifespan.taskWide(), NOT_PARTITIONED);
         sourcePartitionedScheduler.noMoreLifespans();
 
-        return new StageScheduler() {
+        return new StageScheduler()
+        {
             @Override
             public ScheduleResult schedule()
             {
@@ -172,9 +177,10 @@ public class SourcePartitionedScheduler
             SplitSource splitSource,
             SplitPlacementPolicy splitPlacementPolicy,
             int splitBatchSize,
-            boolean groupedExecution)
+            boolean groupedExecution,
+            boolean doDelayedTaskStart)
     {
-        return new SourcePartitionedScheduler(stage, partitionedNode, splitSource, splitPlacementPolicy, splitBatchSize, groupedExecution);
+        return new SourcePartitionedScheduler(stage, partitionedNode, splitSource, splitPlacementPolicy, splitBatchSize, groupedExecution, doDelayedTaskStart);
     }
 
     @Override
@@ -367,6 +373,11 @@ public class SourcePartitionedScheduler
             blockedReason = anyBlockedOnPlacements ? SPLIT_QUEUES_FULL : NO_ACTIVE_DRIVER_GROUP;
         }
 
+        if (!overallBlockedFutures.isEmpty()) {
+            // This stage is blocked, so flush all tasks started
+            stage.getAllTasks().forEach(RemoteTask::ensureStarted);
+        }
+
         overallBlockedFutures.add(whenFinishedOrNewLifespanAdded);
         return new ScheduleResult(
                 false,
@@ -449,7 +460,8 @@ public class SourcePartitionedScheduler
             newTasks.addAll(stage.scheduleSplits(
                     node,
                     splits,
-                    noMoreSplits.build()));
+                    noMoreSplits.build(),
+                    doDelayedTaskStart));
         }
         return newTasks.build();
     }
@@ -466,7 +478,7 @@ public class SourcePartitionedScheduler
         Set<Node> scheduledNodes = stage.getScheduledNodes();
         Set<RemoteTask> newTasks = splitPlacementPolicy.allNodes().stream()
                 .filter(node -> !scheduledNodes.contains(node))
-                .flatMap(node -> stage.scheduleSplits(node, ImmutableMultimap.of(), ImmutableMultimap.of()).stream())
+                .flatMap(node -> stage.scheduleSplits(node, ImmutableMultimap.of(), ImmutableMultimap.of(), doDelayedTaskStart).stream())
                 .collect(toImmutableSet());
 
         // notify listeners that we have scheduled all tasks so they can set no more buffers or exchange splits

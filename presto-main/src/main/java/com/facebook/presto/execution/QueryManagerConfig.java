@@ -65,6 +65,21 @@ public class QueryManagerConfig
     private int requiredWorkers = 1;
     private Duration requiredWorkersMaxWait = new Duration(5, TimeUnit.MINUTES);
 
+    private boolean delayTaskStartUntilNoMoreSplits;
+
+    public boolean isDelayTaskStartUntilNoMoreSplits()
+    {
+        return delayTaskStartUntilNoMoreSplits;
+    }
+
+    @Config("query.delay-task-start")
+    @ConfigDescription("Delay task start until no more splits signal is given")
+    public QueryManagerConfig setDelayTaskStartUntilNoMoreSplits(boolean delayTaskStartUntilNoMoreSplits)
+    {
+        this.delayTaskStartUntilNoMoreSplits = delayTaskStartUntilNoMoreSplits;
+        return this;
+    }
+
     @Min(1)
     public int getScheduleSplitBatchSize()
     {

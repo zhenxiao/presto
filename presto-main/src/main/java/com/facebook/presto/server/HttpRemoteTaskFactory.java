@@ -123,7 +123,8 @@ public class HttpRemoteTaskFactory
             OptionalInt totalPartitions,
             OutputBuffers outputBuffers,
             PartitionedSplitCountTracker partitionedSplitCountTracker,
-            boolean summarizeTaskInfo)
+            boolean summarizeTaskInfo,
+            boolean delayTaskStart)
     {
         return new HttpRemoteTask(session,
                 taskId,
@@ -145,6 +146,7 @@ public class HttpRemoteTaskFactory
                 taskInfoCodec,
                 taskUpdateRequestCodec,
                 partitionedSplitCountTracker,
-                stats);
+                stats,
+                delayTaskStart);
     }
 }

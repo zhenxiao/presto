@@ -34,5 +34,6 @@ public interface RemoteTaskFactory
             OptionalInt totalPartitions,
             OutputBuffers outputBuffers,
             PartitionedSplitCountTracker partitionedSplitCountTracker,
-            boolean summarizeTaskInfo);
+            boolean summarizeTaskInfo,
+            boolean doDelayedTaskStart);
 }

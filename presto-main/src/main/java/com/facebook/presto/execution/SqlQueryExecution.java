@@ -116,6 +116,8 @@ public class SqlQueryExecution
     private final SplitSchedulerStats schedulerStats;
     private final Analysis analysis;
 
+    private final boolean doDelayedTaskStart;
+
     private SqlQueryExecution(
             String query,
             Session session,
@@ -142,7 +144,8 @@ public class SqlQueryExecution
             ExecutionPolicy executionPolicy,
             SplitSchedulerStats schedulerStats,
             WarningCollector warningCollector,
-            CachingPlanner cachingPlanner)
+            CachingPlanner cachingPlanner,
+            boolean doDelayedTaskStart)
     {
         try (SetThreadName ignored = new SetThreadName("Query-%s", session.getQueryId())) {
             this.clusterSizeMonitor = requireNonNull(clusterSizeMonitor, "clusterSizeMonitor is null");
@@ -162,6 +165,7 @@ public class SqlQueryExecution
 
             checkArgument(scheduleSplitBatchSize > 0, "scheduleSplitBatchSize must be greater than 0");
             this.scheduleSplitBatchSize = scheduleSplitBatchSize;
+            this.doDelayedTaskStart = doDelayedTaskStart;
 
             requireNonNull(query, "query is null");
             requireNonNull(session, "session is null");
@@ -483,7 +487,8 @@ public class SqlQueryExecution
                 rootOutputBuffers,
                 nodeTaskMap,
                 executionPolicy,
-                schedulerStats);
+                schedulerStats,
+                doDelayedTaskStart);
 
         queryScheduler.set(scheduler);
 
@@ -673,6 +678,7 @@ public class SqlQueryExecution
         private final Map<String, ExecutionPolicy> executionPolicies;
         private final ClusterSizeMonitor clusterSizeMonitor;
         private final CachingPlanner cachingPlanner;
+        private final boolean doDelayedTaskStart;
 
         @Inject
         SqlQueryExecutionFactory(QueryManagerConfig config,
@@ -717,6 +723,7 @@ public class SqlQueryExecution
             this.executionPolicies = requireNonNull(executionPolicies, "schedulerPolicies is null");
             this.clusterSizeMonitor = requireNonNull(clusterSizeMonitor, "clusterSizeMonitor is null");
             this.cachingPlanner = requireNonNull(cachingPlanner, "cachingPlanner is null");
+            this.doDelayedTaskStart = config.isDelayTaskStartUntilNoMoreSplits();
         }
 
         @Override
@@ -757,7 +764,8 @@ public class SqlQueryExecution
                     executionPolicy,
                     schedulerStats,
                     warningCollector,
-                    cachingPlanner);
+                    cachingPlanner,
+                    doDelayedTaskStart);
 
             return execution;
         }

@@ -48,7 +48,8 @@ public class MemoryTrackingRemoteTaskFactory
             OptionalInt totalPartitions,
             OutputBuffers outputBuffers,
             PartitionedSplitCountTracker partitionedSplitCountTracker,
-            boolean summarizeTaskInfo)
+            boolean summarizeTaskInfo,
+            boolean doDelayedTaskStart)
     {
         RemoteTask task = remoteTaskFactory.createRemoteTask(session,
                 taskId,
@@ -58,7 +59,8 @@ public class MemoryTrackingRemoteTaskFactory
                 totalPartitions,
                 outputBuffers,
                 partitionedSplitCountTracker,
-                summarizeTaskInfo);
+                summarizeTaskInfo,
+                doDelayedTaskStart);
 
         task.addStateChangeListener(new UpdatePeakMemory(stateMachine));
         return task;
