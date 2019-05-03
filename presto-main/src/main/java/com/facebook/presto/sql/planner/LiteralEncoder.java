@@ -57,8 +57,6 @@ import static com.facebook.presto.spi.type.Decimals.isShortDecimal;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.RealType.REAL;
-import static com.facebook.presto.spi.type.SmallintType.SMALLINT;
-import static com.facebook.presto.spi.type.TinyintType.TINYINT;
 import static com.facebook.presto.spi.type.VarbinaryType.VARBINARY;
 import static com.facebook.presto.type.UnknownType.UNKNOWN;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -107,14 +105,6 @@ public final class LiteralEncoder
                 return new NullLiteral();
             }
             return new Cast(new NullLiteral(), type.getTypeSignature().toString(), false, true);
-        }
-
-        if (type.equals(TINYINT)) {
-            return new GenericLiteral("TINYINT", object.toString());
-        }
-
-        if (type.equals(SMALLINT)) {
-            return new GenericLiteral("SMALLINT", object.toString());
         }
 
         if (type.equals(INTEGER)) {
