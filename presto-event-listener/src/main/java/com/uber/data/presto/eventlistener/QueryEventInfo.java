@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,19 +51,19 @@ public class QueryEventInfo
     private final String resourceGroup;
     private final String schema;
     private final String query;
-    private final long createTime;
+    private final long createTimeMs;
     private final String remoteClientAddress;
     private final String userAgent;
     private final String sessionProperties;
     private int totalTasks;
     private int totalStages;
-    private long endTime;
-    private long elapsedTime;
+    private long endTimeMs;
+    private long elapsedTimeMs;
     private long queuedTime;
     private double memory;
-    private long cpuTime; // aggregate across all tasks
-    private long wallTime; // aggregate across all tasks
-    private long blockedTime; // aggregate across all tasks
+    private long cpuTimeMs; // aggregate across all tasks
+    private long wallTimeMs; // aggregate across all tasks
+    private long blockedTimeMs; // aggregate across all tasks
     private long analysisTime;
     private long distributedPlanningTime;
     private long totalDrivers;          // aka completedSplits
@@ -154,7 +155,7 @@ public class QueryEventInfo
         this.sessionProperties = getSessionPropertiesString(queryContext.getSessionProperties());
 
         // Time related
-        this.createTime = queryCreatedEvent.getCreateTime().getEpochSecond();
+        this.createTimeMs = queryCreatedEvent.getCreateTime().toEpochMilli();
     }
 
     QueryEventInfo(QueryCompletedEvent queryCompletedEvent, String engine, String cluster)
@@ -188,18 +189,18 @@ public class QueryEventInfo
         this.sessionProperties = getSessionPropertiesString(queryContext.getSessionProperties());
 
         // Time related
-        this.createTime = queryCompletedEvent.getCreateTime().getEpochSecond();
-        this.endTime = queryCompletedEvent.getEndTime().getEpochSecond();
-        this.elapsedTime = endTime - createTime;
+        this.createTimeMs = queryCompletedEvent.getCreateTime().toEpochMilli();
+        this.endTimeMs = queryCompletedEvent.getEndTime().toEpochMilli();
+        this.elapsedTimeMs = endTimeMs - createTimeMs;
 
         // Query Statistics
         this.totalTasks = queryStatistics.getTotalTasks();
         this.totalStages = queryStatistics.getStageGcStatistics().size();
         this.queuedTime = queryStatistics.getQueuedTime().toMillis();
         this.memory = queryStatistics.getCumulativeMemory();
-        this.cpuTime = queryStatistics.getCpuTime().getSeconds();
-        this.wallTime = queryStatistics.getWallTime().getSeconds();
-        this.blockedTime = queryStatistics.getBlockedTime().getSeconds();
+        this.cpuTimeMs = queryStatistics.getCpuTime().toMillis();
+        this.wallTimeMs = queryStatistics.getWallTime().toMillis();
+        this.blockedTimeMs = queryStatistics.getBlockedTime().toMillis();
         this.analysisTime = queryStatistics.getAnalysisTime().orElse(Duration.ZERO).toMillis();
         this.distributedPlanningTime = queryStatistics.getDistributedPlanningTime().orElse(Duration.ZERO).toMillis();
         this.totalDrivers = queryStatistics.getCompletedSplits();
@@ -302,14 +303,20 @@ public class QueryEventInfo
         map.put("resourceGroup", this.resourceGroup);
         map.put("schema", this.schema);
         map.put("query", this.query);
-        map.put("createTime", this.createTime);
-        map.put("endTime", this.endTime);
-        map.put("elapsedTime", this.elapsedTime);
+        map.put("createTime", this.createTimeMs);
+        map.put("createTimeMs", this.createTimeMs);
+        map.put("endTime", TimeUnit.SECONDS.convert(this.endTimeMs, TimeUnit.MILLISECONDS));
+        map.put("endTimeMs", this.endTimeMs);
+        map.put("elapsedTime", TimeUnit.SECONDS.convert(this.elapsedTimeMs, TimeUnit.MILLISECONDS));
+        map.put("elapsedTimeMs", this.elapsedTimeMs);
         map.put("queuedTime", this.queuedTime);
         map.put("memory", this.memory);
-        map.put("cpuTime", this.cpuTime);
-        map.put("wallTime", this.wallTime);
-        map.put("blockedTime", this.blockedTime);
+        map.put("cpuTime", TimeUnit.SECONDS.convert(this.cpuTimeMs, TimeUnit.MILLISECONDS));
+        map.put("cpuTimeMs", this.cpuTimeMs);
+        map.put("wallTime", TimeUnit.SECONDS.convert(this.wallTimeMs, TimeUnit.MILLISECONDS));
+        map.put("wallTimeMs", this.wallTimeMs);
+        map.put("blockedTime", TimeUnit.SECONDS.convert(this.blockedTimeMs, TimeUnit.MILLISECONDS));
+        map.put("blockedTimeMs", this.blockedTimeMs);
         map.put("analysisTime", this.analysisTime);
         map.put("distributedPlanningTime", this.distributedPlanningTime);
         map.put("totalDrivers", this.totalDrivers);

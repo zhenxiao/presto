@@ -34,7 +34,13 @@ public class UberEventListenerFactory
         String engine = requireNonNull(map.get("event-listener.engine"), "event-listener.engine is null");
         String cluster = requireNonNull(map.get("event-listener.cluster"), "event-listener.cluster is null");
         boolean syncProduce = map.get("event-listener.sync-produce") != null && Boolean.parseBoolean(map.get("event-listener.sync-produce"));
+        boolean logOnlyCompleteEvent = map.get("event-listener.log-only-complete-event") != null && Boolean.parseBoolean(map.get("event-listener.log-only-complete-event"));
 
-        return new UberEventListener(topic, engine, cluster, syncProduce);
+        if (cluster.isEmpty() || engine.isEmpty()) {
+            return new EventListener() {};
+        }
+        else {
+            return new UberEventListener(topic, engine, cluster, syncProduce, logOnlyCompleteEvent);
+        }
     }
 }

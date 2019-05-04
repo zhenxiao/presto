@@ -37,8 +37,9 @@ public class UberEventListener
     private final String engine;
     private final String cluster;
     private final HeatpipeProducer producer;
+    private final boolean logOnlyCompleteEvent;
 
-    public UberEventListener(String topic, String engine, String cluster, boolean syncProduce)
+    public UberEventListener(String topic, String engine, String cluster, boolean syncProduce, boolean logOnlyCompleteEvent)
     {
         this.engine = engine;
         this.cluster = cluster;
@@ -49,6 +50,7 @@ public class UberEventListener
         Heatpipe4JConfig heatpipe4JConfig = new PropertiesHeatpipeConfiguration(prop);
 
         this.producer = createHeatpipeProducer(topic, heatpipe4JConfig);
+        this.logOnlyCompleteEvent = logOnlyCompleteEvent;
     }
 
     private HeatpipeProducer createHeatpipeProducer(String topic, Heatpipe4JConfig config)
@@ -84,6 +86,9 @@ public class UberEventListener
     @Override
     public void queryCreated(QueryCreatedEvent queryCreatedEvent)
     {
+        if (logOnlyCompleteEvent) {
+            return;
+        }
         QueryEventInfo queryEventInfo = new QueryEventInfo(queryCreatedEvent, this.engine, this.cluster);
         sendToHeatpipe(queryEventInfo);
         log.info("Query created. query id: " + queryEventInfo.getQueryId()
