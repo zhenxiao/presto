@@ -1,0 +1,72 @@
+{
+    "config" : {
+    },
+    "types" : {
+        "aresdb" : {
+           "config" : {
+               "service-url" : "localhost:5436",
+               "metadata-service-name" : "unused",
+               "metadata-service-url" : "unused"
+           },
+           "environments" : {
+               "phx2-staginga" : {
+                   "config" : {
+                       "extra-http-headers" : "Rpc-Routing-Zone:phx3,Rpc-Routing-Delegate:crosszone",
+                       "service-name" : "gforcedb-staginga"
+                   }
+               },
+               "phx2-stagingb" : {
+                   "config" : {
+                       "extra-http-headers" : "Rpc-Routing-Zone:phx3,Rpc-Routing-Delegate:crosszone",
+                       "service-name" : "gforcedb-stagingb"
+                   }
+               },
+               "phx2-prodi" : {
+                   "config" : {
+                       "extra-http-headers" : "Rpc-Routing-Zone:phx3,Rpc-Routing-Delegate:crosszone",
+                       "service-name" : "gforcedb-prodi"
+                   }
+               },
+               "dca1-prodi" : {
+                   "config" : {
+                       "service-name" : "gforcedb-prodi"
+                   }
+               },
+               "phx2-prodh" : {
+                   "config" : {
+                       "extra-http-headers" : "Rpc-Routing-Zone:phx3,Rpc-Routing-Delegate:crosszone",
+                       "service-name" : "gforcedb-prodh"
+                   }
+               },
+               "dca1-prodh" : {
+                   "config" : {
+                       "service-name" : "gforcedb-prodh"
+                   }
+               },
+               "dca1-prodj" : {
+                   "config" : {
+                       "extra-http-headers" : "Rpc-Routing-Zone:dca1,Rpc-Routing-Delegate:crosszone",
+                       "service-name" : "gforcedb-prodj"
+                   }
+               }
+           }
+        },
+        "pinot" : {
+           "config" : {
+               "pinot-cluster" : "upinot",
+               "controller-url" : "localhost:5436",
+               "scan-parallelism-enabled" : "false",
+               "allow-multiple-aggregations" : "true",
+               "force-single-node-plan" : "true"
+           },
+           "environments" : {
+               "dca1": {
+                   "baseConfigFile":"etc/catalog/pinotstg.properties"
+               },
+               "phx2": {
+                   "baseConfigFile":"etc/catalog/pinotphxstg.properties"
+               }
+           }
+        }
+    }
+}
