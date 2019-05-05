@@ -22,6 +22,7 @@ import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.HttpRequestSessionContext;
 import com.facebook.presto.server.SessionContext;
+import com.facebook.presto.server.StatementProgressRecorder;
 import com.facebook.presto.server.redirect.RedirectManager;
 import com.facebook.presto.server.redirect.RedirectRulesSpec;
 import com.facebook.presto.spi.QueryId;
@@ -116,6 +117,8 @@ public class StatementResource
 
     private final CounterStat createQueryRequests = new CounterStat();
 
+    private final StatementProgressRecorder progressRecorder = new StatementProgressRecorder();
+
     @Inject
     public StatementResource(
             QueryManager queryManager,
@@ -186,7 +189,7 @@ public class StatementResource
             proto = uriInfo.getRequestUri().getScheme();
         }
 
-        SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
+        SessionContext sessionContext = new HttpRequestSessionContext(servletRequest, progressRecorder.create());
 
         String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER)
                 ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER)
@@ -323,7 +326,9 @@ public class StatementResource
             response.header(PRESTO_CLEAR_TRANSACTION_ID, true);
         }
 
-        return response.build();
+        Response responseBuilt = response.build();
+        query.getStatementProgress().ifPresent(progress -> progress.recordResponseBuilt());
+        return responseBuilt;
     }
 
     @DELETE
@@ -355,5 +360,12 @@ public class StatementResource
     public CounterStat getCreateQueryRequests()
     {
         return createQueryRequests;
+    }
+
+    @Managed
+    @Nested
+    public StatementProgressRecorder getProgressRecorder()
+    {
+        return progressRecorder;
     }
 }

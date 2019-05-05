@@ -70,4 +70,6 @@ public interface SessionContext
     Optional<String> getTraceToken();
 
     boolean supportClientTransaction();
+
+    Optional<StatementProgressRecorder.Instance> getStatementProgressReporter();
 }

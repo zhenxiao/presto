@@ -96,8 +96,9 @@ public final class HttpRequestSessionContext
     private final Optional<TransactionId> transactionId;
     private final boolean clientTransactionSupport;
     private final String clientInfo;
+    private final StatementProgressRecorder.Instance progressRecorderInstance;
 
-    public HttpRequestSessionContext(HttpServletRequest servletRequest)
+    public HttpRequestSessionContext(HttpServletRequest servletRequest, StatementProgressRecorder.Instance progressRecorderInstance)
             throws WebApplicationException
     {
         catalog = trimEmptyToNull(servletRequest.getHeader(PRESTO_CATALOG));
@@ -158,6 +159,13 @@ public final class HttpRequestSessionContext
         String transactionIdHeader = servletRequest.getHeader(PRESTO_TRANSACTION_ID);
         clientTransactionSupport = transactionIdHeader != null;
         transactionId = parseTransactionId(transactionIdHeader);
+        this.progressRecorderInstance = progressRecorderInstance;
+    }
+
+    public HttpRequestSessionContext(HttpServletRequest servletRequest)
+            throws WebApplicationException
+    {
+        this(servletRequest, new StatementProgressRecorder().create());
     }
 
     @Override
@@ -412,5 +420,11 @@ public final class HttpRequestSessionContext
         catch (UnsupportedEncodingException e) {
             throw new AssertionError(e);
         }
+    }
+
+    @Override
+    public Optional<StatementProgressRecorder.Instance> getStatementProgressReporter()
+    {
+        return Optional.of(progressRecorderInstance);
     }
 }

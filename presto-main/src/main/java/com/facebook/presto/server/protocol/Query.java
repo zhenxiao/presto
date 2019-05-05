@@ -33,6 +33,7 @@ import com.facebook.presto.execution.buffer.SerializedPage;
 import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.operator.ExchangeClient;
 import com.facebook.presto.server.SessionContext;
+import com.facebook.presto.server.StatementProgressRecorder;
 import com.facebook.presto.spi.ErrorCode;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.QueryId;
@@ -537,6 +538,9 @@ class Query
                 updateCount);
 
         cacheLastResults(queryResults);
+        if (queryResults.getNextUri() == null) {
+            getStatementProgress().ifPresent(progressReporter -> progressReporter.gotLastResult());
+        }
         return queryResults;
     }
 
@@ -585,6 +589,14 @@ class Query
         if (outputInfo.isNoMoreBufferLocations()) {
             exchangeClient.noMoreLocations();
         }
+    }
+
+    public Optional<StatementProgressRecorder.Instance> getStatementProgress()
+    {
+        if (submissionFuture == null || submissionFuture.sessionContext == null) {
+            return Optional.empty();
+        }
+        return submissionFuture.sessionContext.getStatementProgressReporter();
     }
 
     private ListenableFuture<?> queryDoneFuture(QueryState currentState)
