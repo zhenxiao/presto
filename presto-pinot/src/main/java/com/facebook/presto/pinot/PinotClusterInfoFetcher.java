@@ -48,10 +48,10 @@ public class PinotClusterInfoFetcher
     private static final Logger log = Logger.get(PinotClusterInfoFetcher.class);
     private static final String APPLICATION_JSON = "application/json";
 
-    private static final String GET_ALL_TABLES_API_TEMPLATE = "/tables";
-    private static final String TABLE_SCHEMA_API_TEMPLATE = "/tables/%s/schema";
-    private static final String ROUTING_TABLE_API_TEMPLATE = "/debug/routingTable/%s";
-    private static final String TIME_BOUNDARY_API_TEMPLATE = "/debug/timeBoundary/%s";
+    private static final String GET_ALL_TABLES_API_TEMPLATE = "tables";
+    private static final String TABLE_SCHEMA_API_TEMPLATE = "tables/%s/schema";
+    private static final String ROUTING_TABLE_API_TEMPLATE = "debug/routingTable/%s";
+    private static final String TIME_BOUNDARY_API_TEMPLATE = "debug/timeBoundary/%s";
 
     private final PinotConfig pinotConfig;
     private final PinotMetrics pinotMetrics;
@@ -107,7 +107,7 @@ public class PinotClusterInfoFetcher
         else {
             throw new PinotException(PinotErrorCode.PINOT_HTTP_ERROR,
                     Optional.empty(),
-                    String.format("Unexpected response status: %d for request %s, full response %s", response.getStatusCode(), requestBody.orElse(""), responseBody));
+                    String.format("Unexpected response status: %d for request %s to url %s, full response %s", response.getStatusCode(), requestBody.orElse(""), request.getUri(), responseBody));
         }
     }
 

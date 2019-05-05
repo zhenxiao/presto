@@ -175,9 +175,9 @@ public class PinotBrokerPageSource
     {
         String queryHost;
         Optional<String> rpcService;
-        if (pinotConfig.isQueryUsingController()) {
-            queryHost = pinotConfig.getControllerUrl();
-            rpcService = Optional.of(pinotConfig.getControllerRestService());
+        if (pinotConfig.getRestProxyUrl() != null) {
+            queryHost = pinotConfig.getRestProxyUrl();
+            rpcService = Optional.ofNullable(pinotConfig.getRestProxyServiceForQuery());
         }
         else {
             queryHost = clusterInfoFetcher.getBrokerHost(table);

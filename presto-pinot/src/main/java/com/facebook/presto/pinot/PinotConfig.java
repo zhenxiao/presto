@@ -19,6 +19,7 @@ import io.airlift.configuration.Config;
 import io.airlift.units.Duration;
 import io.airlift.units.MinDuration;
 
+import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
 
 import java.util.Map;
@@ -45,6 +46,8 @@ public class PinotConfig
     private String callerHeaderParam = "RPC-Caller";
 
     private String controllerUrl;
+    private String restProxyUrl;
+    private String restProxyServiceForQuery;
 
     private long limitLarge = DEFAULT_LIMIT_LARGE;
 
@@ -67,7 +70,6 @@ public class PinotConfig
     private boolean allowMultipleAggregations;
     private long maxSelectLimitWhenSinglePage = 1_000;
     private boolean scanParallelismEnabled = true;
-    private boolean queryUsingController;
 
     @NotNull
     public String getZkUrl()
@@ -121,6 +123,19 @@ public class PinotConfig
     public PinotConfig setControllerUrl(String controllerUrl)
     {
         this.controllerUrl = controllerUrl;
+        return this;
+    }
+
+    @Nullable
+    public String getRestProxyUrl()
+    {
+        return restProxyUrl;
+    }
+
+    @Config("rest-proxy-url")
+    public PinotConfig setRestProxyUrl(String restProxyUrl)
+    {
+        this.restProxyUrl = restProxyUrl;
         return this;
     }
 
@@ -411,15 +426,16 @@ public class PinotConfig
         return this;
     }
 
-    public boolean isQueryUsingController()
+    @Nullable
+    public String getRestProxyServiceForQuery()
     {
-        return queryUsingController;
+        return restProxyServiceForQuery;
     }
 
-    @Config("query-using-controller")
-    public PinotConfig setQueryUsingController(boolean queryUsingController)
+    @Config("rest-proxy-service-for-query")
+    public PinotConfig setRestProxyServiceForQuery(String restProxyServiceForQuery)
     {
-        this.queryUsingController = queryUsingController;
+        this.restProxyServiceForQuery = restProxyServiceForQuery;
         return this;
     }
 }

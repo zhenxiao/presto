@@ -51,7 +51,8 @@ public class TestPinotConfig
                         .setAllowMultipleAggregations(false)
                         .setMaxSelectLimitWhenSinglePage(1000)
                         .setScanParallelismEnabled(true)
-                        .setQueryUsingController(false)
+                        .setRestProxyServiceForQuery(null)
+                        .setRestProxyUrl(null)
                         .setLimitPushDownEnabled(true));
     }
 
@@ -83,7 +84,8 @@ public class TestPinotConfig
                 .put("allow-multiple-aggregations", "true")
                 .put("max-select-limit-when-single-page", "10000")
                 .put("scan-parallelism-enabled", "false")
-                .put("query-using-controller", "true")
+                .put("rest-proxy-url", "localhost:15982")
+                .put("rest-proxy-service-for-query", "upinot-rest-proxy-staging")
                 .build();
 
         PinotConfig expected = new PinotConfig()
@@ -92,6 +94,7 @@ public class TestPinotConfig
                 .setExtraHttpHeaders("k:v")
                 .setControllerRestService("pinot-controller-service")
                 .setControllerUrl("localhost:15982")
+                .setRestProxyUrl("localhost:15982")
                 .setIdleTimeout(new Duration(1, TimeUnit.HOURS))
                 .setLimitLarge("10000000")
                 .setMaxBacklogPerServer("15")
@@ -111,7 +114,7 @@ public class TestPinotConfig
                 .setMaxSelectLimitWhenSinglePage(10000)
                 .setLimitLarge("100000")
                 .setScanParallelismEnabled(false)
-                .setQueryUsingController(true)
+                .setRestProxyServiceForQuery("upinot-rest-proxy-staging")
                 .setLimitPushDownEnabled(false);
 
         ConfigAssertions.assertFullMapping(properties, expected);
