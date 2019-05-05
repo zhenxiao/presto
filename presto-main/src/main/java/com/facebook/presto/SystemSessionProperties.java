@@ -121,6 +121,7 @@ public final class SystemSessionProperties
     public static final String PARTITION_FILTER_TABLES = "partition_filter_tables";
     public static final String ENABLE_PLAN_CACHING = "enable_plan_caching";
     public static final String NESTED_COLUMN_PUSHDOWN = "nested_column_pushdown";
+    private static final String FORCE_SINGLE_NODE_PLAN = "force_single_node_plan";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -564,6 +565,11 @@ public final class SystemSessionProperties
                         "Enforce partition filtering",
                         featuresConfig.isPartitionFilteringEnforced(),
                         false),
+                booleanProperty(
+                        FORCE_SINGLE_NODE_PLAN,
+                        "Force single node plan that avoids fragmentation and exchanges",
+                        featuresConfig.isForceSingleNodePlan(),
+                        false),
                 stringProperty(
                         PARTITION_FILTER_TABLES,
                         "tables to enforce partition filtering",
@@ -974,5 +980,10 @@ public final class SystemSessionProperties
     public static boolean isNestedColumnPushdown(Session session)
     {
         return session.getSystemProperty(NESTED_COLUMN_PUSHDOWN, Boolean.class);
+    }
+
+    public static boolean isForceSingleNodePlan(Session session)
+    {
+        return session.getSystemProperty(FORCE_SINGLE_NODE_PLAN, Boolean.class);
     }
 }

@@ -22,6 +22,7 @@ import com.facebook.presto.spi.ConnectorTableLayout;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutResult;
 import com.facebook.presto.spi.ConnectorTableMetadata;
+import com.facebook.presto.spi.ConnectorTablePartitioning;
 import com.facebook.presto.spi.Constraint;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
@@ -34,6 +35,7 @@ import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -54,6 +56,7 @@ import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.DERIVE
 import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.REGULAR;
 import static com.facebook.presto.pinot.PinotUtils.checkType;
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Collections.emptyList;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
@@ -130,6 +133,22 @@ public class PinotMetadata
     @Override
     public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
+        PinotTableLayoutHandle pinotTableLayoutHandle = (PinotTableLayoutHandle) handle;
+        if (pinotConfig.isForceSingleNodePlan() && pinotTableLayoutHandle.getScanPipeline().isPresent()) {
+            // create a single node only distribution
+            return new ConnectorTableLayout(
+                    handle,
+                    Optional.empty(),
+                    TupleDomain.all(),
+                    Optional.of(
+                            new ConnectorTablePartitioning(
+                                    new PinotPartitioningHandle(true),
+                                    ImmutableList.of())),
+                    Optional.empty(),
+                    Optional.empty(),
+                    emptyList());
+        }
+
         return new ConnectorTableLayout(handle);
     }
 

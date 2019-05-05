@@ -166,7 +166,7 @@ public class PlanOptimizers
         this(metadata,
                 sqlParser,
                 featuresConfig,
-                false,
+                featuresConfig.isForceSingleNodePlan(),
                 exporter,
                 splitManager,
                 pageSourceManager,

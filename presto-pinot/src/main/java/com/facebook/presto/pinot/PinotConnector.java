@@ -15,6 +15,7 @@ package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
@@ -35,14 +36,17 @@ public class PinotConnector
     private final PinotMetadata metadata;
     private final PinotSplitManager splitManager;
     private final PinotPageSourceProvider pageSourceProvider;
+    private final PinotNodePartitioningProvider partitioningProvider;
 
     @Inject
-    public PinotConnector(LifeCycleManager lifeCycleManager, PinotMetadata metadata, PinotSplitManager splitManager, PinotPageSourceProvider pageSourceProvider)
+    public PinotConnector(LifeCycleManager lifeCycleManager, PinotMetadata metadata, PinotSplitManager splitManager, PinotPageSourceProvider pageSourceProvider,
+            PinotNodePartitioningProvider partitioningProvider, PinotConfig pinotConfig)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
+        this.partitioningProvider = pinotConfig.isForceSingleNodePlan() ? requireNonNull(partitioningProvider, "partitioningProvider is null") : null;
     }
 
     @Override
@@ -67,6 +71,17 @@ public class PinotConnector
     public ConnectorPageSourceProvider getPageSourceProvider()
     {
         return pageSourceProvider;
+    }
+
+    @Override
+    public ConnectorNodePartitioningProvider getNodePartitioningProvider()
+    {
+        if (partitioningProvider != null) {
+            return partitioningProvider;
+        }
+        else {
+            throw new UnsupportedOperationException("Don't have a valid node partitioning provider");
+        }
     }
 
     @Override

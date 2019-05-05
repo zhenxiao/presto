@@ -53,6 +53,7 @@ public class PinotModule
         binder.bind(PinotScatterGatherQueryClient.class).in(Scopes.SINGLETON);
         binder.bind(PinotClusterInfoFetcher.class).in(Scopes.SINGLETON);
         binder.bind(PinotConnection.class).in(Scopes.SINGLETON);
+        binder.bind(PinotNodePartitioningProvider.class).in(Scopes.SINGLETON);
         httpClientBinder(binder).bindHttpClient("pinot", ForPinot.class)
                 .withConfigDefaults(cfg -> {
                     cfg.setIdleTimeout(new Duration(300, SECONDS));

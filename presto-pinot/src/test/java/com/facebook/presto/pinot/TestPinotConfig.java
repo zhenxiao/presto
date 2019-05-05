@@ -53,6 +53,7 @@ public class TestPinotConfig
                         .setScanParallelismEnabled(true)
                         .setRestProxyServiceForQuery(null)
                         .setRestProxyUrl(null)
+                        .setForceSingleNodePlan(false)
                         .setLimitPushDownEnabled(true));
     }
 
@@ -86,6 +87,7 @@ public class TestPinotConfig
                 .put("scan-parallelism-enabled", "false")
                 .put("rest-proxy-url", "localhost:15982")
                 .put("rest-proxy-service-for-query", "upinot-rest-proxy-staging")
+                .put("force-single-node-plan", "true")
                 .build();
 
         PinotConfig expected = new PinotConfig()
@@ -115,6 +117,7 @@ public class TestPinotConfig
                 .setLimitLarge("100000")
                 .setScanParallelismEnabled(false)
                 .setRestProxyServiceForQuery("upinot-rest-proxy-staging")
+                .setForceSingleNodePlan(true)
                 .setLimitPushDownEnabled(false);
 
         ConfigAssertions.assertFullMapping(properties, expected);

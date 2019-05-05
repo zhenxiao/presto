@@ -70,6 +70,7 @@ public class PinotConfig
     private boolean allowMultipleAggregations;
     private long maxSelectLimitWhenSinglePage = 1_000;
     private boolean scanParallelismEnabled = true;
+    private boolean forceSingleNodePlan;
 
     @NotNull
     public String getZkUrl()
@@ -436,6 +437,18 @@ public class PinotConfig
     public PinotConfig setRestProxyServiceForQuery(String restProxyServiceForQuery)
     {
         this.restProxyServiceForQuery = restProxyServiceForQuery;
+        return this;
+    }
+
+    public boolean isForceSingleNodePlan()
+    {
+        return forceSingleNodePlan;
+    }
+
+    @Config("force-single-node-plan")
+    public PinotConfig setForceSingleNodePlan(boolean forceSingleNodePlan)
+    {
+        this.forceSingleNodePlan = forceSingleNodePlan;
         return this;
     }
 }

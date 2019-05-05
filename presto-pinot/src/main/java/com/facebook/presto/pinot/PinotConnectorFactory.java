@@ -18,6 +18,7 @@ import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.base.Throwables;
 import com.google.inject.Injector;
@@ -68,6 +69,7 @@ public class PinotConnectorFactory
                 binder.bind(NodeManager.class).toInstance(context.getNodeManager());
                 binder.bind(PinotMetrics.class).in(Scopes.SINGLETON);
                 newExporter(binder).export(PinotMetrics.class).as(generatedNameOf(PinotMetrics.class, connectorId));
+                binder.bind(ConnectorNodePartitioningProvider.class).to(PinotNodePartitioningProvider.class).in(Scopes.SINGLETON);
             });
 
             Injector injector = app.strictConfig().doNotInitializeLogging().setRequiredConfigurationProperties(config).initialize();

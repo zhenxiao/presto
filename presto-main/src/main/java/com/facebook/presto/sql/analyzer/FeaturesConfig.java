@@ -131,6 +131,7 @@ public class FeaturesConfig
     private String partitionFilteringTables = "";
     private int planCacheSize;
     private Duration planCacheDuration = new Duration(10, MINUTES);
+    private boolean forceSingleNodePlan;
 
     private boolean nestedColumnPushdown = true;
 
@@ -993,6 +994,18 @@ public class FeaturesConfig
     public FeaturesConfig setPlanCacheDuration(Duration planCacheDuration)
     {
         this.planCacheDuration = planCacheDuration;
+        return this;
+    }
+
+    public boolean isForceSingleNodePlan()
+    {
+        return forceSingleNodePlan;
+    }
+
+    @Config("optimizer.force-single-node-plan")
+    public FeaturesConfig setForceSingleNodePlan(boolean forceSingleNodePlan)
+    {
+        this.forceSingleNodePlan = forceSingleNodePlan;
         return this;
     }
 }
