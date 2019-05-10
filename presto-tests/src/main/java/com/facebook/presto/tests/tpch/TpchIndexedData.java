@@ -185,7 +185,7 @@ public class TpchIndexedData
 
         public RecordSet lookupKeys(RecordSet recordSet)
         {
-            checkArgument(recordSet.getColumnTypes().equals(keyTypes), "Input RecordSet keys do not match expected key type");
+            checkArgument(recordSet.getColumnTypes().equals(keyTypes), "Input RecordSet keys do not match expected key type: %s vs %s", recordSet.getColumnTypes(), keyTypes);
 
             Iterable<RecordSet> outputRecordSets = Iterables.transform(tupleIterable(recordSet), key -> {
                 for (Object value : key.getValues()) {

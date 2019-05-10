@@ -131,6 +131,7 @@ import io.airlift.units.Duration;
 
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.List;
@@ -333,9 +334,9 @@ public class CoordinatorModule
 
     @Provides
     @Singleton
-    public static QueryPerformanceFetcher createQueryPerformanceFetcher(QueryManager queryManager)
+    public static QueryPerformanceFetcher createQueryPerformanceFetcher(Provider<QueryManager> queryManager)
     {
-        return queryManager::getFullQueryInfo;
+        return queryId -> queryManager.get().getFullQueryInfo(queryId);
     }
 
     @Provides

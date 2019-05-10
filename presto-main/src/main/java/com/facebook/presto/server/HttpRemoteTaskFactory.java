@@ -21,9 +21,11 @@ import com.facebook.presto.execution.RemoteTask;
 import com.facebook.presto.execution.RemoteTaskFactory;
 import com.facebook.presto.execution.TaskId;
 import com.facebook.presto.execution.TaskInfo;
+import com.facebook.presto.execution.TaskManager;
 import com.facebook.presto.execution.TaskManagerConfig;
 import com.facebook.presto.execution.TaskStatus;
 import com.facebook.presto.execution.buffer.OutputBuffers;
+import com.facebook.presto.metadata.InternalNodeManager;
 import com.facebook.presto.metadata.Split;
 import com.facebook.presto.operator.ForScheduler;
 import com.facebook.presto.server.remotetask.HttpRemoteTask;
@@ -43,6 +45,7 @@ import org.weakref.jmx.Nested;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 
+import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -71,6 +74,22 @@ public class HttpRemoteTaskFactory
     private final ScheduledExecutorService updateScheduledExecutor;
     private final ScheduledExecutorService errorScheduledExecutor;
     private final RemoteTaskStats stats;
+    private final TaskManager taskManager;
+    private final ScheduledExecutorService timeoutExecutor;
+    private final Node localNode;
+    private final boolean bypassHttpForLocal;
+
+    public HttpRemoteTaskFactory(QueryManagerConfig config,
+            TaskManagerConfig taskConfig,
+            @ForScheduler HttpClient httpClient,
+            LocationFactory locationFactory,
+            JsonCodec<TaskStatus> taskStatusCodec,
+            JsonCodec<TaskInfo> taskInfoCodec,
+            JsonCodec<TaskUpdateRequest> taskUpdateRequestCodec,
+            RemoteTaskStats stats)
+    {
+        this(config, taskConfig, httpClient, locationFactory, taskStatusCodec, taskInfoCodec, taskUpdateRequestCodec, stats, null, null, null);
+    }
 
     @Inject
     public HttpRemoteTaskFactory(QueryManagerConfig config,
@@ -80,7 +99,10 @@ public class HttpRemoteTaskFactory
             JsonCodec<TaskStatus> taskStatusCodec,
             JsonCodec<TaskInfo> taskInfoCodec,
             JsonCodec<TaskUpdateRequest> taskUpdateRequestCodec,
-            RemoteTaskStats stats)
+            RemoteTaskStats stats,
+            TaskManager taskManager,
+            InternalNodeManager nodeManager,
+            @ForAsyncHttp ScheduledExecutorService timeoutExecutor)
     {
         this.httpClient = httpClient;
         this.locationFactory = locationFactory;
@@ -97,6 +119,10 @@ public class HttpRemoteTaskFactory
 
         this.updateScheduledExecutor = newSingleThreadScheduledExecutor(daemonThreadsNamed("task-info-update-scheduler-%s"));
         this.errorScheduledExecutor = newSingleThreadScheduledExecutor(daemonThreadsNamed("remote-task-error-delay-%s"));
+        this.taskManager = taskManager;
+        this.timeoutExecutor = timeoutExecutor;
+        this.bypassHttpForLocal = taskConfig.isBypassHttpForLocal();
+        this.localNode = nodeManager == null ? null : nodeManager.getCurrentNode();
     }
 
     @Managed
@@ -136,6 +162,7 @@ public class HttpRemoteTaskFactory
                 outputBuffers,
                 httpClient,
                 executor,
+                coreExecutor,
                 updateScheduledExecutor,
                 errorScheduledExecutor,
                 maxErrorDuration,
@@ -147,6 +174,8 @@ public class HttpRemoteTaskFactory
                 taskUpdateRequestCodec,
                 partitionedSplitCountTracker,
                 stats,
-                delayTaskStart);
+                delayTaskStart,
+                bypassHttpForLocal && Objects.equals(node, localNode) ? taskManager : null,
+                timeoutExecutor);
     }
 }

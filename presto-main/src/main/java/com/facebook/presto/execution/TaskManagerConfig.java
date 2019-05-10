@@ -73,6 +73,7 @@ public class TaskManagerConfig
     private int taskYieldThreads = 3;
 
     private BigDecimal levelTimeMultiplier = new BigDecimal(2.0);
+    private boolean bypassHttpForLocal;
 
     @MinDuration("1ms")
     @MaxDuration("10s")
@@ -429,6 +430,18 @@ public class TaskManagerConfig
     public TaskManagerConfig setTaskYieldThreads(int taskYieldThreads)
     {
         this.taskYieldThreads = taskYieldThreads;
+        return this;
+    }
+
+    public boolean isBypassHttpForLocal()
+    {
+        return bypassHttpForLocal;
+    }
+
+    @Config("task.bypass-http-for-local")
+    public TaskManagerConfig setBypassHttpForLocal(boolean bypassHttpForLocal)
+    {
+        this.bypassHttpForLocal = bypassHttpForLocal;
         return this;
     }
 }

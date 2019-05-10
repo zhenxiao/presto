@@ -13,10 +13,13 @@
  */
 package com.facebook.presto.operator;
 
+import com.facebook.presto.execution.TaskManager;
 import com.facebook.presto.execution.buffer.SerializedPage;
 import com.facebook.presto.memory.context.LocalMemoryContext;
+import com.facebook.presto.metadata.InternalNodeManager;
 import com.facebook.presto.operator.HttpPageBufferClient.ClientCallback;
 import com.facebook.presto.operator.WorkProcessor.ProcessState;
+import com.facebook.presto.spi.Node;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -28,6 +31,7 @@ import io.airlift.units.Duration;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import javax.inject.Provider;
 
 import java.io.Closeable;
 import java.net.URI;
@@ -64,6 +68,7 @@ public class ExchangeClient
     private final boolean acknowledgePages;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
+    private final boolean bypassHttpForLocal;
 
     @GuardedBy("this")
     private boolean noMoreLocations;
@@ -92,7 +97,10 @@ public class ExchangeClient
     private final AtomicReference<Throwable> failure = new AtomicReference<>();
 
     private final LocalMemoryContext systemMemoryContext;
+    private Provider<TaskManager> taskManagerProvider;
+    private ScheduledExecutorService timeoutExecutor;
     private final Executor pageBufferClientCallbackExecutor;
+    private final Node localNode;
 
     // ExchangeClientStatus.mergeWith assumes all clients have the same bufferCapacity.
     // Please change that method accordingly when this assumption becomes not true.
@@ -107,6 +115,26 @@ public class ExchangeClient
             LocalMemoryContext systemMemoryContext,
             Executor pageBufferClientCallbackExecutor)
     {
+        this(bufferCapacity, maxResponseSize, concurrentRequestMultiplier, maxErrorDuration, acknowledgePages, httpClient, scheduler, systemMemoryContext, pageBufferClientCallbackExecutor, null, null, false, null);
+    }
+
+    // ExchangeClientStatus.mergeWith assumes all clients have the same bufferCapacity.
+    // Please change that method accordingly when this assumption becomes not true.
+    public ExchangeClient(
+            DataSize bufferCapacity,
+            DataSize maxResponseSize,
+            int concurrentRequestMultiplier,
+            Duration maxErrorDuration,
+            boolean acknowledgePages,
+            HttpClient httpClient,
+            ScheduledExecutorService scheduler,
+            LocalMemoryContext systemMemoryContext,
+            Executor pageBufferClientCallbackExecutor,
+            InternalNodeManager nodeManager,
+            Provider<TaskManager> taskManagerProvider,
+            boolean bypassHttpForLocal,
+            ScheduledExecutorService timeoutExecutor)
+    {
         this.bufferCapacity = bufferCapacity.toBytes();
         this.maxResponseSize = maxResponseSize;
         this.concurrentRequestMultiplier = concurrentRequestMultiplier;
@@ -115,8 +143,12 @@ public class ExchangeClient
         this.httpClient = httpClient;
         this.scheduler = scheduler;
         this.systemMemoryContext = systemMemoryContext;
+        this.taskManagerProvider = taskManagerProvider;
+        this.timeoutExecutor = timeoutExecutor;
         this.maxBufferRetainedSizeInBytes = Long.MIN_VALUE;
         this.pageBufferClientCallbackExecutor = requireNonNull(pageBufferClientCallbackExecutor, "pageBufferClientCallbackExecutor is null");
+        this.bypassHttpForLocal = bypassHttpForLocal;
+        this.localNode = nodeManager == null ? null : nodeManager.getCurrentNode();
     }
 
     public ExchangeClientStatus getStatus()
@@ -163,11 +195,19 @@ public class ExchangeClient
                 location,
                 new ExchangeClientCallback(),
                 scheduler,
-                pageBufferClientCallbackExecutor);
+                pageBufferClientCallbackExecutor,
+                bypassHttpForLocal && isLocalUri(location) ? taskManagerProvider.get() : null,
+                timeoutExecutor);
         allClients.put(location, client);
         queuedClients.add(client);
 
         scheduleRequestIfNecessary();
+    }
+
+    private boolean isLocalUri(URI location)
+    {
+        // DA: Is there a more robust way for this ... checking if the authority (host, port) + scheme match but the other fields of the uri may not
+        return localNode != null && localNode.getHttpUri().relativize(location) != location;
     }
 
     public synchronized void noMoreLocations()

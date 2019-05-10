@@ -17,9 +17,12 @@ import com.facebook.presto.execution.StateMachine;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.TaskId;
 import com.facebook.presto.execution.TaskInfo;
+import com.facebook.presto.execution.TaskManager;
 import com.facebook.presto.execution.TaskStatus;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.concurrent.SetThreadName;
 import io.airlift.http.client.FullJsonResponseHandler;
 import io.airlift.http.client.HttpClient;
@@ -71,6 +74,8 @@ public class TaskInfoFetcher
     private final AtomicLong currentRequestStartNanos = new AtomicLong();
 
     private final RemoteTaskStats stats;
+    private final TaskManager taskManager;
+    private final ListeningExecutorService listeningCoreExecutor;
 
     @GuardedBy("this")
     private boolean running;
@@ -79,7 +84,7 @@ public class TaskInfoFetcher
     private ScheduledFuture<?> scheduledFuture;
 
     @GuardedBy("this")
-    private ListenableFuture<FullJsonResponseHandler.JsonResponse<TaskInfo>> future;
+    private ListenableFuture<?> future;
 
     public TaskInfoFetcher(
             Consumer<Throwable> onFail,
@@ -92,7 +97,9 @@ public class TaskInfoFetcher
             Executor executor,
             ScheduledExecutorService updateScheduledExecutor,
             ScheduledExecutorService errorScheduledExecutor,
-            RemoteTaskStats stats)
+            RemoteTaskStats stats,
+            ListeningExecutorService listeningCoreExecutor,
+            TaskManager taskManager)
     {
         requireNonNull(initialTask, "initialTask is null");
         requireNonNull(errorScheduledExecutor, "errorScheduledExecutor is null");
@@ -105,12 +112,13 @@ public class TaskInfoFetcher
 
         this.updateIntervalMillis = requireNonNull(updateInterval, "updateInterval is null").toMillis();
         this.updateScheduledExecutor = requireNonNull(updateScheduledExecutor, "updateScheduledExecutor is null");
-        this.errorTracker = new RequestErrorTracker(taskId, initialTask.getTaskStatus().getSelf(), maxErrorDuration, errorScheduledExecutor, "getting info for task");
-
+        this.taskManager = taskManager;
+        this.errorTracker = new RequestErrorTracker(taskId, initialTask.getTaskStatus().getSelf(), this.taskManager == null ? new Backoff(maxErrorDuration) : Backoff.createNeverBackingOff(), errorScheduledExecutor, "getting info for task");
+        this.listeningCoreExecutor = listeningCoreExecutor;
         this.summarizeTaskInfo = summarizeTaskInfo;
 
         this.executor = requireNonNull(executor, "executor is null");
-        this.httpClient = requireNonNull(httpClient, "httpClient is null");
+        this.httpClient = httpClient;
         this.stats = requireNonNull(stats, "stats is null");
     }
 
@@ -200,17 +208,48 @@ public class TaskInfoFetcher
             return;
         }
 
-        HttpUriBuilder httpUriBuilder = uriBuilderFrom(taskStatus.getSelf());
-        URI uri = summarizeTaskInfo ? httpUriBuilder.addParameter("summarize").build() : httpUriBuilder.build();
-        Request request = prepareGet()
-                .setUri(uri)
-                .setHeader(CONTENT_TYPE, JSON_UTF_8.toString())
-                .build();
+        if (taskManager != null) {
+            errorTracker.startRequest();
+            ListenableFuture<TaskInfo> taskInfoFuture = listeningCoreExecutor.submit(() -> {
+                TaskInfo taskInfo = taskManager.getTaskInfo(taskId);
+                if (summarizeTaskInfo) {
+                    taskInfo = taskInfo.summarize();
+                }
+                return taskInfo;
+            });
+            future = taskInfoFuture;
+            currentRequestStartNanos.set(System.nanoTime());
+            Futures.addCallback(taskInfoFuture, new FutureCallback<TaskInfo>()
+            {
+                @Override
+                public void onSuccess(TaskInfo result)
+                {
+                    stats.updateSuccess();
+                    success(result);
+                }
 
-        errorTracker.startRequest();
-        future = httpClient.executeAsync(request, createFullJsonResponseHandler(taskInfoCodec));
-        currentRequestStartNanos.set(System.nanoTime());
-        Futures.addCallback(future, new SimpleHttpResponseHandler<>(this, request.getUri(), stats), executor);
+                @Override
+                public void onFailure(Throwable t)
+                {
+                    stats.updateFailure();
+                    failed(t);
+                }
+            }, executor);
+        }
+        else {
+            HttpUriBuilder httpUriBuilder = uriBuilderFrom(taskStatus.getSelf());
+            URI uri = summarizeTaskInfo ? httpUriBuilder.addParameter("summarize").build() : httpUriBuilder.build();
+            Request request = prepareGet()
+                    .setUri(uri)
+                    .setHeader(CONTENT_TYPE, JSON_UTF_8.toString())
+                    .build();
+
+            errorTracker.startRequest();
+            ListenableFuture<FullJsonResponseHandler.JsonResponse<TaskInfo>> jsonFuture = httpClient.executeAsync(request, createFullJsonResponseHandler(taskInfoCodec));
+            future = jsonFuture;
+            currentRequestStartNanos.set(System.nanoTime());
+            Futures.addCallback(jsonFuture, new SimpleHttpResponseHandler<>(this, request.getUri(), stats), executor);
+        }
     }
 
     synchronized void updateTaskInfo(TaskInfo newValue)

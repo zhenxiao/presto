@@ -21,6 +21,7 @@ import com.facebook.presto.execution.QueryManagerConfig;
 import com.facebook.presto.execution.RemoteTask;
 import com.facebook.presto.execution.TaskId;
 import com.facebook.presto.execution.TaskInfo;
+import com.facebook.presto.execution.TaskManager;
 import com.facebook.presto.execution.TaskManagerConfig;
 import com.facebook.presto.execution.TaskSource;
 import com.facebook.presto.execution.TaskState;
@@ -30,8 +31,10 @@ import com.facebook.presto.execution.TestSqlTaskManager;
 import com.facebook.presto.execution.buffer.OutputBuffers;
 import com.facebook.presto.metadata.HandleJsonModule;
 import com.facebook.presto.metadata.HandleResolver;
+import com.facebook.presto.metadata.InternalNodeManager;
 import com.facebook.presto.metadata.PrestoNode;
 import com.facebook.presto.metadata.Split;
+import com.facebook.presto.server.ForAsyncHttp;
 import com.facebook.presto.server.HttpRemoteTaskFactory;
 import com.facebook.presto.server.TaskUpdateRequest;
 import com.facebook.presto.spi.ErrorCode;
@@ -60,6 +63,7 @@ import io.airlift.json.JsonModule;
 import io.airlift.units.Duration;
 import org.testng.annotations.Test;
 
+import javax.inject.Singleton;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
@@ -77,9 +81,11 @@ import javax.ws.rs.core.UriInfo;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -94,15 +100,19 @@ import static com.facebook.presto.spi.StandardErrorCode.REMOTE_TASK_MISMATCH;
 import static com.facebook.presto.testing.assertions.Assert.assertEquals;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.inject.multibindings.Multibinder.newSetBinder;
+import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static io.airlift.configuration.ConfigBinder.configBinder;
 import static io.airlift.json.JsonBinder.jsonBinder;
 import static io.airlift.json.JsonCodecBinder.jsonCodecBinder;
 import static java.lang.Math.min;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
@@ -118,6 +128,8 @@ public class TestHttpRemoteTask
             .setInfoUpdateInterval(new Duration(IDLE_TIMEOUT.roundTo(MILLISECONDS) / 10, MILLISECONDS));
 
     private static final boolean TRACE_HTTP = false;
+    private static final PrestoNode TASK_NODE = new PrestoNode("node-id", URI.create("http://fake.invalid/"), new NodeVersion("version"), false);
+    private static final TaskId TASK_ID = new TaskId("test", 1, 2);
 
     @Test(timeOut = 30000)
     public void testRemoteTaskMismatch()
@@ -147,7 +159,7 @@ public class TestHttpRemoteTask
         AtomicLong lastActivityNanos = new AtomicLong(System.nanoTime());
         TestingTaskResource testingTaskResource = new TestingTaskResource(lastActivityNanos, FailureScenario.NO_FAILURE);
 
-        HttpRemoteTaskFactory httpRemoteTaskFactory = createHttpRemoteTaskFactory(testingTaskResource);
+        HttpRemoteTaskFactory httpRemoteTaskFactory = createHttpRemoteTaskFactory(testingTaskResource, false);
 
         RemoteTask remoteTask = createRemoteTask(httpRemoteTaskFactory, false);
 
@@ -173,13 +185,36 @@ public class TestHttpRemoteTask
     }
 
     @Test(timeOut = 30000)
+    public void testBypassLocal()
+            throws Exception
+    {
+        AtomicLong lastActivityNanos = new AtomicLong(System.nanoTime());
+        TestingTaskResource testingTaskResource = new TestingTaskResource(lastActivityNanos, FailureScenario.NO_FAILURE);
+        HttpRemoteTaskFactoryAndTaskManager httpRemoteTaskFactoryAndTaskManager = createHttpRemoteTaskFactoryAndTaskManager(testingTaskResource, true);
+        HttpRemoteTaskFactory httpRemoteTaskFactory = httpRemoteTaskFactoryAndTaskManager.getHttpRemoteTaskFactory();
+        TaskManager taskManager = httpRemoteTaskFactoryAndTaskManager.getTaskManager();
+        RemoteTask remoteTask = createRemoteTask(httpRemoteTaskFactory, false);
+
+        remoteTask.start();
+        Thread.sleep(POLL_TIMEOUT.toMillis());
+        assertNull(testingTaskResource.getTaskSource(TABLE_SCAN_NODE_ID));
+
+        Optional<TaskInfo> createdTask = taskManager.getAllTaskInfo().stream().filter(ti -> Objects.equals(TASK_ID, ti.getTaskStatus().getTaskId())).findFirst();
+        assertTrue(createdTask.isPresent());
+        assertEquals(TaskState.RUNNING, createdTask.get().getTaskStatus().getState());
+        assertNull(testingTaskResource.getTaskSource(TABLE_SCAN_NODE_ID));
+
+        httpRemoteTaskFactory.stop();
+    }
+
+    @Test(timeOut = 30000)
     public void testDelayedStart()
             throws Exception
     {
         AtomicLong lastActivityNanos = new AtomicLong(System.nanoTime());
         TestingTaskResource testingTaskResource = new TestingTaskResource(lastActivityNanos, FailureScenario.NO_FAILURE);
 
-        HttpRemoteTaskFactory httpRemoteTaskFactory = createHttpRemoteTaskFactory(testingTaskResource);
+        HttpRemoteTaskFactory httpRemoteTaskFactory = createHttpRemoteTaskFactory(testingTaskResource, false);
         long expectedUpdateTime = testingTaskResource.lastActivityNanos.get();
         RemoteTask remoteTask = createRemoteTask(httpRemoteTaskFactory, true);
 
@@ -209,7 +244,7 @@ public class TestHttpRemoteTask
         AtomicLong lastActivityNanos = new AtomicLong(System.nanoTime());
         TestingTaskResource testingTaskResource = new TestingTaskResource(lastActivityNanos, failureScenario);
 
-        HttpRemoteTaskFactory httpRemoteTaskFactory = createHttpRemoteTaskFactory(testingTaskResource);
+        HttpRemoteTaskFactory httpRemoteTaskFactory = createHttpRemoteTaskFactory(testingTaskResource, false);
         RemoteTask remoteTask = createRemoteTask(httpRemoteTaskFactory, false);
 
         testingTaskResource.setInitialTaskInfo(remoteTask.getTaskInfo());
@@ -240,8 +275,8 @@ public class TestHttpRemoteTask
     {
         return httpRemoteTaskFactory.createRemoteTask(
                 TEST_SESSION,
-                new TaskId("test", 1, 2),
-                new PrestoNode("node-id", URI.create("http://fake.invalid/"), new NodeVersion("version"), false),
+                TASK_ID,
+                TASK_NODE,
                 TaskTestUtils.PLAN_FRAGMENT,
                 ImmutableMultimap.of(),
                 OptionalInt.empty(),
@@ -251,9 +286,32 @@ public class TestHttpRemoteTask
                 doDelayedTaskStart);
     }
 
-    private static HttpRemoteTaskFactory createHttpRemoteTaskFactory(TestingTaskResource testingTaskResource)
+    private static class HttpRemoteTaskFactoryAndTaskManager
+    {
+        private final HttpRemoteTaskFactory httpRemoteTaskFactory;
+        private final TaskManager taskManager;
+
+        public HttpRemoteTaskFactoryAndTaskManager(HttpRemoteTaskFactory httpRemoteTaskFactory, TaskManager taskManager)
+        {
+            this.httpRemoteTaskFactory = httpRemoteTaskFactory;
+            this.taskManager = taskManager;
+        }
+
+        public HttpRemoteTaskFactory getHttpRemoteTaskFactory()
+        {
+            return httpRemoteTaskFactory;
+        }
+
+        public TaskManager getTaskManager()
+        {
+            return taskManager;
+        }
+    }
+
+    private static HttpRemoteTaskFactoryAndTaskManager createHttpRemoteTaskFactoryAndTaskManager(TestingTaskResource testingTaskResource, boolean bypassHttpForLocal)
             throws Exception
     {
+        TaskManagerConfig taskManagerConfig = TASK_MANAGER_CONFIG.setBypassHttpForLocal(bypassHttpForLocal);
         Bootstrap app = new Bootstrap(
                 new JsonModule(),
                 new HandleJsonModule(),
@@ -265,7 +323,12 @@ public class TestHttpRemoteTask
                         binder.bind(JsonMapper.class);
                         configBinder(binder).bindConfig(FeaturesConfig.class);
                         binder.bind(TypeRegistry.class).in(Scopes.SINGLETON);
+                        binder.bind(TaskManagerConfig.class).toInstance(taskManagerConfig);
                         binder.bind(TypeManager.class).to(TypeRegistry.class).in(Scopes.SINGLETON);
+                        InternalNodeManager mockNodeManager = mock(InternalNodeManager.class);
+                        when(mockNodeManager.getCurrentNode()).thenReturn(TASK_NODE);
+                        binder.bind(InternalNodeManager.class).toInstance(mockNodeManager);
+                        binder.bind(TaskManager.class).toInstance(new TestSqlTaskManager().createSqlTaskManager(taskManagerConfig));
                         jsonBinder(binder).addDeserializerBinding(Type.class).to(TypeDeserializer.class);
                         newSetBinder(binder, Type.class);
                         jsonCodecBinder(binder).bindJsonCodec(TaskStatus.class);
@@ -274,24 +337,38 @@ public class TestHttpRemoteTask
                     }
 
                     @Provides
+                    @Singleton
+                    @ForAsyncHttp
+                    public ScheduledExecutorService createAsyncHttpTimeoutExecutor(TaskManagerConfig config)
+                    {
+                        return newScheduledThreadPool(config.getHttpTimeoutThreads(), daemonThreadsNamed("async-http-timeout-%s"));
+                    }
+
+                    @Provides
                     private HttpRemoteTaskFactory createHttpRemoteTaskFactory(
                             JsonMapper jsonMapper,
                             JsonCodec<TaskStatus> taskStatusCodec,
                             JsonCodec<TaskInfo> taskInfoCodec,
-                            JsonCodec<TaskUpdateRequest> taskUpdateRequestCodec)
+                            TaskManager taskManager,
+                            InternalNodeManager nodeManager,
+                            JsonCodec<TaskUpdateRequest> taskUpdateRequestCodec,
+                            @ForAsyncHttp ScheduledExecutorService timeoutExecutor)
                     {
                         JaxrsTestingHttpProcessor jaxrsTestingHttpProcessor = new JaxrsTestingHttpProcessor(URI.create("http://fake.invalid/"), testingTaskResource, jsonMapper);
                         TestingHttpClient testingHttpClient = new TestingHttpClient(jaxrsTestingHttpProcessor.setTrace(TRACE_HTTP));
                         testingTaskResource.setHttpClient(testingHttpClient);
                         return new HttpRemoteTaskFactory(
                                 new QueryManagerConfig(),
-                                TASK_MANAGER_CONFIG,
+                                taskManagerConfig,
                                 testingHttpClient,
                                 new TestSqlTaskManager.MockLocationFactory(),
                                 taskStatusCodec,
                                 taskInfoCodec,
                                 taskUpdateRequestCodec,
-                                new RemoteTaskStats());
+                                new RemoteTaskStats(),
+                                taskManager,
+                                nodeManager,
+                                timeoutExecutor);
                     }
                 });
         Injector injector = app
@@ -301,7 +378,13 @@ public class TestHttpRemoteTask
                 .initialize();
         HandleResolver handleResolver = injector.getInstance(HandleResolver.class);
         handleResolver.addConnectorName("test", new TestingHandleResolver());
-        return injector.getInstance(HttpRemoteTaskFactory.class);
+        return new HttpRemoteTaskFactoryAndTaskManager(injector.getInstance(HttpRemoteTaskFactory.class), injector.getInstance(TaskManager.class));
+    }
+
+    private static HttpRemoteTaskFactory createHttpRemoteTaskFactory(TestingTaskResource testingTaskResource, boolean bypassHttpForLocal)
+            throws Exception
+    {
+        return createHttpRemoteTaskFactoryAndTaskManager(testingTaskResource, bypassHttpForLocal).getHttpRemoteTaskFactory();
     }
 
     private static void poll(BooleanSupplier success)
