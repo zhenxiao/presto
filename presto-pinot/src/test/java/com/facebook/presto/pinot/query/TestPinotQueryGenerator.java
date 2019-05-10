@@ -26,7 +26,9 @@ import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.REGULAR;
 import static com.facebook.presto.pinot.PinotTestUtils.agg;
@@ -45,15 +47,16 @@ import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 
 public class TestPinotQueryGenerator
 {
     // Test table and related info
     private static PinotTableHandle pinotTable = new PinotTableHandle("connId", "schema", "tbl");
-    private static ColumnHandle regionId = new PinotColumnHandle("regionId", BIGINT, REGULAR);
-    private static ColumnHandle city = new PinotColumnHandle("city", VARCHAR, REGULAR);
-    private static ColumnHandle fare = new PinotColumnHandle("fare", DOUBLE, REGULAR);
-    private static ColumnHandle secondsSinceEpoch = new PinotColumnHandle("secondsSinceEpoch", BIGINT, REGULAR);
+    private static PinotColumnHandle regionId = new PinotColumnHandle("regionId", BIGINT, REGULAR);
+    private static PinotColumnHandle city = new PinotColumnHandle("city", VARCHAR, REGULAR);
+    private static PinotColumnHandle fare = new PinotColumnHandle("fare", DOUBLE, REGULAR);
+    private static PinotColumnHandle secondsSinceEpoch = new PinotColumnHandle("secondsSinceEpoch", BIGINT, REGULAR);
 
     private static Void testPQL(TableScanPipeline scanPipeline, String expectedPQL)
     {
@@ -353,7 +356,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("fare"), pdExpr("99")),
                         cols("fare", "percentile"), types(DOUBLE, DOUBLE)),
                 agg(ImmutableList.of(min, max, count, percentile), false),
-                limit(50, true, cols("fare_min", "fare_max", "fare_total", "fare_percentile"), types(BIGINT, VARCHAR, DOUBLE))),
+                limit(50, true, cols("fare_min", "fare_max", "fare_total", "fare_percentile"), types(BIGINT, BIGINT, BIGINT, DOUBLE))),
                 "SELECT min(fare), max(fare), count(fare), PERCENTILEEST99(fare) FROM tbl");
     }
 
@@ -401,5 +404,45 @@ public class TestPinotQueryGenerator
                 agg(ImmutableList.of(min, max, count, percentile, groupByCityId), false),
                 limit(10, false, ImmutableList.of("fare_min", "fare_max", "fare_total", "fare_percentile"), types(DOUBLE, DOUBLE, BIGINT, DOUBLE))), Optional.empty());
         assertEquals(actualPQL, "SELECT min(fare), max(fare), count(fare), PERCENTILEEST99(fare) FROM tbl group by city top 10");
+    }
+
+    @Test(expectedExceptions = PinotException.class)
+    public void testBrokerSourceWithoutLimitFails()
+    {
+        List<ColumnHandle> columnHandles = columnHandles(regionId, city, fare, secondsSinceEpoch);
+        TableScanPipeline pipeline = pipeline(scan(pinotTable, columnHandles), filter(pdExpr("fare > 20"), ImmutableList.of("regionid", "city", "fare", "secondssinceepoch"), ImmutableList.of(BIGINT, VARCHAR, DOUBLE, BIGINT)));
+        PinotQueryGenerator.generateForSingleBrokerRequest(pipeline, Optional.of(ImmutableList.of(regionId, city, fare, secondsSinceEpoch)), Optional.of(new PinotConfig()));
+    }
+
+    @Test
+    public void testScanOnlyWithBrokerPageSource()
+    {
+        List<ColumnHandle> columnHandles = columnHandles(regionId, city, fare, secondsSinceEpoch);
+        TableScanPipeline pipeline = pipeline(scan(pinotTable, columnHandles));
+        List<PinotColumnHandle> outputHandles = getOutputHandlesFromPipeline(pipeline);
+        outputHandles.forEach(handle -> assertTrue(handle.getType().equals(REGULAR)));
+        PinotConfig pinotConfig = new PinotConfig();
+        pinotConfig.setMaxSelectLimitWhenSinglePage(pinotConfig.getLimitLarge());
+        PinotQueryGenerator.GeneratedPql generatedPql = PinotQueryGenerator.generateForSingleBrokerRequest(pipeline, Optional.of(getOutputHandlesFromPipeline(pipeline)), Optional.of(pinotConfig));
+        assertEquals(pinotTable.getTableName(), generatedPql.getTable());
+        assertEquals("SELECT regionId, city, fare, secondsSinceEpoch FROM tbl LIMIT " + pinotConfig.getLimitLarge(), generatedPql.getPql());
+    }
+
+    @Test
+    public void testBrokerSourceWithSmallLimit()
+    {
+        ImmutableList<String> columns = ImmutableList.of("regionid", "city", "fare", "secondssinceepoch");
+        ImmutableList<Type> columnTypes = ImmutableList.of(BIGINT, VARCHAR, DOUBLE, BIGINT);
+        List<ColumnHandle> columnHandles = columnHandles(regionId, city, fare, secondsSinceEpoch);
+        TableScanPipeline pipeline = pipeline(scan(pinotTable, columnHandles), filter(pdExpr("fare > 20"), columns, columnTypes), limit(5, true, columns, columnTypes));
+        PinotQueryGenerator.GeneratedPql generatedPql = PinotQueryGenerator.generateForSingleBrokerRequest(pipeline, Optional.of(getOutputHandlesFromPipeline(pipeline)), Optional.of(new PinotConfig()));
+        assertEquals(pinotTable.getTableName(), generatedPql.getTable());
+        assertEquals(0, generatedPql.getNumGroupByClauses());
+        assertEquals("SELECT regionId, city, fare, secondsSinceEpoch FROM tbl WHERE (fare > 20) LIMIT 5", generatedPql.getPql());
+    }
+
+    private static List<PinotColumnHandle> getOutputHandlesFromPipeline(TableScanPipeline pipeline)
+    {
+        return pipeline.getOutputColumnHandles().stream().map(x -> (PinotColumnHandle) x).collect(Collectors.toList());
     }
 }

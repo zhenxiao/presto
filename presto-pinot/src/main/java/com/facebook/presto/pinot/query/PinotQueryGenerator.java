@@ -32,10 +32,11 @@ import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.pipeline.TableScanPipelineVisitor;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -226,7 +227,7 @@ public class PinotQueryGenerator
             checkArgument(!aggregation.isPartial(), "partial aggregations are not supported in Pinot pushdown framework");
 
             LinkedHashMap<String, Selection> newSelections = new LinkedHashMap<>();
-            List<String> groupByColumns = new ArrayList<>();
+            LinkedHashSet<String> groupByColumns = new LinkedHashSet<>();
             int numAggregations = 0;
 
             for (AggregationPipelineNode.Node expr : aggregation.getNodes()) {
@@ -234,10 +235,10 @@ public class PinotQueryGenerator
                     case GROUP_BY: {
                         AggregationPipelineNode.GroupByColumn groupByColumn = (AggregationPipelineNode.GroupByColumn) expr;
                         String groupByInputColumn = groupByColumn.getInputColumn();
-                        Selection pinotColumn = requireNonNull(context.getSelections().get(groupByInputColumn), "Group By column doesn't exist in input");
+                        Selection pinotColumn = requireNonNull(context.getSelections().get(groupByInputColumn), "Group By column " + groupByInputColumn + " doesn't exist in input " + context.getSelections());
 
-                        groupByColumns.add(pinotColumn.getDefinition());
                         newSelections.put(groupByColumn.getOutputColumn(), new Selection(pinotColumn.getDefinition(), pinotColumn.getOrigin(), groupByColumn.getOutputType()));
+                        groupByColumns.add(groupByColumn.getOutputColumn());
                         break;
                     }
                     case AGGREGATE: {
@@ -310,6 +311,7 @@ public class PinotQueryGenerator
             LinkedHashMap<String, Selection> selections = new LinkedHashMap<>();
             for (int fieldId = 0; fieldId < outputColumns.size(); fieldId++) {
                 PinotColumnHandle pinotColumn = (PinotColumnHandle) inputColumns.get(fieldId);
+                Preconditions.checkState(pinotColumn.getType().equals(PinotColumnHandle.PinotColumnType.REGULAR), "Unexpected pinot column handle that is not regular: %s", pinotColumn);
                 selections.put(outputColumns.get(fieldId), new Selection(pinotColumn.getColumnName(), TABLE_COLUMN, pinotColumn.getDataType()));
             }
 

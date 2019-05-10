@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.String.format;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -41,7 +42,7 @@ class PinotQueryGeneratorContext
     // Fields defining the query
     // order map that maps the column definition in terms of input relation column(s)
     private final LinkedHashMap<String, Selection> selections;
-    private final List<String> groupByColumns;
+    private final LinkedHashSet<String> groupByColumns;
     private final String from;
     private final String filter;
     private final Optional<String> timeBoundaryFilter;
@@ -50,11 +51,11 @@ class PinotQueryGeneratorContext
 
     PinotQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeBoundaryFilter)
     {
-        this(selections, from, null, timeBoundaryFilter, 0, ImmutableList.of(), Optional.empty());
+        this(selections, from, null, timeBoundaryFilter, 0, new LinkedHashSet<>(), Optional.empty());
     }
 
     private PinotQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, String filter, Optional<String> timeBoundaryFilter,
-            int numAggregations, List<String> groupByColumns, Optional<Long> limit)
+            int numAggregations, LinkedHashSet<String> groupByColumns, Optional<Long> limit)
     {
         this.selections = requireNonNull(selections, "selections can't be null");
         this.from = requireNonNull(from, "source can't be null");
@@ -79,7 +80,7 @@ class PinotQueryGeneratorContext
     /**
      * Apply the aggregation to current context and return the updated context. Throws error for invalid operations.
      */
-    PinotQueryGeneratorContext withAggregation(LinkedHashMap<String, Selection> newSelections, List<String> groupByColumns, int numAggregations)
+    PinotQueryGeneratorContext withAggregation(LinkedHashMap<String, Selection> newSelections, LinkedHashSet<String> groupByColumns, int numAggregations)
     {
         // there is only one aggregation supported.
         checkState(!hasAggregation(), "Pinot doesn't support aggregation on top of the aggregated data");
@@ -93,7 +94,7 @@ class PinotQueryGeneratorContext
     PinotQueryGeneratorContext withProject(LinkedHashMap<String, Selection> newSelections)
     {
         checkState(!hasAggregation(), "Pinot doesn't support new selections on top of the aggregated data");
-        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, 0, ImmutableList.of(), limit);
+        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, 0, new LinkedHashSet<>(), limit);
     }
 
     /**
@@ -143,9 +144,9 @@ class PinotQueryGeneratorContext
             throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.empty(), "Multiple aggregates in the presence of group by and limit is forbidden");
         }
 
-        String exprs = selections.values().stream()
-                .filter(c -> !groupByColumns.contains(c.definition)) // remove the group by columns from the query as Pinot barfs if the group by column is an expression
-                .map(c -> c.definition)
+        String exprs = selections.entrySet().stream()
+                .filter(s -> !groupByColumns.contains(s.getKey())) // remove the group by columns from the query as Pinot barfs if the group by column is an expression
+                .map(s -> s.getValue().getDefinition())
                 .collect(Collectors.joining(", "));
 
         String query = "SELECT " + exprs + " FROM " + from;
@@ -160,7 +161,7 @@ class PinotQueryGeneratorContext
         }
 
         if (!groupByColumns.isEmpty()) {
-            String groupByExpr = groupByColumns.stream().collect(Collectors.joining(", "));
+            String groupByExpr = groupByColumns.stream().map(x -> selections.get(x).getDefinition()).collect(Collectors.joining(", "));
             query = query + " GROUP BY " + groupByExpr;
         }
 
@@ -177,9 +178,9 @@ class PinotQueryGeneratorContext
         long defaultLimit = pinotConfig.map(PinotConfig::getLimitLarge).orElse(PinotConfig.DEFAULT_LIMIT_LARGE);
 
         if (!hasAggregation()) {
-            if (forSinglePageSource && limit.isPresent() && pinotConfig.isPresent()) {
+            if (forSinglePageSource && pinotConfig.isPresent()) {
                 long maxLimit = pinotConfig.get().getMaxSelectLimitWhenSinglePage();
-                long givenLimit = limit.get();
+                long givenLimit = limit.orElse(defaultLimit);
                 if (givenLimit > maxLimit) {
                     throw new PinotException(PinotErrorCode.PINOT_QUERY_GENERATOR_FAILURE, Optional.empty(), String.format("Given limit %d more than max select limit %d", givenLimit, maxLimit));
                 }
@@ -213,70 +214,40 @@ class PinotQueryGeneratorContext
         return new PinotQueryGenerator.GeneratedPql(from, query, getIndicesMappingFromPinotSchemaToPrestoSchema(columnHandles, query), groupByColumns.size());
     }
 
-    /**
-     * TODO: clean up this
-     */
     private Optional<List<Integer>> getIndicesMappingFromPinotSchemaToPrestoSchema(Optional<List<PinotColumnHandle>> columnHandles, String query)
     {
-        LinkedHashSet<String> expressionsInOrder = new LinkedHashSet<>();
-        if (!groupByColumns.isEmpty()) {
-            String groupByExpr = groupByColumns.stream().collect(Collectors.joining(", "));
-            query = query + " GROUP BY " + groupByExpr;
-            Map<String, String> colMappingReverse = selections.entrySet().stream().collect(Collectors.toMap(p -> p.getValue().getDefinition(), p -> p.getKey()));
-            if (colMappingReverse.size() != selections.size()) {
-                throw new IllegalStateException(format("Expected colMapping to be fully reversible: %s, for query %s", Joiner.on(",").withKeyValueSeparator(":").join(selections), query));
-            }
-            for (String groupByColumn : groupByColumns) {
-                String outputGroupByColumn = colMappingReverse.get(groupByColumn);
-                if (outputGroupByColumn == null) {
-                    throw new IllegalStateException("Expected to find a presto column name for the given pinot group by column " + groupByColumn);
-                }
-                expressionsInOrder.add(outputGroupByColumn);
-            }
-            // Group by columns come first and have already been added above
-            // so we are adding the metrics below
-            expressionsInOrder.addAll(selections.keySet());
-        }
-        else {
-            expressionsInOrder.addAll(selections.keySet());
-        }
-
-        Map<String, String> colMappingReverse = selections.entrySet().stream().collect(Collectors.toMap(p -> p.getValue().getDefinition(), p -> p.getKey()));
-        if (colMappingReverse.size() != selections.size()) {
-            throw new IllegalStateException(format("Expected colMapping to be fully reversible: %s, for query %s", Joiner.on(",").withKeyValueSeparator(":").join(selections), query));
-        }
-        expressionsInOrder.clear();
+        LinkedHashMap<String, Selection> expressionsInOrder = new LinkedHashMap<>();
         for (String groupByColumn : groupByColumns) {
-            String outputGroupByColumn = colMappingReverse.get(groupByColumn);
-            if (outputGroupByColumn == null) {
-                throw new IllegalStateException(format("Expected to find a presto column name for the given Pinot group by column " + groupByColumn));
+            Selection groupByColumnDefinition = selections.get(groupByColumn);
+            if (groupByColumnDefinition == null) {
+                throw new IllegalStateException(format("Group By column (%s) definition not found in input selections: ",
+                        groupByColumn, Joiner.on(",").withKeyValueSeparator(":").join(selections)));
             }
-            expressionsInOrder.add(outputGroupByColumn);
+            expressionsInOrder.put(groupByColumn, groupByColumnDefinition);
         }
-        // Group by columns come first
-        expressionsInOrder.addAll(selections.keySet());
+        expressionsInOrder.putAll(selections);
 
         return columnHandles.map(handles -> {
-            checkState(handles.size() == expressionsInOrder.size(), "Expected returned expressions %s to match columm handles %s",
-                    Joiner.on(",").join(expressionsInOrder), Joiner.on(",").join(handles));
+            checkState(handles.size() == expressionsInOrder.size(), "Expected returned expressions %s to match column handles %s",
+                    Joiner.on(",").withKeyValueSeparator(":").join(expressionsInOrder), Joiner.on(",").join(handles));
             Map<String, Integer> nameToIndex = new HashMap<>();
             for (int i = 0; i < handles.size(); ++i) {
                 String columnName = handles.get(i).getColumnName();
-                Integer prev = nameToIndex.put(columnName, i);
+                Integer prev = nameToIndex.put(columnName.toLowerCase(ENGLISH), i);
                 if (prev != null) {
-                    throw new IllegalStateException(format("Expected Pinot column handle %s to occur only once, but we have: %s", columnName, Joiner.on(",").join(handles)));
+                    throw new PinotException(PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION, Optional.of(query), format("Expected Pinot column handle %s to occur only once, but we have: %s", columnName, Joiner.on(",").join(handles)));
                 }
             }
-            ImmutableList.Builder<Integer> columnIndices = ImmutableList.builder();
-            for (String expression : expressionsInOrder) {
-                Integer index = nameToIndex.get(expression);
+            ImmutableList.Builder<Integer> outputIndices = ImmutableList.builder();
+            for (Map.Entry<String, Selection> expression : expressionsInOrder.entrySet()) {
+                Integer index = nameToIndex.get(expression.getKey());
                 if (index == null) {
-                    throw new IllegalStateException(format("Expected to find a Pinot column handle for the expression %s, but we have %s",
+                    throw new PinotException(PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION, Optional.of(query), format("Expected to find a Pinot column handle for the expression %s, but we have %s",
                             expression, Joiner.on(",").withKeyValueSeparator(":").join(nameToIndex)));
                 }
-                columnIndices.add(index);
+                outputIndices.add(index);
             }
-            return columnIndices.build();
+            return outputIndices.build();
         });
     }
 

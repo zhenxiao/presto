@@ -65,11 +65,6 @@ public final class PinotColumnHandle
         return new ColumnMetadata(columnName, dataType);
     }
 
-    public String getName()
-    {
-        return columnName;
-    }
-
     @Override
     public boolean equals(Object o)
     {

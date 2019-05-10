@@ -37,6 +37,7 @@ import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -303,7 +304,8 @@ public class PinotMetadata
         }
     }
 
-    private List<ColumnHandle> createDerivedColumnHandles(PipelineNode pipelineNode)
+    @VisibleForTesting
+    static List<ColumnHandle> createDerivedColumnHandles(PipelineNode pipelineNode)
     {
         List<ColumnHandle> outputColumnHandles = new ArrayList<>();
         List<String> outputColumns = pipelineNode.getOutputColumns();

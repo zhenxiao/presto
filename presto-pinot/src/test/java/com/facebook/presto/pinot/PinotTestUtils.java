@@ -33,7 +33,6 @@ import com.facebook.presto.sql.tree.ExpressionTreeRewriter;
 import com.facebook.presto.sql.tree.Identifier;
 import com.facebook.presto.sql.tree.LambdaExpression;
 import com.facebook.presto.sql.tree.SymbolReference;
-import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
 import java.util.List;
@@ -109,7 +108,16 @@ public class PinotTestUtils
 
     public static TableScanPipeline pipeline(PipelineNode... nodes)
     {
-        return new TableScanPipeline(Arrays.asList(nodes), ImmutableList.of());
+        List<PipelineNode> pipelineNodes = Arrays.asList(nodes);
+        PipelineNode lastPipelineNode = pipelineNodes.get(pipelineNodes.size() - 1);
+        List<ColumnHandle> columnHandles;
+        if (lastPipelineNode instanceof TablePipelineNode) {
+            columnHandles = ((TablePipelineNode) lastPipelineNode).getInputColumns();
+        }
+        else {
+            columnHandles = PinotMetadata.createDerivedColumnHandles(lastPipelineNode);
+        }
+        return new TableScanPipeline(pipelineNodes, columnHandles);
     }
 
     public static List<ColumnHandle> columnHandles(ColumnHandle... cols)
