@@ -13,8 +13,12 @@
  */
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.util.Optional;
+import java.util.function.BiFunction;
 
 import static java.util.Objects.requireNonNull;
 
@@ -22,13 +26,16 @@ public class PushDownCastExpression
         extends PushDownExpression
 {
     private final PushDownExpression input;
-    private final String type;
+    private final String resultType;
+    private final boolean implicit;
 
     @JsonCreator
-    public PushDownCastExpression(@JsonProperty("input") PushDownExpression input, @JsonProperty("type") String type)
+    public PushDownCastExpression(@JsonProperty("type") TypeSignature type, @JsonProperty("input") PushDownExpression input, @JsonProperty("resultType") String resultType, @JsonProperty("implicit") boolean implicit)
     {
+        super(type);
         this.input = requireNonNull(input, "input is null");
-        this.type = requireNonNull(type, "type is null");
+        this.resultType = requireNonNull(resultType, "type is null");
+        this.implicit = implicit;
     }
 
     @JsonProperty
@@ -38,9 +45,15 @@ public class PushDownCastExpression
     }
 
     @JsonProperty
-    public String getType()
+    public String getResultType()
     {
-        return type;
+        return resultType;
+    }
+
+    @JsonProperty
+    public boolean isImplicit()
+    {
+        return implicit;
     }
 
     @Override
@@ -52,6 +65,11 @@ public class PushDownCastExpression
     @Override
     public String toString()
     {
-        return "cast(" + input.toString() + " as " + type + ")";
+        return "cast(" + input.toString() + " as " + resultType + ")";
+    }
+
+    public boolean isImplicitCast(Optional<BiFunction<String, TypeSignature, Boolean>> otherCheck)
+    {
+        return implicit || otherCheck.orElse((x, y) -> false).apply(getResultType(), input.getType());
     }
 }

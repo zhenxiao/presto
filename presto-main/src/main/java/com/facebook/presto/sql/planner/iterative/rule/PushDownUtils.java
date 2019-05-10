@@ -13,15 +13,23 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
+import com.facebook.presto.execution.warnings.WarningCollector;
+import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.TypeSignature;
+import com.facebook.presto.sql.parser.SqlParser;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.TypeProvider;
+import com.facebook.presto.sql.planner.iterative.Rule;
 import com.facebook.presto.sql.planner.plan.AggregationNode;
 import com.facebook.presto.sql.planner.plan.PlanNodeId;
 import com.facebook.presto.sql.planner.plan.TableScanNode;
+import com.facebook.presto.sql.tree.Expression;
 import com.facebook.presto.sql.tree.FunctionCall;
+import com.facebook.presto.sql.tree.NodeRef;
 import com.facebook.presto.sql.tree.SymbolReference;
 
 import java.util.List;
@@ -30,11 +38,60 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.facebook.presto.sql.analyzer.ExpressionAnalyzer.getExpressionTypes;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Verify.verify;
+import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toMap;
 
 public class PushDownUtils
 {
+    @FunctionalInterface
+    public interface ExpressionToTypeConverter
+    {
+        Type getType(Expression expression);
+
+        default TypeSignature getTypeSignature(Expression expression)
+        {
+            return getType(expression).getTypeSignature();
+        }
+
+        default boolean canCoerce(Type actualType, Type expectedType)
+        {
+            return false;
+        }
+    }
+
+    public static class ExpressionToTypeConverterImpl
+            implements ExpressionToTypeConverter
+    {
+        private final Rule.Context context;
+        private final Metadata metadata;
+        private final SqlParser sqlParser;
+
+        public ExpressionToTypeConverterImpl(Rule.Context context, Metadata metadata, SqlParser sqlParser)
+        {
+            this.context = context;
+            this.metadata = metadata;
+            this.sqlParser = sqlParser;
+        }
+
+        @Override
+        public boolean canCoerce(Type actualType, Type expectedType)
+        {
+            return metadata.getTypeManager().canCoerce(actualType, expectedType);
+        }
+
+        @Override
+        public Type getType(Expression expression)
+        {
+            Type type = getExpressionTypes(context.getSession(), metadata, sqlParser, context.getSymbolAllocator().getTypes(), expression, emptyList(), WarningCollector.NOOP)
+                    .get(NodeRef.of(expression));
+            verify(type != null);
+            return type;
+        }
+    }
+
     private PushDownUtils()
     {
     }

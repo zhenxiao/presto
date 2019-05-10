@@ -14,6 +14,7 @@
 
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -27,11 +28,13 @@ public class PushDownLiteral
 
     @JsonCreator
     public PushDownLiteral(
+            @JsonProperty("type") TypeSignature type,
             @JsonProperty("strValue") String strValue,
             @JsonProperty("longValue") Long longValue,
             @JsonProperty("doubleValue") Double doubleValue,
             @JsonProperty("booleanValue") Boolean booleanValue)
     {
+        super(type);
         // TODO: check only one of them is non-null
         this.strValue = strValue;
         this.longValue = longValue;

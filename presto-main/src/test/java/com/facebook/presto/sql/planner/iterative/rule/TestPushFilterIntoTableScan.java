@@ -60,7 +60,7 @@ public class TestPushFilterIntoTableScan
     @Test
     public void pushDownComplexFilter()
     {
-        testHelper("c1 = 5 AND c2 >= 20 AND log(c1) = c2", true);
+        testHelper("c1 = 5 AND c2 >= 20 AND log10(c1) = c2", true);
     }
 
     @Test
@@ -71,7 +71,7 @@ public class TestPushFilterIntoTableScan
 
     private void testHelper(String predicate, boolean expectedPushDown)
     {
-        RuleAssert ruleAssert = assertThat(new PushFilterIntoTableScan(tester.getMetadata()))
+        RuleAssert ruleAssert = assertThat(new PushFilterIntoTableScan(tester.getMetadata(), tester.getSqlParser()))
                 .on(p ->
                         p.filter(expression(predicate),
                                 createTestScan(p)));
@@ -101,7 +101,7 @@ public class TestPushFilterIntoTableScan
                 }
                 else if (projectExpr instanceof PushDownFunction) {
                     PushDownFunction function = (PushDownFunction) projectExpr;
-                    if (!function.getName().equalsIgnoreCase("log")) {
+                    if (!function.getName().equalsIgnoreCase("log10")) {
                         return Optional.empty();
                     }
                 }

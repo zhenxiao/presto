@@ -462,8 +462,8 @@ public class PlanOptimizers
                 costCalculator,
                 ImmutableSet.of(
                         new CreateTableScanPipeline(metadata),
-                        new PushFilterIntoTableScan(metadata),
-                        new PushProjectIntoTableScan(metadata),
+                        new PushFilterIntoTableScan(metadata, sqlParser),
+                        new PushProjectIntoTableScan(metadata, sqlParser),
                         new PushAggregationIntoTableScan(metadata),
                         new FinalLimitPushDown(metadata))));
 

@@ -160,7 +160,7 @@ public class TestPinotSplitManager
         Domain domain = com.facebook.presto.spi.predicate.Domain.multipleValues(BIGINT, new ArrayList<>(Arrays.asList(1L, 10L)));
         String expectedFilter = "((city_id = 1) OR (city_id = 10))";
 
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId.getColumnName()).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
     }
 
     @Test
@@ -170,7 +170,7 @@ public class TestPinotSplitManager
                 Range.greaterThan(BIGINT, 1L).intersect(Range.lessThan(BIGINT, 10L))), false);
 
         String expectedFilter = "((1 < city_id) AND (city_id < 10))";
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId.getColumnName()).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
     }
 
     @Test
@@ -180,7 +180,7 @@ public class TestPinotSplitManager
                 Range.lessThanOrEqual(BIGINT, 10L)), false);
 
         String expectedFilter = "(city_id <= 10)";
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId.getColumnName()).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
     }
 
     @Test
@@ -192,7 +192,7 @@ public class TestPinotSplitManager
                 Range.greaterThan(BIGINT, 12L).intersect(Range.lessThan(BIGINT, 18L))), false);
 
         String expectedFilter = "(((1 < city_id) AND (city_id < 10)) OR (((12 < city_id) AND (city_id < 18)) OR (city_id = 20)))";
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId.getColumnName()).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
     }
 
     @Test
@@ -259,7 +259,7 @@ public class TestPinotSplitManager
         SortedRangeSet sortedRangeSet = SortedRangeSet.copyOf(BIGINT, new ArrayList<>());
         Domain domain = Domain.create(sortedRangeSet, false);
 
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId.getColumnName()), Optional.empty());
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId), Optional.empty());
     }
 
     private static class MockPinotClusterInfoFetcher

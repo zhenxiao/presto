@@ -20,6 +20,7 @@ import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.sql.parser.SqlParser;
 import com.facebook.presto.sql.planner.PushDownExpressionGenerator;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.TypeProvider;
@@ -66,10 +67,12 @@ public class PushProjectIntoTableScan
             .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private final Metadata metadata;
+    private final SqlParser sqlParser;
 
-    public PushProjectIntoTableScan(Metadata metadata)
+    public PushProjectIntoTableScan(Metadata metadata, SqlParser sqlParser)
     {
         this.metadata = requireNonNull(metadata, "metadata is null");
+        this.sqlParser = requireNonNull(sqlParser, "sqlParser is null");
     }
 
     @Override
@@ -87,7 +90,8 @@ public class PushProjectIntoTableScan
         Optional<ProjectPipelineNode> projectPipelineNode = inConnectorFormat(
                 projectNode.getOutputSymbols(),
                 projectNode.getAssignments(),
-                context.getSymbolAllocator().getTypes());
+                context.getSymbolAllocator().getTypes(),
+                context);
 
         if (!projectPipelineNode.isPresent()) {
             return Result.empty();
@@ -103,12 +107,13 @@ public class PushProjectIntoTableScan
         return Result.empty();
     }
 
-    private Optional<ProjectPipelineNode> inConnectorFormat(List<Symbol> outputSymbols, Assignments assignments, TypeProvider typeProvider)
+    private Optional<ProjectPipelineNode> inConnectorFormat(List<Symbol> outputSymbols, Assignments assignments, TypeProvider typeProvider, Context context)
     {
         Map<Symbol, Expression> assignMap = assignments.getMap();
+        PushDownUtils.ExpressionToTypeConverter typeConverter = new PushDownUtils.ExpressionToTypeConverterImpl(context, metadata, sqlParser);
 
         List<PushDownExpression> pushDownExpressions = new ArrayList<>();
-        PushDownExpressionGenerator visitor = new PushDownExpressionGenerator();
+        PushDownExpressionGenerator visitor = new PushDownExpressionGenerator(typeConverter);
         for (Symbol output : outputSymbols) {
             Expression expression = assignMap.get(output);
             PushDownExpression pushdownExpression = visitor.process(expression);

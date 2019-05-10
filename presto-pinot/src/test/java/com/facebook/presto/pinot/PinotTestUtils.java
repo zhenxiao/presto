@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static java.util.Locale.ENGLISH;
 
 public class PinotTestUtils
@@ -75,7 +76,8 @@ public class PinotTestUtils
     public static PushDownExpression pdExpr(String sqlExpr)
     {
         Expression expression = PinotTestUtils.expression(sqlExpr);
-        return new PushDownExpressionGenerator().process(expression);
+        // Assume all types are integers, because we don't have access to the full machinery here to do type inference
+        return new PushDownExpressionGenerator((expr) -> BIGINT).process(expression);
     }
 
     public static PipelineNode filter(PushDownExpression predicate, List<String> outputColumns, List<Type> rowType)

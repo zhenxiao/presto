@@ -14,6 +14,7 @@
 
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -31,10 +32,12 @@ public class PushDownInExpression
 
     @JsonCreator
     public PushDownInExpression(
+            @JsonProperty("type") TypeSignature type,
             @JsonProperty("isWhiteList") boolean isWhiteList,
             @JsonProperty("value") PushDownExpression value,
             @JsonProperty("arguments") List<PushDownExpression> arguments)
     {
+        super(type);
         this.isWhiteList = isWhiteList;
         this.value = requireNonNull(value, "value is null");
         this.arguments = requireNonNull(arguments, "arguments is null");

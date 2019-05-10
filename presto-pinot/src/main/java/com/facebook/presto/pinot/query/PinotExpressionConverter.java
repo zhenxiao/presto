@@ -212,7 +212,7 @@ class PinotExpressionConverter
 
         boolean isImplicitCast;
         Class<?> inputJavaType = inputType.getJavaType();
-        switch (cast.getType().toLowerCase(ENGLISH)) {
+        switch (cast.getResultType().toLowerCase(ENGLISH)) {
             case "double":
                 isImplicitCast = inputJavaType.equals(double.class) || inputJavaType.equals(long.class);
                 break;

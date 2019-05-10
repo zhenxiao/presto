@@ -38,6 +38,8 @@ import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.TypeSignature;
 import com.linkedin.pinot.client.PinotClientException;
 import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
@@ -54,6 +56,7 @@ import java.util.stream.Collectors;
 import static com.facebook.presto.pinot.PinotSplit.createBrokerSplit;
 import static com.facebook.presto.pinot.PinotSplit.createSegmentSplit;
 import static com.facebook.presto.pinot.PinotUtils.checkType;
+import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
@@ -78,26 +81,26 @@ public class PinotSplitManager
 
     private static PushDownLiteral getLiteralFromMarker(Marker marker)
     {
-        return getLiteralFromMarkerObject(marker.getValue());
+        return getLiteralFromMarkerObject(marker.getType(), marker.getValue());
     }
 
-    private static PushDownLiteral getLiteralFromMarkerObject(Object value)
+    private static PushDownLiteral getLiteralFromMarkerObject(Type type, Object value)
     {
         if (value instanceof Slice) {
             Slice slice = (Slice) value;
-            return new PushDownLiteral(slice.toStringUtf8(), null, null, null);
+            return new PushDownLiteral(type.getTypeSignature(), slice.toStringUtf8(), null, null, null);
         }
 
         if (value instanceof Long) {
-            return new PushDownLiteral(null, (Long) value, null, null);
+            return new PushDownLiteral(type.getTypeSignature(), null, (Long) value, null, null);
         }
 
         if (value instanceof Double) {
-            return new PushDownLiteral(null, null, (Double) value, null);
+            return new PushDownLiteral(type.getTypeSignature(), null, null, (Double) value, null);
         }
 
         if (value instanceof Boolean) {
-            return new PushDownLiteral(null, null, null, (Boolean) value);
+            return new PushDownLiteral(type.getTypeSignature(), null, null, null, (Boolean) value);
         }
 
         throw new PinotException(PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "unsupported market type in TupleDomain: " + value.getClass());
@@ -109,7 +112,7 @@ public class PinotSplitManager
         Map<ColumnHandle, Domain> columnHandleDomainMap = constraint.getDomains().get();
         for (ColumnHandle k : columnHandleDomainMap.keySet()) {
             Domain domain = columnHandleDomainMap.get(k);
-            Optional<PushDownExpression> columnPredicate = getColumnPredicate(domain, ((PinotColumnHandle) k).getColumnName());
+            Optional<PushDownExpression> columnPredicate = getColumnPredicate(domain, ((PinotColumnHandle) k));
             if (columnPredicate.isPresent()) {
                 expressions.add(columnPredicate.get());
             }
@@ -123,28 +126,28 @@ public class PinotSplitManager
         return predicate.get();
     }
 
-    static Optional<PushDownExpression> getColumnPredicate(Domain domain, String columnName)
+    static Optional<PushDownExpression> getColumnPredicate(Domain domain, PinotColumnHandle columnHandle)
     {
-        PushDownExpression inputColumn = new PushDownInputColumn(columnName.toLowerCase(ENGLISH));
+        PushDownExpression inputColumn = new PushDownInputColumn(columnHandle.getDataType().getTypeSignature(), columnHandle.getColumnName().toLowerCase(ENGLISH));
         List<PushDownExpression> conditions = new ArrayList<>();
-
+        TypeSignature booleanType = BOOLEAN.getTypeSignature();
         domain.getValues().getValuesProcessor().consume(
                 ranges -> {
                     for (Range range : ranges.getOrderedRanges()) {
                         if (range.isSingleValue()) {
-                            conditions.add(new PushDownLogicalBinaryExpression(inputColumn, "=", getLiteralFromMarker(range.getLow())));
+                            conditions.add(new PushDownLogicalBinaryExpression(booleanType, inputColumn, "=", getLiteralFromMarker(range.getLow())));
                         }
                         else {
                             // get low bound
                             List<PushDownExpression> bounds = new ArrayList<>();
                             if (!range.getLow().isLowerUnbounded()) {
                                 String op = (range.getLow().getBound() == Marker.Bound.EXACTLY) ? "<=" : "<";
-                                bounds.add(new PushDownLogicalBinaryExpression(getLiteralFromMarker(range.getLow()), op, inputColumn));
+                                bounds.add(new PushDownLogicalBinaryExpression(booleanType, getLiteralFromMarker(range.getLow()), op, inputColumn));
                             }
                             // get high bound
                             if (!range.getHigh().isUpperUnbounded()) {
                                 String op = range.getHigh().getBound() == Marker.Bound.EXACTLY ? "<=" : "<";
-                                bounds.add(new PushDownLogicalBinaryExpression(inputColumn, op, getLiteralFromMarker(range.getHigh())));
+                                bounds.add(new PushDownLogicalBinaryExpression(booleanType, inputColumn, op, getLiteralFromMarker(range.getHigh())));
                             }
 
                             conditions.add(combineExpressions(bounds, "AND").get());
@@ -156,8 +159,8 @@ public class PinotSplitManager
                         return;
                     }
 
-                    List<PushDownExpression> inList = discreteValues.getValues().stream().map(v -> getLiteralFromMarkerObject(v)).collect(Collectors.toList());
-                    conditions.add(new PushDownInExpression(discreteValues.isWhiteList(), inputColumn, inList));
+                    List<PushDownExpression> inList = discreteValues.getValues().stream().map(v -> getLiteralFromMarkerObject(domain.getValues().getType(), v)).collect(Collectors.toList());
+                    conditions.add(new PushDownInExpression(booleanType, discreteValues.isWhiteList(), inputColumn, inList));
                 },
                 allOrNone ->
                 {
@@ -181,7 +184,7 @@ public class PinotSplitManager
         Collections.reverse(expressions);
         PushDownExpression result = expressions.get(0);
         for (int i = 1; i < expressions.size(); i++) {
-            result = new PushDownLogicalBinaryExpression(expressions.get(i), op, result);
+            result = new PushDownLogicalBinaryExpression(BOOLEAN.getTypeSignature(), expressions.get(i), op, result);
         }
 
         return Optional.of(result);

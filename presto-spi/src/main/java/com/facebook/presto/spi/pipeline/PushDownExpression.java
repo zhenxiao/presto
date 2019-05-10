@@ -13,6 +13,9 @@
  */
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
@@ -32,6 +35,26 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = PushDownCastExpression.class, name = "cast")})
 public abstract class PushDownExpression
 {
+    private final TypeSignature type;
+
+    @JsonCreator
+    public PushDownExpression(@JsonProperty("type") TypeSignature type)
+    {
+        this.type = type;
+    }
+
+    @JsonProperty
+    public TypeSignature getType()
+    {
+        return type;
+    }
+
+    @Override
+    public String toString()
+    {
+        return type.toString();
+    }
+
     public <R, C> R accept(PushDownExpressionVisitor<R, C> visitor, C context)
     {
         return visitor.visitExpression(this, context);

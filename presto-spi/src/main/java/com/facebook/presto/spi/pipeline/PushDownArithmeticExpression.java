@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -24,8 +25,9 @@ public class PushDownArithmeticExpression
     private final PushDownExpression right;
 
     @JsonCreator
-    public PushDownArithmeticExpression(PushDownExpression left, String operator, PushDownExpression right)
+    public PushDownArithmeticExpression(@JsonProperty("type") TypeSignature type, @JsonProperty("left") PushDownExpression left, @JsonProperty("operator") String operator, @JsonProperty("right") PushDownExpression right)
     {
+        super(type);
         this.operator = operator;
         this.left = left;
         this.right = right;

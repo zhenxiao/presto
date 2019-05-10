@@ -13,13 +13,13 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.PushDownArithmeticExpression;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.facebook.presto.spi.pipeline.PushDownFunction;
 import com.facebook.presto.spi.pipeline.PushDownInputColumn;
@@ -28,8 +28,6 @@ import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.plan.Assignments;
 import com.facebook.presto.testing.TestingMetadata;
-import com.facebook.presto.testing.TestingMetadata.TestingTableHandle;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
@@ -51,13 +49,13 @@ public class TestPushProjectIntoTableScan
     @Test
     public void pushDownProjectIntoTableScan()
     {
-        assertThat(new PushProjectIntoTableScan(tester.getMetadata()))
+        assertThat(new PushProjectIntoTableScan(tester.getMetadata(), tester.getSqlParser()))
                 .on(p -> {
                     Symbol c1 = p.symbol("c1", INTEGER);
                     return p.project(
                             Assignments.of(
                                     c1, c1.toSymbolReference(),
-                                    p.symbol("e1", INTEGER), p.expression("fun(c2)")),
+                                    p.symbol("e1", INTEGER), p.expression("cast(abs(c1 + c2) * 2 as bigint)")),
                             createTestScan(p));
                 })
                 .matches(
@@ -68,24 +66,30 @@ public class TestPushProjectIntoTableScan
     }
 
     @Test
-    public void noPushDownProjectIntoTableScan()
+    public void noPushNonImplicitCastIntoTableScan()
     {
-        assertThat(new PushProjectIntoTableScan(tester.getMetadata()))
+        assertThat(new PushProjectIntoTableScan(tester.getMetadata(), tester.getSqlParser()))
                 .on(p -> {
-                    Symbol c1 = p.symbol("c1");
-                    Symbol c2 = p.symbol("c2");
+                    Symbol c1 = p.symbol("c1", INTEGER);
                     return p.project(
                             Assignments.of(
-                                    p.symbol("c1"), c1.toSymbolReference(),
-                                    p.symbol("e1"), p.expression("nonFun(c2)")),
-                            p.tableScan(
-                                    new TableHandle(
-                                            CONNECTOR_ID,
-                                            new TestingTableHandle()),
-                                    ImmutableList.of(c1, c2),
-                                    ImmutableMap.of(
-                                            c1, new TestingMetadata.TestingColumnHandle("c1", 0, INTEGER),
-                                            c2, new TestingMetadata.TestingColumnHandle("c2", 1, INTEGER))));
+                                    c1, c1.toSymbolReference(),
+                                    p.symbol("e1", INTEGER), p.expression("cast(abs(c1 - 1) as tinyint)")),
+                            createTestScan(p));
+                }).doesNotFire();
+    }
+
+    @Test
+    public void noPushDownProjectIntoTableScan()
+    {
+        assertThat(new PushProjectIntoTableScan(tester.getMetadata(), tester.getSqlParser()))
+                .on(p -> {
+                    Symbol c1 = p.symbol("c1", INTEGER);
+                    return p.project(
+                            Assignments.of(
+                                    c1, c1.toSymbolReference(),
+                                    p.symbol("e1", INTEGER), p.expression("log10(c2)")),
+                            createTestScan(p));
                 }).doesNotFire();
     }
 
@@ -97,12 +101,12 @@ public class TestPushProjectIntoTableScan
                 TableScanPipeline currentPipeline, ProjectPipelineNode project)
         {
             for (PushDownExpression projectExpr : project.getExprs()) {
-                if (projectExpr instanceof PushDownInputColumn) {
+                if (projectExpr instanceof PushDownInputColumn || projectExpr instanceof PushDownArithmeticExpression) {
                     continue;
                 }
                 else if (projectExpr instanceof PushDownFunction) {
                     PushDownFunction function = (PushDownFunction) projectExpr;
-                    if (!function.getName().equalsIgnoreCase("fun")) {
+                    if (!function.getName().equalsIgnoreCase("abs")) {
                         return Optional.empty();
                     }
                 }

@@ -23,12 +23,18 @@ import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.PushDownNotExpression;
+import com.facebook.presto.spi.type.TimestampType;
+import com.facebook.presto.spi.type.TypeSignature;
 import com.facebook.presto.sql.tree.Expression;
 import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
+import java.util.Objects;
 
+import static com.facebook.presto.spi.type.BigintType.BIGINT;
+import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
+import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.sql.planner.iterative.rule.test.PlanBuilder.expression;
 import static java.lang.String.format;
 import static org.testng.Assert.assertEquals;
@@ -38,58 +44,58 @@ public class TestPushDownExpressionGenerator
     private static void test(String inputSql, PushDownExpression expected)
     {
         Expression expression = expression(inputSql);
-        PushDownExpression actual = new PushDownExpressionGenerator().process(expression);
+        PushDownExpression actual = new PushDownExpressionGenerator((expr) -> BIGINT).process(expression);
         assertEquals(actual.toString(), expected.toString());
     }
 
     private static PushDownExpression pdInputColumn(String column)
     {
-        return new PushDownInputColumn(column);
+        return new PushDownInputColumn(BIGINT.getTypeSignature(), column);
     }
 
     private static PushDownExpression pdLiteral(Long value)
     {
-        return new PushDownLiteral(null, value, null, null);
+        return new PushDownLiteral(BIGINT.getTypeSignature(), null, value, null, null);
     }
 
     private static PushDownExpression pdLiteral(String value)
     {
-        return new PushDownLiteral(value, null, null, null);
+        return new PushDownLiteral(VARCHAR.getTypeSignature(), value, null, null, null);
     }
 
     private static PushDownExpression pdFunction(String name, PushDownExpression... inputs)
     {
-        return new PushDownFunction(name, Arrays.asList(inputs));
+        return new PushDownFunction(BIGINT.getTypeSignature(), name, Arrays.asList(inputs));
     }
 
     private static PushDownExpression pdBetween(PushDownExpression value, PushDownExpression l, PushDownExpression r)
     {
-        return new PushDownBetweenExpression(value, l, r);
+        return new PushDownBetweenExpression(BOOLEAN.getTypeSignature(), value, l, r);
     }
 
     private static PushDownExpression pdIn(boolean whiteList, PushDownExpression value, PushDownExpression... inList)
     {
-        return new PushDownInExpression(whiteList, value, Arrays.asList(inList));
+        return new PushDownInExpression(BOOLEAN.getTypeSignature(), whiteList, value, Arrays.asList(inList));
     }
 
     private static PushDownExpression pdNot(PushDownExpression input)
     {
-        return new PushDownNotExpression(input);
+        return new PushDownNotExpression(BOOLEAN.getTypeSignature(), input);
     }
 
     private static PushDownExpression pdLogicalBinary(PushDownExpression left, String op, PushDownExpression right)
     {
-        return new PushDownLogicalBinaryExpression(left, op, right);
+        return new PushDownLogicalBinaryExpression(BOOLEAN.getTypeSignature(), left, op, right);
     }
 
-    private static PushDownExpression pdCast(PushDownExpression input, String type)
+    private static PushDownExpression pdCast(PushDownExpression input, TypeSignature type)
     {
-        return new PushDownCastExpression(input, type);
+        return new PushDownCastExpression(type, input, type.getBase(), Objects.equals(input.getType(), type));
     }
 
     private static PushDownExpression pdArith(PushDownExpression left, String op, PushDownExpression right)
     {
-        return new PushDownArithmeticExpression(left, op, right);
+        return new PushDownArithmeticExpression((left == null ? right : left).getType(), left, op, right);
     }
 
     @Test
@@ -138,6 +144,6 @@ public class TestPushDownExpressionGenerator
                         pdCast(pdFunction(
                                 "from_unixtime",
                                 pdInputColumn("secondssinceepoch")),
-                                "timestamp")));
+                                TimestampType.TIMESTAMP.getTypeSignature())));
     }
 }

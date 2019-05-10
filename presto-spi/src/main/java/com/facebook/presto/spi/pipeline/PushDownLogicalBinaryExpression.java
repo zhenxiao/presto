@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -27,10 +28,12 @@ public class PushDownLogicalBinaryExpression
 
     @JsonCreator
     public PushDownLogicalBinaryExpression(
+            @JsonProperty("type") TypeSignature type,
             @JsonProperty("left") PushDownExpression left,
             @JsonProperty("operator") String operator,
             @JsonProperty("right") PushDownExpression right)
     {
+        super(type);
         this.operator = requireNonNull(operator, "operator is null");
         this.left = requireNonNull(left, "left is null");
         this.right = requireNonNull(right, "right is null");

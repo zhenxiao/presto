@@ -23,6 +23,7 @@ import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.PushDownNotExpression;
+import com.facebook.presto.sql.planner.iterative.rule.PushDownUtils;
 import com.facebook.presto.sql.tree.ArithmeticBinaryExpression;
 import com.facebook.presto.sql.tree.ArithmeticUnaryExpression;
 import com.facebook.presto.sql.tree.AstVisitor;
@@ -45,10 +46,18 @@ import com.facebook.presto.sql.tree.SymbolReference;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class PushDownExpressionGenerator
         extends AstVisitor<PushDownExpression, Void>
 {
+    private final PushDownUtils.ExpressionToTypeConverter expressionToTypeConverter;
+
+    public PushDownExpressionGenerator(PushDownUtils.ExpressionToTypeConverter expressionToTypeConverter)
+    {
+        this.expressionToTypeConverter = expressionToTypeConverter;
+    }
+
     @Override
     protected PushDownExpression visitFunctionCall(FunctionCall node, Void context)
     {
@@ -63,7 +72,7 @@ public class PushDownExpressionGenerator
             pushdownInputs.add(pushdownExpression);
         }
 
-        return new PushDownFunction(node.getName().toString(), pushdownInputs);
+        return new PushDownFunction(expressionToTypeConverter.getTypeSignature(node), node.getName().toString(), pushdownInputs);
     }
 
     @Override
@@ -77,7 +86,7 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownLogicalBinaryExpression(left, operator, right);
+        return new PushDownLogicalBinaryExpression(expressionToTypeConverter.getTypeSignature(node), left, operator, right);
     }
 
     @Override
@@ -91,7 +100,7 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownBetweenExpression(value, left, right);
+        return new PushDownBetweenExpression(expressionToTypeConverter.getTypeSignature(node), value, left, right);
     }
 
     @Override
@@ -117,7 +126,7 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownInExpression(true, value, arguments);
+        return new PushDownInExpression(expressionToTypeConverter.getTypeSignature(node), true, value, arguments);
     }
 
     @Override
@@ -128,25 +137,25 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownNotExpression(input);
+        return new PushDownNotExpression(expressionToTypeConverter.getTypeSignature(node), input);
     }
 
     @Override
     protected PushDownExpression visitDoubleLiteral(DoubleLiteral node, Void context)
     {
-        return new PushDownLiteral(null, null, node.getValue(), null);
+        return new PushDownLiteral(expressionToTypeConverter.getTypeSignature(node), null, null, node.getValue(), null);
     }
 
     @Override
     protected PushDownExpression visitLongLiteral(LongLiteral node, Void context)
     {
-        return new PushDownLiteral(null, node.getValue(), null, null);
+        return new PushDownLiteral(expressionToTypeConverter.getTypeSignature(node), null, node.getValue(), null, null);
     }
 
     @Override
     protected PushDownExpression visitStringLiteral(StringLiteral node, Void context)
     {
-        return new PushDownLiteral(node.getValue(), null, null, null);
+        return new PushDownLiteral(expressionToTypeConverter.getTypeSignature(node), node.getValue(), null, null, null);
     }
 
     @Override
@@ -171,19 +180,19 @@ public class PushDownExpressionGenerator
     @Override
     protected PushDownExpression visitBooleanLiteral(BooleanLiteral node, Void context)
     {
-        return new PushDownLiteral(null, null, null, node.getValue());
+        return new PushDownLiteral(expressionToTypeConverter.getTypeSignature(node), null, null, null, node.getValue());
     }
 
     @Override
     protected PushDownExpression visitCharLiteral(CharLiteral node, Void context)
     {
-        return new PushDownLiteral(node.getValue(), null, null, null);
+        return new PushDownLiteral(expressionToTypeConverter.getTypeSignature(node), node.getValue(), null, null, null);
     }
 
     @Override
     protected PushDownExpression visitSymbolReference(SymbolReference node, Void context)
     {
-        return new PushDownInputColumn(node.getName());
+        return new PushDownInputColumn(expressionToTypeConverter.getTypeSignature(node), node.getName());
     }
 
     @Override
@@ -191,30 +200,23 @@ public class PushDownExpressionGenerator
     {
         // Handle cast where the input is already in required type
         Expression input = node.getExpression();
-        String type = node.getType();
-
-        if (input instanceof StringLiteral && type.equalsIgnoreCase("varchar")) {
-            return this.process(input);
-        }
-
-        if (input instanceof LongLiteral && (type.equalsIgnoreCase("long") || type.equalsIgnoreCase("integer"))) {
-            return this.process(input);
-        }
-
-        if (input instanceof DoubleLiteral && type.equalsIgnoreCase("double")) {
-            return this.process(input);
-        }
-
-        if (input instanceof BooleanLiteral && type.equalsIgnoreCase("boolean")) {
-            return this.process(input);
-        }
+        String resultType = node.getType();
 
         PushDownExpression newInput = this.process(input);
+        PushDownCastExpression cast;
         if (newInput != null) {
-            return new PushDownCastExpression(newInput, type);
+            cast = new PushDownCastExpression(expressionToTypeConverter.getTypeSignature(node), newInput, resultType, expressionToTypeConverter.canCoerce(expressionToTypeConverter.getType(input), expressionToTypeConverter.getType(node)));
+        }
+        else {
+            return null;
         }
 
-        return null;
+        if (cast.isImplicitCast(Optional.empty())) {
+            return cast.getInput();
+        }
+        else {
+            return cast;
+        }
     }
 
     @Override
@@ -228,7 +230,7 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownLogicalBinaryExpression(left, operator, right);
+        return new PushDownLogicalBinaryExpression(expressionToTypeConverter.getTypeSignature(node), left, operator, right);
     }
 
     @Override
@@ -242,7 +244,7 @@ public class PushDownExpressionGenerator
             return null;
         }
 
-        return new PushDownArithmeticExpression(left, operator, right);
+        return new PushDownArithmeticExpression(expressionToTypeConverter.getTypeSignature(node), left, operator, right);
     }
 
     @Override
@@ -252,6 +254,6 @@ public class PushDownExpressionGenerator
         if (right == null) {
             return null;
         }
-        return new PushDownArithmeticExpression(null, node.getSign() == ArithmeticUnaryExpression.Sign.MINUS ? "-" : "+", right);
+        return new PushDownArithmeticExpression(expressionToTypeConverter.getTypeSignature(node), null, node.getSign() == ArithmeticUnaryExpression.Sign.MINUS ? "-" : "+", right);
     }
 }

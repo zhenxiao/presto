@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -24,8 +25,9 @@ public class PushDownInputColumn
     private final String name;
 
     @JsonCreator
-    public PushDownInputColumn(@JsonProperty("name") String name)
+    public PushDownInputColumn(@JsonProperty("type") TypeSignature type, @JsonProperty("name") String name)
     {
+        super(type);
         this.name = requireNonNull(name, "name is null");
     }
 

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -29,9 +30,11 @@ public class PushDownFunction
 
     @JsonCreator
     public PushDownFunction(
+            @JsonProperty("type") TypeSignature type,
             @JsonProperty("name") String name,
             @JsonProperty("inputs") List<PushDownExpression> inputs)
     {
+        super(type);
         this.name = requireNonNull(name, "name is null");
         this.inputs = requireNonNull(inputs, "inputs is null");
     }

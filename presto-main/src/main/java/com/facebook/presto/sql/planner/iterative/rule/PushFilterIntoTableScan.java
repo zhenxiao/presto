@@ -17,10 +17,10 @@ import com.facebook.presto.matching.Capture;
 import com.facebook.presto.matching.Captures;
 import com.facebook.presto.matching.Pattern;
 import com.facebook.presto.metadata.Metadata;
-import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.sql.parser.SqlParser;
 import com.facebook.presto.sql.planner.PushDownExpressionGenerator;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.TypeProvider;
@@ -30,7 +30,6 @@ import com.facebook.presto.sql.planner.plan.TableScanNode;
 import com.facebook.presto.sql.tree.Expression;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -65,10 +64,12 @@ public class PushFilterIntoTableScan
             .with(source().matching(tableScan().with(hasPipeline().matching(t -> t)).capturedAs(TABLE_SCAN)));
 
     private final Metadata metadata;
+    private final SqlParser sqlParser;
 
-    public PushFilterIntoTableScan(Metadata metadata)
+    public PushFilterIntoTableScan(Metadata metadata, SqlParser sqlParser)
     {
         this.metadata = requireNonNull(metadata, "metadata is null");
+        this.sqlParser = requireNonNull(sqlParser, "sqlParser is null");
     }
 
     @Override
@@ -87,7 +88,7 @@ public class PushFilterIntoTableScan
                 filter.getOutputSymbols(),
                 filter.getPredicate(),
                 context.getSymbolAllocator().getTypes(),
-                scanNode.getAssignments());
+                context);
 
         if (!filterPipelineNode.isPresent()) {
             return Result.empty();
@@ -103,9 +104,10 @@ public class PushFilterIntoTableScan
         return Result.empty();
     }
 
-    private Optional<FilterPipelineNode> inConnectorFormat(List<Symbol> outputSymbols, Expression predicate, TypeProvider typeProvider, Map<Symbol, ColumnHandle> scanAssignments)
+    private Optional<FilterPipelineNode> inConnectorFormat(List<Symbol> outputSymbols, Expression predicate, TypeProvider typeProvider, Context context)
     {
-        PushDownExpression pushdownPredicate = new PushDownExpressionGenerator().process(predicate);
+        PushDownUtils.ExpressionToTypeConverter typeConverter = new PushDownUtils.ExpressionToTypeConverterImpl(context, metadata, sqlParser);
+        PushDownExpression pushdownPredicate = new PushDownExpressionGenerator(typeConverter).process(predicate);
 
         if (pushdownPredicate == null) {
             return Optional.empty();

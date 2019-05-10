@@ -22,6 +22,7 @@ import com.facebook.presto.spi.pipeline.PushDownExpressionVisitor;
 import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
+import com.facebook.presto.spi.type.BooleanType;
 
 import java.util.Map;
 import java.util.Optional;
@@ -48,7 +49,7 @@ public class AresDbTimeFilterExtractor
     private static PushDownExpression combine(Optional<PushDownExpression> filter1, PushDownExpression filter2)
     {
         if (filter1.isPresent()) {
-            return new PushDownLogicalBinaryExpression(filter1.get(), "AND", filter2);
+            return new PushDownLogicalBinaryExpression(BooleanType.BOOLEAN.getTypeSignature(), filter1.get(), "AND", filter2);
         }
 
         return filter2;

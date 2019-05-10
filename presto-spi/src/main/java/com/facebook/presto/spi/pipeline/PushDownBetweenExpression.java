@@ -14,6 +14,7 @@
 
 package com.facebook.presto.spi.pipeline;
 
+import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -28,10 +29,12 @@ public class PushDownBetweenExpression
 
     @JsonCreator
     public PushDownBetweenExpression(
+            @JsonProperty("type") TypeSignature type,
             @JsonProperty("value") PushDownExpression value,
             @JsonProperty("left") PushDownExpression left,
             @JsonProperty("right") PushDownExpression right)
     {
+        super(type);
         this.value = requireNonNull(value, "value is null");
         this.left = requireNonNull(left, "left is null");
         this.right = requireNonNull(right, "right is null");
