@@ -27,12 +27,14 @@ import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.PushDownNotExpression;
-import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.StandardTypes;
 import com.google.common.collect.ImmutableMap;
-import io.airlift.slice.Slice;
+import com.google.common.collect.ImmutableSet;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION;
@@ -54,6 +56,8 @@ class PinotExpressionConverter
             "*", "MULT",
             "/", "DIV");
 
+    private static final Set<String> TIME_EQUIVALENT_TYPES = ImmutableSet.of(StandardTypes.BIGINT, StandardTypes.INTEGER, StandardTypes.TINYINT, StandardTypes.SMALLINT);
+
     @Override
     public PinotExpression visitInputColumn(PushDownInputColumn inputColumn, Map<String, Selection> context)
     {
@@ -72,6 +76,20 @@ class PinotExpressionConverter
         }
     }
 
+    private PushDownFunction getExpressionAsFunction(PushDownExpression originalExpression, PushDownExpression expression, Map<String, Selection> context)
+    {
+        if (expression instanceof PushDownFunction) {
+            return (PushDownFunction) expression;
+        }
+        else if (expression instanceof PushDownCastExpression) {
+            PushDownCastExpression castExpression = ((PushDownCastExpression) expression);
+            if (isImplicitCast(castExpression)) {
+                return getExpressionAsFunction(originalExpression, castExpression.getInput(), context);
+            }
+        }
+        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "Could not dig function out of expression: " + originalExpression + ", inside of " + expression);
+    }
+
     private PinotExpression handleDateTrunc(PushDownFunction function, Map<String, Selection> context)
     {
         // Convert SQL standard function `DATE_TRUNC(INTERVAL, DATE/TIMESTAMP COLUMN)` to
@@ -79,36 +97,13 @@ class PinotExpressionConverter
         // Pinot doesn't have a DATE/TIMESTAMP type. That means the input column (second argument) has been converted from numeric type to DATE/TIMESTAMP using one of the
         // conversion functions in SQL. First step is find the function and find its input column units (seconds, secondsSinceEpoch etc.)
         PushDownExpression timeInputParameter = function.getInputs().get(1);
-        if (!(timeInputParameter instanceof PushDownFunction)) {
-            throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "input parameter to date_trunc is expected to be a function: " + function);
-        }
-
         String inputColumn;
         String inputFormat;
 
-        PushDownFunction timeConversion = (PushDownFunction) timeInputParameter;
+        PushDownFunction timeConversion = getExpressionAsFunction(timeInputParameter, timeInputParameter, context);
         switch (timeConversion.getName().toLowerCase(ENGLISH)) {
             case "from_unixtime":
-                String column;
-                if (timeConversion.getInputs().get(0) instanceof PushDownInputColumn) {
-                    PushDownInputColumn pushdownInputColumn = (PushDownInputColumn) timeConversion.getInputs().get(0);
-                    column = pushdownInputColumn.accept(this, context).getDefinition();
-                    String columnName = pushdownInputColumn.getName();
-                    if (!columnName.equalsIgnoreCase(column)) {
-                        // Pinot can only handle the direct column input to `dateTimeConvert` function
-                        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "unsupported expr: " + function);
-                    }
-                }
-                else if (timeConversion.getInputs().get(0) instanceof PushDownCastExpression) {
-                    PushDownCastExpression pushdownInputColumn = (PushDownCastExpression) timeConversion.getInputs().get(0);
-                    column = pushdownInputColumn.accept(this, context).getDefinition();
-                }
-                else {
-                    throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(),
-                            "input to time conversion function is not supported type: " + timeConversion.getInputs().get(0));
-                }
-
-                inputColumn = column;
+                inputColumn = timeConversion.getInputs().get(0).accept(this, context).getDefinition();
                 inputFormat = "'1:SECONDS:EPOCH'";
                 break;
             default:
@@ -196,43 +191,20 @@ class PinotExpressionConverter
         return new PinotExpression(literal.toString(), Origin.LITERAL);
     }
 
+    private static boolean isImplicitCast(PushDownCastExpression cast)
+    {
+        return cast.isImplicitCast(Optional.of((resultType, inputTypeSignature) -> Objects.equals(StandardTypes.TIMESTAMP, resultType) && TIME_EQUIVALENT_TYPES.contains(inputTypeSignature.getBase())));
+    }
+
     @Override
     public PinotExpression visitCastExpression(PushDownCastExpression cast, Map<String, Selection> context)
     {
-        if (!(cast.getInput() instanceof PushDownInputColumn)) {
-            throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "Not supported: " + cast);
+        if (isImplicitCast(cast)) {
+            return cast.getInput().accept(this, context);
         }
-        PushDownInputColumn inputColumn = (PushDownInputColumn) cast.getInput();
-        // Get the type input column
-        Type inputType = context.get(inputColumn.getName()).getDataType();
-
-        if (inputColumn == null) {
-            throw new IllegalArgumentException("column doesn't exists in input");
+        else {
+            throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "Non implicit casts not supported: " + cast);
         }
-
-        boolean isImplicitCast;
-        Class<?> inputJavaType = inputType.getJavaType();
-        switch (cast.getResultType().toLowerCase(ENGLISH)) {
-            case "double":
-                isImplicitCast = inputJavaType.equals(double.class) || inputJavaType.equals(long.class);
-                break;
-
-            case "bigint":
-                isImplicitCast = inputJavaType.equals(long.class);
-                break;
-
-            case "varchar":
-                isImplicitCast = inputJavaType.equals(Slice.class);
-                break;
-            default:
-                throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "unsupported cast: " + cast);
-        }
-
-        if (isImplicitCast) {
-            return inputColumn.accept(this, context);
-        }
-
-        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "Only implicit cast is supported: " + cast);
     }
 
     @Override

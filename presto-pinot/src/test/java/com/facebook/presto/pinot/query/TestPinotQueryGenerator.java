@@ -20,6 +20,7 @@ import com.facebook.presto.pinot.PinotTableHandle;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode.Aggregation;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode.GroupByColumn;
+import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
@@ -323,13 +324,13 @@ public class TestPinotQueryGenerator
         Aggregation percentile = new Aggregation(ImmutableList.of("fare", "percentile"), "approx_percentile", "fare_percentile", DOUBLE);
         GroupByColumn groupByDay = new GroupByColumn("day", "day", BIGINT);
         GroupByColumn groupByCityId = new GroupByColumn("city", "city", VARCHAR);
-
+        PushDownExpression dateTrunc = pdExpr("date_trunc('day', cast(from_unixtime(secondssinceepoch - 50) AS TIMESTAMP))");
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(city, fare, secondsSinceEpoch)),
-                project(ImmutableList.of(pdExpr("city"), pdExpr("fare"), pdExpr("date_trunc('day', from_unixtime(secondssinceepoch))"), pdExpr("99")),
+                project(ImmutableList.of(pdExpr("city"), pdExpr("fare"), dateTrunc, pdExpr("99")),
                         cols("city", "fare", "day", "percentile"), types(VARCHAR, DOUBLE, BIGINT, DOUBLE)),
                 agg(ImmutableList.of(percentile, groupByDay, groupByCityId), false)),
-                "SELECT PERCENTILEEST99(fare) FROM tbl GROUP BY dateTimeConvert(secondsSinceEpoch, '1:SECONDS:EPOCH', '1:MILLISECONDS:EPOCH', '1:DAYS'), city TOP 1000000");
+                "SELECT PERCENTILEEST99(fare) FROM tbl GROUP BY dateTimeConvert(SUB(secondsSinceEpoch, 50), '1:SECONDS:EPOCH', '1:MILLISECONDS:EPOCH', '1:DAYS'), city TOP 1000000");
     }
 
     @Test
