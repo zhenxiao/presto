@@ -103,7 +103,10 @@ public class LimitPushDown
             LimitContext limit = context.get();
             if (limit != null) {
                 // Drop in a LimitNode b/c we cannot push our limit down any further
-                rewrittenNode = new LimitNode(idAllocator.getNextId(), rewrittenNode, limit.getCount(), limit.isPartial());
+                // Create a partial limit node so that it can float down and be merged with the table scan node subsequently
+                // While letting the final limit still be in place for the final
+                LimitNode partial = new LimitNode(idAllocator.getNextId(), rewrittenNode, limit.getCount(), true);
+                rewrittenNode = new LimitNode(idAllocator.getNextId(), partial, limit.getCount(), limit.isPartial());
             }
             return rewrittenNode;
         }
