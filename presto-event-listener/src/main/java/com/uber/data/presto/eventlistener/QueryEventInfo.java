@@ -303,7 +303,7 @@ public class QueryEventInfo
         map.put("resourceGroup", this.resourceGroup);
         map.put("schema", this.schema);
         map.put("query", this.query);
-        map.put("createTime", this.createTimeMs);
+        map.put("createTime", TimeUnit.SECONDS.convert(this.createTimeMs, TimeUnit.MILLISECONDS));
         map.put("createTimeMs", this.createTimeMs);
         map.put("endTime", TimeUnit.SECONDS.convert(this.endTimeMs, TimeUnit.MILLISECONDS));
         map.put("endTimeMs", this.endTimeMs);
