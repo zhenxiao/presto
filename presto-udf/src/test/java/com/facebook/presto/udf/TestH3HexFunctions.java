@@ -48,6 +48,7 @@ public class TestH3HexFunctions
     {
         assertQuery("select get_hexagon_addr(40.730610, -73.935242,2)", "select '822a17fffffffff'");
         assertQuery("select get_hexagon_addr(37.773972,-122.431297,2)", "select '822837fffffffff'");
+        assertQuery("select get_hexagon_addr(NULL, NULL, NULL)", "select NULL");
     }
 
     @Test(enabled = false)
@@ -62,6 +63,8 @@ public class TestH3HexFunctions
     {
         assertQuery("select get_hexagon_addr_wkt('822a17fffffffff')", "select 'POLYGON ((-73.07691180312378 42.400492689472884,-75.33345172379182 42.02956371225368,-75.96061877033628 40.48049730850132,-74.44277493761695 39.34056938395393,-72.30787665118658 39.68606179325923,-71.57377195480382 41.195725190458504))'");
         assertQuery("select get_hexagon_addr_wkt('822837fffffffff')", "select 'POLYGON ((-121.70715691845137 36.57421829680793,-120.15030815558953 37.77836118370325,-120.62501817993413 39.39386760344102,-122.69909886759277 39.784230841420204,-124.23124622081252 38.56638700335243,-123.71598551689976 36.972296150193095))'");
+        assertQuery("select get_hexagon_addr_wkt('NULL')", "select NULL");
+        assertQuery("select get_hexagon_addr_wkt('')", "select NULL");
     }
 
     private static final TimeZoneKey TIME_ZONE_KEY = getTimeZoneKey("UTC");

@@ -48,6 +48,9 @@ public final class H3HexFunctions
                                        @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lng,
                                        @SqlType(StandardTypes.BIGINT) @SqlNullable Long res)
     {
+        if (lat == null || lng == null || res == null) {
+            return null;
+        }
         return Slices.utf8Slice(h3.geoToH3Address(lat.doubleValue(), lng.doubleValue(), res.intValue()));
     }
 
@@ -56,11 +59,11 @@ public final class H3HexFunctions
     @SqlType(StandardTypes.VARCHAR)
     public static Slice getHexagonAddrWkt(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice hexAddr)
     {
-        String hexAddress = hexAddr.toStringUtf8();
-        if (hexAddress.length() == 0) {
+        if (hexAddr == null || hexAddr.length() == 0) {
             return null;
         }
-        List<Vector> boundaries = h3.h3ToGeoBoundary(hexAddress);
+
+        List<Vector> boundaries = h3.h3ToGeoBoundary(hexAddr.toStringUtf8());
         String result = boundaries.stream().map(latLng -> new String(String.valueOf(latLng.y) + " " + String.valueOf(latLng.x))).collect(Collectors.joining(","));
 
         if (result.length() > 0) {
