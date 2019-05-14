@@ -20,7 +20,6 @@ import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.TableLayout;
 import com.facebook.presto.metadata.TableLayoutResult;
 import com.facebook.presto.spi.ColumnHandle;
-import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.Constraint;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
@@ -48,6 +47,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -58,9 +59,12 @@ import static java.util.Objects.requireNonNull;
 public class EnforcePartitionFilter
         implements PlanOptimizer
 {
-    private static final String ERROR_MESSAGE_FORMAT = "Your query is missing partition filter. Please add filter on partition column %s for table \"%s\" in the WHERE clause of your query. " +
-            "For example: WHERE partition_column > '2017-06-01'. See more details at " +
-            "https://engdocs.uberinternal.com/sql-analytics-guide/presto_pages/optimization.html#partition-column. ";
+    private static final String ERROR_MESSAGE_FORMAT =
+            "Your query is missing partition column filters. Please add filters on partition "
+            + "columns ('%s') for table '%s' in the WHERE clause of your query. For example: "
+            + "WHERE DATE(%s) > CURRENT_DATE - INTERVAL '7' DAY. See more details at "
+            + "https://engdocs.uberinternal.com/sql-analytics-guide/presto_pages/optimization.html#partition-column.";
+    private static final Pattern DATE_COLUMN_NAME_PATTERN = Pattern.compile(".*(date|week|month).*");
     private final Metadata metadata;
 
     public EnforcePartitionFilter(Metadata metadata)
@@ -110,13 +114,17 @@ public class EnforcePartitionFilter
                 .addAll(getColumnHandleFromEnforcedConstraint(tableScan)).build();
 
         if (!predicateColumns.containsAll(partitionColumns)) {
-            String partitionColumnNames = partitionColumns.stream()
-                    .map(column -> metadata.getColumnMetadata(session, tableScan.getTable(), column))
-                    .map(ColumnMetadata::getName)
-                    .sorted()
-                    .map(str -> "\"" + str + "\"")
-                    .collect(Collectors.joining(", "));
-            throw new PrestoException(INVALID_FUNCTION_ARGUMENT, String.format(ERROR_MESSAGE_FORMAT, partitionColumnNames, schemaTableName));
+            Set<String> partitionColumnNames = new TreeSet<>();
+            String dateColumnName = "datestr";
+            for (ColumnHandle handle : partitionColumns) {
+                String name = metadata.getColumnMetadata(session, tableScan.getTable(), handle).getName();
+                partitionColumnNames.add(name);
+                if (DATE_COLUMN_NAME_PATTERN.matcher(name).matches()) {
+                    dateColumnName = name;
+                }
+            }
+            throw new PrestoException(INVALID_FUNCTION_ARGUMENT, String.format(ERROR_MESSAGE_FORMAT,
+                    String.join("', '", partitionColumnNames), schemaTableName, dateColumnName));
         }
     }
 

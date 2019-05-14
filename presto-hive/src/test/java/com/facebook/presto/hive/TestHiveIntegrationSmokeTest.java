@@ -173,10 +173,10 @@ public class TestHiveIntegrationSmokeTest
         @Language("SQL") String createPartitionedTableMultiPartitionKey = "" +
                 "CREATE TABLE partitioned_table_multi_partition_key " +
                 "WITH (" +
-                "partitioned_by = ARRAY[ 'SHIP_PRIORITY', 'ORDER_STATUS' ]" +
+                "partitioned_by = ARRAY[ 'SHIP_PRIORITY', 'ORDER_STATUS', 'PROCESSED_DATE' ]" +
                 ") " +
                 "AS " +
-                "SELECT orderkey AS order_key, shippriority AS ship_priority, orderstatus AS order_status " +
+                "SELECT orderkey AS order_key, shippriority AS ship_priority, orderstatus AS order_status, CURRENT_DATE AS processed_date " +
                 "FROM tpch.tiny.orders";
 
         assertUpdate(commonSession, createPartitionTable, "SELECT count(*) from orders");
@@ -187,13 +187,15 @@ public class TestHiveIntegrationSmokeTest
         computeActual(noPartitionFilterSession, "select * from partitioned_table");
         for (Session session : ImmutableList.of(partitionFilterSession, wildcardSession)) {
             assertQueryFails(session, "select * from partitioned_table",
-                    "Your query is missing partition filter. " +
-                            "Please add filter on partition column \"order_status\" for table \"tpch.partitioned_table\" in the WHERE clause of your query. " +
-                            "For example: WHERE partition_column > '2017-06-01'. .*");
+                             "Your query is missing partition column filters. "
+                             + "Please add filters on partition columns \\('order_status'\\) "
+                             + "for table 'tpch.partitioned_table' in the WHERE clause of your query. "
+                             + "For example: WHERE DATE\\(datestr\\) > CURRENT_DATE - INTERVAL '7' DAY. .*");
             assertQueryFails(session, "select * from partitioned_table_multi_partition_key",
-                    "Your query is missing partition filter. " +
-                            "Please add filter on partition column \"order_status\", \"ship_priority\" for table \"tpch.partitioned_table_multi_partition_key\" in the WHERE clause of your query. " +
-                            "For example: WHERE partition_column > '2017-06-01'. .*");
+                             "Your query is missing partition column filters. "
+                            + "Please add filters on partition columns \\('order_status', 'processed_date', 'ship_priority'\\) "
+                            + "for table 'tpch.partitioned_table_multi_partition_key' in the WHERE clause of your query. "
+                            + "For example: WHERE DATE\\(processed_date\\) > CURRENT_DATE - INTERVAL '7' DAY. .*");
         }
 
         // Query in session with empty strict mode tables will succeeded
