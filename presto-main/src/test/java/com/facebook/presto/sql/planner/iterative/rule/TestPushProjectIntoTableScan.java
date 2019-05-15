@@ -13,11 +13,8 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
-import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownArithmeticExpression;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
@@ -27,16 +24,14 @@ import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.plan.Assignments;
-import com.facebook.presto.testing.TestingMetadata;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
-import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.strictTableScan;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.output;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.tableScan;
 
 public class TestPushProjectIntoTableScan
         extends BasePushDownRuleTest
@@ -44,6 +39,15 @@ public class TestPushProjectIntoTableScan
     public TestPushProjectIntoTableScan()
     {
         super(new ProjectPushDownMetadata());
+    }
+
+    @Test
+    public void testWithSql()
+    {
+        assertPushdownPlan("select abs(c1 + c2) from pushdowncatalog.pushdownschema.test",
+                output(tableScan("test")),
+                ImmutableList.of(),
+                ImmutableList.of(new PushProjectIntoTableScan(tester.getMetadata(), tester.getSqlParser())));
     }
 
     @Test
@@ -56,13 +60,9 @@ public class TestPushProjectIntoTableScan
                             Assignments.of(
                                     c1, c1.toSymbolReference(),
                                     p.symbol("e1", INTEGER), p.expression("cast(abs(c1 + c2) * 2 as bigint)")),
-                            createTestScan(p));
+                            createTestScan(p, "test"));
                 })
-                .matches(
-                        strictTableScan("test",
-                                ImmutableMap.of(
-                                        "c1", "c1",
-                                        "e1", "e1")));
+                .matches(tableScan("test"));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class TestPushProjectIntoTableScan
                             Assignments.of(
                                     c1, c1.toSymbolReference(),
                                     p.symbol("e1", INTEGER), p.expression("cast(abs(c1 - 1) as tinyint)")),
-                            createTestScan(p));
+                            createTestScan(p, "test"));
                 }).doesNotFire();
     }
 
@@ -89,12 +89,12 @@ public class TestPushProjectIntoTableScan
                             Assignments.of(
                                     c1, c1.toSymbolReference(),
                                     p.symbol("e1", INTEGER), p.expression("log10(c2)")),
-                            createTestScan(p));
+                            createTestScan(p, "test"));
                 }).doesNotFire();
     }
 
     private static class ProjectPushDownMetadata
-            extends TestingMetadata
+            extends BasedPushDownTestingMetadata
     {
         @Override
         public Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
@@ -116,16 +116,6 @@ public class TestPushProjectIntoTableScan
             }
 
             return merge(currentPipeline, project);
-        }
-
-        @Override
-        public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
-        {
-            List<ColumnMetadata> columns = new ArrayList<>();
-            columns.add(new ColumnMetadata("c1", INTEGER));
-            columns.add(new ColumnMetadata("e1", INTEGER));
-
-            return new ConnectorTableMetadata(new SchemaTableName("schema", "test"), columns);
         }
     }
 }

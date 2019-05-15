@@ -14,11 +14,8 @@
 package com.facebook.presto.sql.planner.iterative.rule;
 
 import com.facebook.presto.spi.ColumnHandle;
-import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
-import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
@@ -31,7 +28,6 @@ import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.iterative.rule.test.RuleAssert;
-import com.facebook.presto.testing.TestingMetadata;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
@@ -39,7 +35,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.strictTableScan;
 import static com.facebook.presto.sql.planner.iterative.rule.test.PlanBuilder.expression;
 
@@ -74,7 +69,7 @@ public class TestPushFilterIntoTableScan
         RuleAssert ruleAssert = assertThat(new PushFilterIntoTableScan(tester.getMetadata(), tester.getSqlParser()))
                 .on(p ->
                         p.filter(expression(predicate),
-                                createTestScan(p)));
+                                createTestScan(p, "test")));
 
         if (expectedPushDown) {
             ruleAssert.matches(
@@ -89,7 +84,7 @@ public class TestPushFilterIntoTableScan
     }
 
     private static class FilterPushDownMetadata
-            extends TestingMetadata
+            extends BasedPushDownTestingMetadata
     {
         @Override
         public Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
@@ -174,16 +169,6 @@ public class TestPushFilterIntoTableScan
             }
 
             return Optional.empty();
-        }
-
-        @Override
-        public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
-        {
-            List<ColumnMetadata> columns = new ArrayList<>();
-            columns.add(new ColumnMetadata("c1", INTEGER));
-            columns.add(new ColumnMetadata("c2", INTEGER));
-
-            return new ConnectorTableMetadata(new SchemaTableName("schema", "test"), columns);
         }
     }
 }

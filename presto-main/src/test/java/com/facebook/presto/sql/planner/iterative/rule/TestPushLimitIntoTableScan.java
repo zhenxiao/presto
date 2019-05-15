@@ -13,27 +13,26 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
-import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.FinalLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.PartialLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.iterative.rule.test.RuleAssert;
-import com.facebook.presto.testing.TestingMetadata;
+import com.facebook.presto.sql.planner.plan.ExchangeNode;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
-import static com.facebook.presto.spi.type.IntegerType.INTEGER;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.anyTree;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.exchange;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.limit;
 import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.strictTableScan;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.tableScan;
 
 public class TestPushLimitIntoTableScan
         extends BasePushDownRuleTest
@@ -47,7 +46,7 @@ public class TestPushLimitIntoTableScan
     public void pushDownPartialLimitIntoTableScan()
     {
         testHelper(getSinglePhaseLimitTest(50, true), true);
-        testHelper(getSinglePhaseLimitTest(20000, true), false);
+        testHelper(getSinglePhaseLimitTest(1000, true), false);
     }
 
     @Test
@@ -57,11 +56,18 @@ public class TestPushLimitIntoTableScan
         testHelper(getSinglePhaseLimitTest(20000, false), false);
     }
 
+    @Test
+    public void pushDownPartialLimitWithFullLimitIntoTableScan()
+    {
+        assertPlan("select * from pushdowncatalog.pushdownschema.test where c1 = 5 limit 200", anyTree(
+                limit(200, false, exchange(ExchangeNode.Scope.LOCAL, ExchangeNode.Type.GATHER, tableScan("test")))));
+    }
+
     private RuleAssert getSinglePhaseLimitTest(long limit, boolean partial)
     {
         // select c1, c2 from table(c1, c2) limit n (and there are multiple splits and limits (final, partial) are on each side of the exchange)
         return assertThat(partial ? new PartialLimitPushDown(tester.getMetadata()) : new FinalLimitPushDown(tester.getMetadata()))
-                .on(p -> p.limit(limit, partial, createTestScan(p)));
+                .on(p -> p.limit(limit, partial, createTestScan(p, "test")));
     }
 
     private void testHelper(RuleAssert ruleAssert, boolean expectedPushdown)
@@ -79,27 +85,22 @@ public class TestPushLimitIntoTableScan
     }
 
     private static class LimitPushDownMetadata
-            extends TestingMetadata
+            extends BasedPushDownTestingMetadata
     {
         @Override
         public Optional<TableScanPipeline> pushLimitIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, LimitPipelineNode limit)
         {
-            // for testing purposes, limit the size to 100
-            if (limit.getLimit() <= 100) {
+            if (limit.getLimit() < (limit.isPartial() ? 1000 : 100)) {
                 return merge(currentPipeline, limit);
             }
-
             return Optional.empty();
         }
 
         @Override
-        public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
+        public Optional<TableScanPipeline> pushFilterIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, FilterPipelineNode filter)
         {
-            List<ColumnMetadata> columns = new ArrayList<>();
-            columns.add(new ColumnMetadata("c1", INTEGER));
-            columns.add(new ColumnMetadata("c2", INTEGER));
-
-            return new ConnectorTableMetadata(new SchemaTableName("schema", "test"), columns);
+            // We are not really testing filtering logic here, just that there is some filter that is pushed down
+            return merge(currentPipeline, filter);
         }
     }
 }

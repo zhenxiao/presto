@@ -16,8 +16,6 @@ package com.facebook.presto.sql.planner.iterative.rule;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
-import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode.Node;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
@@ -26,20 +24,20 @@ import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.iterative.rule.test.RuleAssert;
 import com.facebook.presto.sql.planner.plan.AggregationNode;
 import com.facebook.presto.sql.tree.Expression;
-import com.facebook.presto.testing.TestingMetadata;
-import com.facebook.presto.testing.TestingMetadata.TestingTableHandle;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.facebook.presto.spi.pipeline.AggregationPipelineNode.ExprType.AGGREGATE;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.output;
 import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.strictTableScan;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.tableScan;
 import static com.facebook.presto.sql.planner.iterative.rule.test.PlanBuilder.expression;
 
 public class TestPushAggregationIntoTableScan
@@ -67,6 +65,15 @@ public class TestPushAggregationIntoTableScan
         testHelper(true, false, false);
     }
 
+    @Test
+    public void testWithSql()
+    {
+        assertPushdownPlan("select c2, count(cnt) from pushdowncatalog.pushdownschema.completewithgroupby group by c2",
+                output(tableScan("completewithgroupby")),
+                ImmutableList.of(),
+                ImmutableList.of(new PushAggregationIntoTableScan(tester.getMetadata())));
+    }
+
     private void testHelper(boolean partial, boolean expectedPushdown, boolean hasGroupBy)
     {
         Expression pushDownExpression = expectedPushdown ? expression("count(c1)") : expression("sum(c1)");
@@ -78,7 +85,7 @@ public class TestPushAggregationIntoTableScan
                             b -> b.globalGrouping()
                                     .step(AggregationNode.Step.PARTIAL)
                                     .addAggregation(p.symbol("cnt"), pushDownExpression, ImmutableList.of(BIGINT))
-                                    .source(createTestScan(p, new TestingTableHandle(new SchemaTableName("schema", "partial"))))));
+                                    .source(createTestScan(p, "partial"))));
             if (expectedPushdown) {
                 ruleAssert.matches(
                         strictTableScan("partial",
@@ -98,8 +105,7 @@ public class TestPushAggregationIntoTableScan
                                 a -> (hasGroupBy ? a.singleGroupingSet(c2) : a.globalGrouping())
                                         .step(AggregationNode.Step.SINGLE)
                                         .addAggregation(p.symbol("cnt"), pushDownExpression, ImmutableList.of(BIGINT))
-                                        .source(createTestScan(p,
-                                                new TestingTableHandle(new SchemaTableName("schema", tableName)))));
+                                        .source(createTestScan(p, tableName)));
                     });
 
             if (expectedPushdown) {
@@ -112,8 +118,17 @@ public class TestPushAggregationIntoTableScan
         }
     }
 
+    @Override
+    public Map<String, List<ColumnMetadata>> getTestTables()
+    {
+        return ImmutableMap.of(
+                "partial", ImmutableList.of(new ColumnMetadata("cnt", BIGINT)),
+                "completewithnogroupby", ImmutableList.of(new ColumnMetadata("cnt", BIGINT)),
+                "completewithgroupby", ImmutableList.of(new ColumnMetadata("c2", INTEGER), new ColumnMetadata("cnt", BIGINT)));
+    }
+
     private static class AggregationPushDownMetadata
-            extends TestingMetadata
+            extends BasedPushDownTestingMetadata
     {
         @Override
         public Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, AggregationPipelineNode aggregation)
@@ -138,27 +153,6 @@ public class TestPushAggregationIntoTableScan
             }
 
             return merge(currentPipeline, aggregation);
-        }
-
-        @Override
-        public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
-        {
-            TestingTableHandle testingTableHandle = (TestingTableHandle) tableHandle;
-
-            List<ColumnMetadata> columns = new ArrayList<>();
-
-            if (testingTableHandle.getTableName().getTableName().equals("partial")) {
-                columns.add(new ColumnMetadata("cnt", BIGINT));
-            }
-            else if (testingTableHandle.getTableName().getTableName().equalsIgnoreCase("completewithgroupby")) {
-                columns.add(new ColumnMetadata("c2", INTEGER));
-                columns.add(new ColumnMetadata("cnt", BIGINT));
-            }
-            else if (testingTableHandle.getTableName().getTableName().equalsIgnoreCase("completewithnogroupby")) {
-                columns.add(new ColumnMetadata("cnt", BIGINT));
-            }
-
-            return new ConnectorTableMetadata(testingTableHandle.getTableName(), columns);
         }
     }
 }
