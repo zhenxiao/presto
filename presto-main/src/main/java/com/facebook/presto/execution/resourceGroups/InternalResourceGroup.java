@@ -142,9 +142,9 @@ public class InternalResourceGroup
     @GuardedBy("root")
     private final CounterStat timeBetweenStartsSec = new CounterStat();
     @GuardedBy("root")
-    protected TimeStat runningTime;
+    protected TimeStat runningTime = new TimeStat(NANOSECONDS);
     @GuardedBy("root")
-    protected TimeStat queuedTime;
+    protected TimeStat queuedTime = new TimeStat(NANOSECONDS);
 
     protected InternalResourceGroup(Optional<InternalResourceGroup> parent, String name, BiConsumer<InternalResourceGroup, Boolean> jmxExportListener, Executor executor)
     {
