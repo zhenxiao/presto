@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.aresdb;
 
+import com.facebook.presto.aresdb.schema.RTAMSClient;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -48,6 +49,7 @@ public class AresDbModule
         binder.bind(AresDbSplitManager.class).in(Scopes.SINGLETON);
         binder.bind(AresDbPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(AresDbConnection.class).in(Scopes.SINGLETON);
+        binder.bind(RTAMSClient.class).in(Scopes.SINGLETON);
         httpClientBinder(binder).bindHttpClient("aresDb", ForAresDb.class)
                 .withConfigDefaults(cfg -> {
                     cfg.setIdleTimeout(new Duration(60, SECONDS));

@@ -1,0 +1,55 @@
+{
+  "owner": "yuanluo@uber.com",
+  "namespace": "rta",
+  "name": "rta_eats_order",
+  "rtaTableMetadata": {
+    "isFactTable": true,
+    "primaryKeys": [
+      "workflowUUID"
+    ],
+    "ingestionRate": 300,
+    "retentionDays": 1,
+    "queryTypes": [
+      "pre_defined"
+    ],
+    "slaSeconds": 0,
+    "sourceName": "hp-styx-rta-eats_order-staging",
+    "qps": 150
+  },
+  "fields": [
+    {
+      "type": "string",
+      "name": "workflowUUID",
+      "uberLogicalType": "String",
+      "columnType": "metric",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "long",
+      "name": "createdAt",
+      "uberLogicalType": "Long",
+      "columnType": "time",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "long",
+      "name": "vehicleViewId",
+      "uberLogicalType": "Long",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "tenancy",
+      "uberLogicalType": "String",
+      "columnType": "dimension",
+      "cardinality": "low",
+      "doc": null
+    }
+  ],
+  "type": "record",
+  "schemaVersion": 0
+}

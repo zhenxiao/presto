@@ -18,6 +18,8 @@
         <dep.httpcore.version>4.4.6</dep.httpcore.version>
         <dep.httpclient.version>4.5.3</dep.httpclient.version>
         <dep.fastjson.version>1.1.24</dep.fastjson.version>
+        <dep.mockito.version>1.10.19</dep.mockito.version>
+        <dep.commons.version>4.0</dep.commons.version>
     </properties>
 
     <dependencies>
@@ -37,6 +39,11 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
         </dependency>
 
         <dependency>
@@ -144,5 +151,13 @@
             <artifactId>fastjson</artifactId>
             <version>${dep.fastjson.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>${dep.mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 </project>

@@ -1,0 +1,15 @@
+[
+  {
+    "uuid": "b99ca94a-4ee3-3935-99e4-cf5b5ebcb0a9",
+    "virtualTableUUID": "72c09b38-bfe9-34bc-a694-10192e5a3781",
+    "storageType": "ARESDB",
+    "namespace": "rta",
+    "name": "rta_eats_order",
+    "datacenter": "phx2",
+    "version": 2,
+    "schema": "{\"name\": \"rta_eats_order\", \"config\": null, \"columns\": [{\"name\": \"createdAt\", \"type\": \"Uint32\", \"config\": null, \"defaultValue\": null, \"caseInsensitive\": false, \"disableAutoExpand\": false}, {\"name\": \"workflowUUID\", \"type\": \"UUID\", \"config\": null, \"defaultValue\": null, \"caseInsensitive\": false, \"disableAutoExpand\": false}, {\"name\": \"vehicleViewId\", \"type\": \"Int32\", \"config\": null, \"defaultValue\": null, \"caseInsensitive\": false, \"disableAutoExpand\": false}, {\"name\": \"tenancy\", \"type\": \"SmallEnum\", \"config\": null, \"defaultValue\": null, \"caseInsensitive\": false, \"disableAutoExpand\": false}], \"version\": 0, \"isFactTable\": true, \"primaryKeyColumns\": [1], \"archivingSortColumns\": null}",
+    "config": "{\"job\": \"rta_eats_order\", \"version\": 1, \"streamConfig\": {\"topic\": \"hp-styx-rta-eats_order-staging\", \"kafkaClusterName\": \"kloak-phx2d\"}, \"aresTableConfig\": {\"name\": \"rta_eats_order\"}}",
+    "deleted": false,
+    "cluster": "stagingb"
+  }
+]
