@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.aresdb;
 
+import com.facebook.presto.aresdb.schema.ForRTAMS;
 import com.facebook.presto.aresdb.schema.RTAMSClient;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
@@ -21,6 +22,7 @@ import com.fasterxml.jackson.databind.deser.std.FromStringDeserializer;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
+import io.airlift.http.client.HttpClientConfig;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
@@ -51,15 +53,20 @@ public class AresDbModule
         binder.bind(AresDbConnection.class).in(Scopes.SINGLETON);
         binder.bind(RTAMSClient.class).in(Scopes.SINGLETON);
         httpClientBinder(binder).bindHttpClient("aresDb", ForAresDb.class)
-                .withConfigDefaults(cfg -> {
-                    cfg.setIdleTimeout(new Duration(60, SECONDS));
-                    cfg.setRequestTimeout(new Duration(60, SECONDS));
-                    cfg.setMaxConnectionsPerServer(250);
-                    cfg.setMaxContentLength(new DataSize(32, MEGABYTE));
-                });
+                .withConfigDefaults(cfg -> defaultHttpConfigs(cfg));
+        httpClientBinder(binder).bindHttpClient("rtams", ForRTAMS.class)
+                .withConfigDefaults(cfg -> defaultHttpConfigs(cfg));
 
         jsonBinder(binder).addDeserializerBinding(Type.class).to(TypeDeserializer.class);
         jsonCodecBinder(binder).bindMapJsonCodec(String.class, listJsonCodec(AresDbTable.class));
+    }
+
+    public static void defaultHttpConfigs(HttpClientConfig cfg)
+    {
+        cfg.setIdleTimeout(new Duration(60, SECONDS));
+        cfg.setRequestTimeout(new Duration(60, SECONDS));
+        cfg.setMaxConnectionsPerServer(250);
+        cfg.setMaxContentLength(new DataSize(32, MEGABYTE));
     }
 
     @SuppressWarnings("serial")

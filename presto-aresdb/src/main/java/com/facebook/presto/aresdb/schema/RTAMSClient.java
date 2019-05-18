@@ -47,7 +47,8 @@ public class RTAMSClient
     private static final String APPLICATION_JSON = "application/json";
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    private static ResponseHandler<List<String>, IOException> arrayResponseHandler = new ResponseHandler<List<String>, IOException>() {
+    private static ResponseHandler<List<String>, IOException> arrayResponseHandler = new ResponseHandler<List<String>, IOException>()
+    {
         @Override
         public List<String> handleException(Request request, Exception exception)
         {
@@ -55,7 +56,8 @@ public class RTAMSClient
         }
 
         @Override
-        public List<String> handle(Request request, Response response) throws IOException
+        public List<String> handle(Request request, Response response)
+                throws IOException
         {
             int status = response.getStatusCode();
             if (status >= 200 && status < 300) {
@@ -69,7 +71,8 @@ public class RTAMSClient
         }
     };
 
-    private static ResponseHandler<RTADefinition, IOException> definitionHandler = new ResponseHandler<RTADefinition, IOException>() {
+    private static ResponseHandler<RTADefinition, IOException> definitionHandler = new ResponseHandler<RTADefinition, IOException>()
+    {
         @Override
         public RTADefinition handleException(Request request, Exception exception)
         {
@@ -77,7 +80,8 @@ public class RTAMSClient
         }
 
         @Override
-        public RTADefinition handle(Request request, Response response) throws IOException
+        public RTADefinition handle(Request request, Response response)
+                throws IOException
         {
             int status = response.getStatusCode();
             if (status >= 200 && status < 300) {
@@ -90,7 +94,8 @@ public class RTAMSClient
         }
     };
 
-    private static ResponseHandler<List<RTADeployment>, IOException> deploymentHandler = new ResponseHandler<List<RTADeployment>, IOException>() {
+    private static ResponseHandler<List<RTADeployment>, IOException> deploymentHandler = new ResponseHandler<List<RTADeployment>, IOException>()
+    {
         @Override
         public List<RTADeployment> handleException(Request request, Exception exception)
         {
@@ -98,12 +103,13 @@ public class RTAMSClient
         }
 
         @Override
-        public List<RTADeployment> handle(Request request, Response response) throws IOException
+        public List<RTADeployment> handle(Request request, Response response)
+                throws IOException
         {
             int status = response.getStatusCode();
             if (status >= 200 && status < 300) {
                 byte[] entityBytes = ByteStreams.toByteArray(response.getInputStream());
-                return mapper.readValue(entityBytes, new TypeReference<List<RTADeployment>>(){ });
+                return mapper.readValue(entityBytes, new TypeReference<List<RTADeployment>>() {});
             }
             else {
                 throw new RuntimeException("Unexpected response status for deployment: " + status + ", response: " + response);
@@ -118,8 +124,7 @@ public class RTAMSClient
     private HttpClient httpClient;
     private final String muttleyService;
 
-    @Inject
-    RTAMSClient(@ForRTAMS HttpClient httpClient, String muttleyRpcServiceValue)
+    RTAMSClient(HttpClient httpClient, String muttleyRpcServiceValue)
     {
         muttleyService = muttleyRpcServiceValue;
         this.httpClient = httpClient;
@@ -138,17 +143,20 @@ public class RTAMSClient
                 .setHeader(MUTTLEY_RPC_SERVICE_HEADER, muttleyService);
     }
 
-    public List<String> getNamespaces() throws IOException
+    public List<String> getNamespaces()
+            throws IOException
     {
         return httpClient.execute(getBaseRequest().setUri(URI.create(RTAMSEndpoints.getNamespaces())).build(), arrayResponseHandler);
     }
 
-    public List<String> getTables(String namespace) throws IOException
+    public List<String> getTables(String namespace)
+            throws IOException
     {
         return httpClient.execute(getBaseRequest().setUri(URI.create(RTAMSEndpoints.getTablesFromNamespace(namespace))).build(), arrayResponseHandler);
     }
 
-    public RTADefinition getDefinition(final String namespace, final String tableName) throws IOException
+    public RTADefinition getDefinition(final String namespace, final String tableName)
+            throws IOException
     {
         return httpClient.execute(getBaseRequest().setUri(URI.create(RTAMSEndpoints.getTableSchema(namespace, tableName))).build(), definitionHandler);
     }
