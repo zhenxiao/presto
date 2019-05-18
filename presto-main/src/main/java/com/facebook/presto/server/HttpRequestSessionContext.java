@@ -51,6 +51,7 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLIENT_TAGS;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_LANGUAGE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PATH;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PREPARED_STATEMENT;
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_QUERY_LOGGING_SIZE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_RESOURCE_ESTIMATE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SCHEMA;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SESSION;
@@ -96,6 +97,7 @@ public final class HttpRequestSessionContext
     private final Optional<TransactionId> transactionId;
     private final boolean clientTransactionSupport;
     private final String clientInfo;
+    private final int queryLoggingSize;
     private final StatementProgressRecorder.Instance progressRecorderInstance;
 
     public HttpRequestSessionContext(HttpServletRequest servletRequest, StatementProgressRecorder.Instance progressRecorderInstance)
@@ -120,6 +122,15 @@ public final class HttpRequestSessionContext
         clientTags = parseClientTags(servletRequest);
         clientCapabilities = parseClientCapabilities(servletRequest);
         resourceEstimates = parseResourceEstimate(servletRequest);
+        queryLoggingSize = Optional.ofNullable(trimEmptyToNull(servletRequest.getHeader(PRESTO_QUERY_LOGGING_SIZE))).flatMap(s -> {
+                    try {
+                        return Optional.of(Integer.valueOf(s));
+                    }
+                    catch (NumberFormatException ne) {
+                        return Optional.empty();
+                    }
+                }
+        ).orElse(0);
 
         // parse session properties
         ImmutableMap.Builder<String, String> systemProperties = ImmutableMap.builder();
@@ -426,5 +437,11 @@ public final class HttpRequestSessionContext
     public Optional<StatementProgressRecorder.Instance> getStatementProgressReporter()
     {
         return Optional.of(progressRecorderInstance);
+    }
+
+    @Override
+    public int getQueryLoggingSize()
+    {
+        return queryLoggingSize;
     }
 }

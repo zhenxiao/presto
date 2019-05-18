@@ -21,6 +21,7 @@ import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.spi.session.ResourceEstimates;
+import com.facebook.presto.spi.session.SessionLogger;
 import com.facebook.presto.spi.type.TimeZoneKey;
 import com.facebook.presto.sql.SqlPath;
 import com.facebook.presto.sql.tree.Execute;
@@ -75,6 +76,8 @@ public final class Session
     private final Map<String, Map<String, String>> unprocessedCatalogProperties;
     private final SessionPropertyManager sessionPropertyManager;
     private final Map<String, String> preparedStatements;
+    private final int queryLoggingSize;
+    private final SessionLogger sessionLogger;
 
     public Session(
             QueryId queryId,
@@ -99,6 +102,7 @@ public final class Session
             Map<ConnectorId, Map<String, String>> connectorProperties,
             Map<String, Map<String, String>> unprocessedCatalogProperties,
             SessionPropertyManager sessionPropertyManager,
+            int queryLoggingSize,
             Map<String, String> preparedStatements)
     {
         this.queryId = requireNonNull(queryId, "queryId is null");
@@ -122,6 +126,7 @@ public final class Session
         this.systemProperties = ImmutableMap.copyOf(requireNonNull(systemProperties, "systemProperties is null"));
         this.sessionPropertyManager = requireNonNull(sessionPropertyManager, "sessionPropertyManager is null");
         this.preparedStatements = requireNonNull(preparedStatements, "preparedStatements is null");
+        this.queryLoggingSize = queryLoggingSize;
 
         ImmutableMap.Builder<ConnectorId, Map<String, String>> catalogPropertiesBuilder = ImmutableMap.builder();
         connectorProperties.entrySet().stream()
@@ -137,6 +142,7 @@ public final class Session
         checkArgument(!transactionId.isPresent() || unprocessedCatalogProperties.isEmpty(), "Catalog session properties cannot be set if there is an open transaction");
 
         checkArgument(catalog.isPresent() || !schema.isPresent(), "schema is set but catalog is not");
+        this.sessionLogger = this.queryLoggingSize > 0 ? new RealSessionLogger(this.queryId, this.queryLoggingSize) : SessionLogger.NOOP;
     }
 
     public QueryId getQueryId()
@@ -342,6 +348,7 @@ public final class Session
                 connectorProperties.build(),
                 ImmutableMap.of(),
                 sessionPropertyManager,
+                queryLoggingSize,
                 preparedStatements);
     }
 
@@ -393,6 +400,7 @@ public final class Session
                 ImmutableMap.of(),
                 connectorProperties,
                 sessionPropertyManager,
+                queryLoggingSize,
                 preparedStatements);
     }
 
@@ -437,7 +445,18 @@ public final class Session
                 systemProperties,
                 connectorProperties,
                 unprocessedCatalogProperties,
+                queryLoggingSize,
                 preparedStatements);
+    }
+
+    public int getQueryLoggingSize()
+    {
+        return queryLoggingSize;
+    }
+
+    public SessionLogger getSessionLogger()
+    {
+        return sessionLogger;
     }
 
     @Override
@@ -462,6 +481,7 @@ public final class Session
                 .add("clientCapabilities", clientCapabilities)
                 .add("resourceEstimates", resourceEstimates)
                 .add("startTime", startTime)
+                .add("queryLoggingSize", queryLoggingSize)
                 .omitNullValues()
                 .toString();
     }
@@ -493,6 +513,7 @@ public final class Session
         private String remoteUserAddress;
         private String userAgent;
         private String clientInfo;
+        private int queryLoggingSize;
         private Set<String> clientTags = ImmutableSet.of();
         private Set<String> clientCapabilities = ImmutableSet.of();
         private ResourceEstimates resourceEstimates;
@@ -530,6 +551,7 @@ public final class Session
             this.startTime = session.startTime;
             this.systemProperties.putAll(session.systemProperties);
             this.catalogSessionProperties.putAll(session.unprocessedCatalogProperties);
+            this.queryLoggingSize = session.queryLoggingSize;
             this.preparedStatements.putAll(session.preparedStatements);
         }
 
@@ -543,6 +565,12 @@ public final class Session
         {
             checkArgument(catalogSessionProperties.isEmpty(), "Catalog session properties cannot be set if there is an open transaction");
             this.transactionId = transactionId;
+            return this;
+        }
+
+        public SessionBuilder setQueryLoggingSize(int queryLoggingSize)
+        {
+            this.queryLoggingSize = queryLoggingSize;
             return this;
         }
 
@@ -694,6 +722,7 @@ public final class Session
                     ImmutableMap.of(),
                     catalogSessionProperties,
                     sessionPropertyManager,
+                    queryLoggingSize,
                     preparedStatements);
         }
     }

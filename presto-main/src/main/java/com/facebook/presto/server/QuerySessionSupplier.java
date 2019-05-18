@@ -75,6 +75,7 @@ public class QuerySessionSupplier
                 .setClientTags(context.getClientTags())
                 .setClientCapabilities(context.getClientCapabilities())
                 .setTraceToken(context.getTraceToken())
+                .setQueryLoggingSize(context.getQueryLoggingSize())
                 .setResourceEstimates(context.getResourceEstimates());
 
         if (context.getPath() != null) {

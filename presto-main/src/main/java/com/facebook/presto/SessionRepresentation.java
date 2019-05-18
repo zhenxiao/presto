@@ -58,6 +58,7 @@ public final class SessionRepresentation
     private final Map<String, String> systemProperties;
     private final Map<ConnectorId, Map<String, String>> catalogProperties;
     private final Map<String, Map<String, String>> unprocessedCatalogProperties;
+    private final int queryLoggingSize;
     private final Map<String, String> preparedStatements;
 
     @JsonCreator
@@ -84,6 +85,7 @@ public final class SessionRepresentation
             @JsonProperty("systemProperties") Map<String, String> systemProperties,
             @JsonProperty("catalogProperties") Map<ConnectorId, Map<String, String>> catalogProperties,
             @JsonProperty("unprocessedCatalogProperties") Map<String, Map<String, String>> unprocessedCatalogProperties,
+            @JsonProperty("queryLoggingSize") int queryLoggingSize,
             @JsonProperty("preparedStatements") Map<String, String> preparedStatements)
     {
         this.queryId = requireNonNull(queryId, "queryId is null");
@@ -107,6 +109,7 @@ public final class SessionRepresentation
         this.startTime = startTime;
         this.systemProperties = ImmutableMap.copyOf(systemProperties);
         this.preparedStatements = ImmutableMap.copyOf(preparedStatements);
+        this.queryLoggingSize = queryLoggingSize;
 
         ImmutableMap.Builder<ConnectorId, Map<String, String>> catalogPropertiesBuilder = ImmutableMap.builder();
         for (Entry<ConnectorId, Map<String, String>> entry : catalogProperties.entrySet()) {
@@ -259,6 +262,12 @@ public final class SessionRepresentation
         return preparedStatements;
     }
 
+    @JsonProperty
+    public int getQueryLoggingSize()
+    {
+        return queryLoggingSize;
+    }
+
     public Session toSession(SessionPropertyManager sessionPropertyManager)
     {
         return new Session(
@@ -284,6 +293,7 @@ public final class SessionRepresentation
                 catalogProperties,
                 unprocessedCatalogProperties,
                 sessionPropertyManager,
+                queryLoggingSize,
                 preparedStatements);
     }
 }

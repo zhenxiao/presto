@@ -18,6 +18,7 @@ import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.spi.session.PropertyMetadata;
+import com.facebook.presto.spi.session.SessionLogger;
 import com.facebook.presto.spi.type.TimeZoneKey;
 import com.facebook.presto.sql.analyzer.FeaturesConfig;
 import com.google.common.collect.ImmutableList;
@@ -114,6 +115,12 @@ public class TestingConnectorSession
     public long getStartTime()
     {
         return startTime;
+    }
+
+    @Override
+    public SessionLogger getSessionLogger()
+    {
+        return SessionLogger.NOOP;
     }
 
     @Override

@@ -72,4 +72,6 @@ public interface SessionContext
     boolean supportClientTransaction();
 
     Optional<StatementProgressRecorder.Instance> getStatementProgressReporter();
+
+    int getQueryLoggingSize();
 }

@@ -15,6 +15,7 @@ package com.facebook.presto.execution.executor;
 
 import com.facebook.presto.execution.TaskId;
 import com.facebook.presto.execution.executor.SimulationController.TaskSpecification;
+import com.facebook.presto.spi.session.SessionLogger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import io.airlift.units.Duration;
@@ -40,7 +41,7 @@ abstract class SimulationTask
     {
         this.specification = specification;
         this.taskId = taskId;
-        taskHandle = taskExecutor.addTask(taskId, () -> 0, 10, new Duration(1, SECONDS), OptionalInt.empty());
+        taskHandle = taskExecutor.addTask(taskId, () -> 0, 10, new Duration(1, SECONDS), SessionLogger.NOOP, OptionalInt.empty());
     }
 
     public void setKilled()

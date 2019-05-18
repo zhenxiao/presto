@@ -18,6 +18,7 @@ import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.security.Identity;
+import com.facebook.presto.spi.session.SessionLogger;
 import com.facebook.presto.spi.type.TimeZoneKey;
 import com.google.common.collect.ImmutableMap;
 
@@ -126,6 +127,12 @@ public class FullConnectorSession
         }
 
         return sessionPropertyManager.decodeCatalogPropertyValue(connectorId, catalog, propertyName, properties.get(propertyName), type);
+    }
+
+    @Override
+    public SessionLogger getSessionLogger()
+    {
+        return session.getSessionLogger();
     }
 
     @Override

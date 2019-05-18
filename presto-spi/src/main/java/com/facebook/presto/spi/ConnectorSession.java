@@ -14,6 +14,7 @@
 package com.facebook.presto.spi;
 
 import com.facebook.presto.spi.security.Identity;
+import com.facebook.presto.spi.session.SessionLogger;
 import com.facebook.presto.spi.type.TimeZoneKey;
 
 import java.util.Locale;
@@ -39,6 +40,8 @@ public interface ConnectorSession
     Optional<String> getTraceToken();
 
     long getStartTime();
+
+    SessionLogger getSessionLogger();
 
     @Deprecated
     boolean isLegacyTimestamp();

@@ -162,4 +162,10 @@ public class TestingSessionContext
     {
         return Optional.empty();
     }
+
+    @Override
+    public int getQueryLoggingSize()
+    {
+        return session.getQueryLoggingSize();
+    }
 }

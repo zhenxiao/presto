@@ -141,7 +141,7 @@ public class MockRemoteTaskFactory
             boolean summarizeTaskInfo,
             boolean doDelayedTaskStart)
     {
-        return new MockRemoteTask(taskId, fragment, node.getNodeIdentifier(), executor, scheduledExecutor, initialSplits, totalPartitions, partitionedSplitCountTracker);
+        return new MockRemoteTask(taskId, session, fragment, node.getNodeIdentifier(), executor, scheduledExecutor, initialSplits, totalPartitions, partitionedSplitCountTracker);
     }
 
     public static final class MockRemoteTask
@@ -170,8 +170,10 @@ public class MockRemoteTaskFactory
         private SettableFuture<?> whenSplitQueueHasSpace = SettableFuture.create();
 
         private final PartitionedSplitCountTracker partitionedSplitCountTracker;
+        private final Session session;
 
         public MockRemoteTask(TaskId taskId,
+                Session session,
                 PlanFragment fragment,
                 String nodeId,
                 Executor executor,
@@ -196,7 +198,7 @@ public class MockRemoteTaskFactory
             this.taskContext = queryContext.addTaskContext(taskStateMachine, TEST_SESSION, true, true, totalPartitions);
 
             this.location = URI.create("fake://task/" + taskId);
-
+            this.session = session;
             this.outputBuffer = new LazyOutputBuffer(
                     taskId,
                     TASK_INSTANCE_ID,
@@ -255,6 +257,7 @@ public class MockRemoteTaskFactory
                     outputBuffer.getInfo(),
                     ImmutableSet.of(),
                     taskContext.getTaskStats(),
+                    Optional.of(session.getSessionLogger().getEntries()),
                     true);
         }
 
