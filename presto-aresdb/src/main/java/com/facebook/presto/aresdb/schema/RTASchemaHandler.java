@@ -14,8 +14,6 @@
 
 package com.facebook.presto.aresdb.schema;
 
-import javafx.util.Pair;
-
 import javax.inject.Inject;
 
 import java.io.IOException;
@@ -23,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -33,8 +32,50 @@ import java.util.stream.Collectors;
  */
 public class RTASchemaHandler
 {
+    private static class TableSpec
+    {
+        private final String namespace;
+        private final String table;
+
+        public TableSpec(String namespace, String table)
+        {
+            this.namespace = namespace;
+            this.table = table;
+        }
+
+        public String getNamespace()
+        {
+            return namespace;
+        }
+
+        public String getTable()
+        {
+            return table;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            TableSpec tableSpec = (TableSpec) o;
+            return Objects.equals(namespace, tableSpec.namespace) &&
+                    Objects.equals(table, tableSpec.table);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(namespace, table);
+        }
+    }
+
     private RTAMSClient client;
-    private Map<Pair<String, String>, RTATableEntity> tableMap;
+    private Map<TableSpec, RTATableEntity> tableMap;
 
     @Inject
     RTASchemaHandler(RTAMSClient client)
@@ -53,7 +94,7 @@ public class RTASchemaHandler
             List<String> tables = client.getTables(namespace);
             for (String table : tables) {
                 RTATableEntity entity = getTableEntity(namespace, table);
-                tableMap.put(new Pair<>(namespace, table), entity);
+                tableMap.put(new TableSpec(namespace, table), entity);
             }
         }
     }
@@ -89,7 +130,7 @@ public class RTASchemaHandler
 
     private RTATableEntity getEntity(String namespace, String table)
     {
-        RTATableEntity entity = tableMap.get(new Pair<>(namespace, table));
+        RTATableEntity entity = tableMap.get(new TableSpec(namespace, table));
         if (entity == null) {
             throw new NoSuchElementException(String.format("Can't find deployments for namespace %s and table %s", namespace, table));
         }
