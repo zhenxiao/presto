@@ -19,7 +19,7 @@ import com.facebook.presto.spi.function.SqlNullable;
 import com.facebook.presto.spi.function.SqlType;
 import com.facebook.presto.spi.type.StandardTypes;
 import com.uber.h3core.H3Core;
-import com.uber.h3core.util.Vector;
+import com.uber.h3core.util.GeoCoord;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
@@ -34,7 +34,7 @@ public final class H3HexFunctions
 
     static {
         try {
-            h3 = new H3Core();
+            h3 = H3Core.newInstance();
         }
         catch (IOException ex) {
             throw new RuntimeException("Failed to load H3Core", ex);
@@ -63,8 +63,12 @@ public final class H3HexFunctions
             return null;
         }
 
-        List<Vector> boundaries = h3.h3ToGeoBoundary(hexAddr.toStringUtf8());
-        String result = boundaries.stream().map(latLng -> new String(String.valueOf(latLng.y) + " " + String.valueOf(latLng.x))).collect(Collectors.joining(","));
+        String hexAddress = hexAddr.toStringUtf8();
+        if (!h3.h3IsValid(hexAddress)) {
+            throw new IllegalArgumentException("Input is not a valid h3 address.");
+        }
+        List<GeoCoord> boundaries = h3.h3ToGeoBoundary(hexAddress);
+        String result = boundaries.stream().map(geoCoord -> geoCoord.lng + " " + geoCoord.lat).collect(Collectors.joining(","));
 
         if (result.length() > 0) {
             return Slices.utf8Slice("POLYGON ((" + result + "))");
@@ -72,5 +76,17 @@ public final class H3HexFunctions
         else {
             return null;
         }
+    }
+
+    @Description("Return the parent hexagon address of the input hexagon.\\n  hexAddr(string): child hexagon address\\n  res(int): target parent resolution, must not be greater than the resolution of the input hexagon")
+    @ScalarFunction("get_parent_hexagon_addr")
+    @SqlType(StandardTypes.VARCHAR)
+    public static Slice getParentHexagonAddr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice hexAddr,
+                                             @SqlType(StandardTypes.BIGINT) @SqlNullable Long res)
+    {
+        if (hexAddr == null || res == null) {
+            return null;
+        }
+        return Slices.utf8Slice(h3.h3ToParentAddress(hexAddr.toStringUtf8(), res.intValue()));
     }
 }
