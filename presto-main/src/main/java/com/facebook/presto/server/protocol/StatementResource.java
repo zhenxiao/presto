@@ -191,17 +191,19 @@ public class StatementResource
 
         SessionContext sessionContext = new HttpRequestSessionContext(servletRequest, progressRecorder.create());
 
-        String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER)
-                ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER)
-                : sessionContext.getIdentity().getUser();
-        Optional<URI> match = Stream.of(redirectManager.redirectByMaxTasks(queryManager.getStats().getTotalTasks()), redirectManager.getMatch(user), redirectManager.getMatch(sessionContext.getSource()))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .findFirst();
-        if (match.isPresent()) {
-            URI redirectUri = uriBuilderFrom(match.get()).replacePath("/v1/statement").build();
-            bindAsyncResponse(asyncResponse, Futures.immediateFuture(Response.temporaryRedirect(redirectUri).build()), responseExecutor);
-            return;
+        if (sessionContext.getSource() == null || !sessionContext.getSource().equals("prism")) {
+            String user = sessionContext.getSystemProperties().containsKey(QUERY_SUBMIT_USER)
+                    ? sessionContext.getSystemProperties().get(QUERY_SUBMIT_USER)
+                    : sessionContext.getIdentity().getUser();
+            Optional<URI> match = Stream.of(redirectManager.redirectByMaxTasks(queryManager.getStats().getTotalTasks()), redirectManager.getMatch(user), redirectManager.getMatch(sessionContext.getSource()))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .findFirst();
+            if (match.isPresent()) {
+                URI redirectUri = uriBuilderFrom(match.get()).replacePath("/v1/statement").build();
+                bindAsyncResponse(asyncResponse, Futures.immediateFuture(Response.temporaryRedirect(redirectUri).build()), responseExecutor);
+                return;
+            }
         }
 
         ExchangeClient exchangeClient = exchangeClientSupplier.get(new SimpleLocalMemoryContext(newSimpleAggregatedMemoryContext(), StatementResource.class.getSimpleName()));
