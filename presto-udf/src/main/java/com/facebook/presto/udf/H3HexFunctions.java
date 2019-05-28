@@ -44,22 +44,20 @@ public final class H3HexFunctions
     @Description("Returns hexagon address calculated from H3 library.\\nlat(double): latitude of the coordinate\\nlng(double): longitude of the coordinate\\nres(int): resolution of the address, between 0 and 15 inclusive")
     @ScalarFunction("get_hexagon_addr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice getHexagonAddr(@SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat,
-                                       @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lng,
-                                       @SqlType(StandardTypes.BIGINT) @SqlNullable Long res)
+    public static Slice getHexagonAddr(@SqlType(StandardTypes.DOUBLE) double lat,
+                                       @SqlType(StandardTypes.DOUBLE) double lng,
+                                       @SqlType(StandardTypes.BIGINT) long res)
     {
-        if (lat == null || lng == null || res == null) {
-            return null;
-        }
-        return Slices.utf8Slice(h3.geoToH3Address(lat.doubleValue(), lng.doubleValue(), res.intValue()));
+        return Slices.utf8Slice(h3.geoToH3Address(lat, lng, (int) res));
     }
 
+    @SqlNullable
     @Description("Returns wkt from hex address from H3 library.")
     @ScalarFunction("get_hexagon_addr_wkt")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice getHexagonAddrWkt(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice hexAddr)
+    public static Slice getHexagonAddrWkt(@SqlType(StandardTypes.VARCHAR) Slice hexAddr)
     {
-        if (hexAddr == null || hexAddr.length() == 0) {
+        if (hexAddr.length() == 0) {
             return null;
         }
 
@@ -69,24 +67,15 @@ public final class H3HexFunctions
         }
         List<GeoCoord> boundaries = h3.h3ToGeoBoundary(hexAddress);
         String result = boundaries.stream().map(geoCoord -> geoCoord.lng + " " + geoCoord.lat).collect(Collectors.joining(","));
-
-        if (result.length() > 0) {
-            return Slices.utf8Slice("POLYGON ((" + result + "))");
-        }
-        else {
-            return null;
-        }
+        return result.length() > 0 ? Slices.utf8Slice("POLYGON ((" + result + "))") : null;
     }
 
     @Description("Return the parent hexagon address of the input hexagon.\\n  hexAddr(string): child hexagon address\\n  res(int): target parent resolution, must not be greater than the resolution of the input hexagon")
     @ScalarFunction("get_parent_hexagon_addr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice getParentHexagonAddr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice hexAddr,
-                                             @SqlType(StandardTypes.BIGINT) @SqlNullable Long res)
+    public static Slice getParentHexagonAddr(@SqlType(StandardTypes.VARCHAR) Slice hexAddr,
+                                             @SqlType(StandardTypes.BIGINT) long res)
     {
-        if (hexAddr == null || res == null) {
-            return null;
-        }
-        return Slices.utf8Slice(h3.h3ToParentAddress(hexAddr.toStringUtf8(), res.intValue()));
+        return Slices.utf8Slice(h3.h3ToParentAddress(hexAddr.toStringUtf8(), (int) res));
     }
 }

@@ -51,20 +51,15 @@ public final class UserDefinedFunctions
 
     private UserDefinedFunctions() {}
 
-    @SqlNullable
     @Description("Returns the distance(in kilometers) between two points, assuming earth is spherical.")
     @ScalarFunction
     @SqlType(StandardTypes.DOUBLE)
-    public static Double distance(@SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat1,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon1,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat2,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon2,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double radiusOfCurvature)
+    public static double distance(@SqlType(StandardTypes.DOUBLE) double lat1,
+                                  @SqlType(StandardTypes.DOUBLE) double lon1,
+                                  @SqlType(StandardTypes.DOUBLE) double lat2,
+                                  @SqlType(StandardTypes.DOUBLE) double lon2,
+                                  @SqlType(StandardTypes.DOUBLE) double radiusOfCurvature)
     {
-        if (lat1 == null || lon1 == null || lat2 == null || lon2 == null || radiusOfCurvature == null) {
-            return null;
-        }
-
         checkArgument(Math.abs(lat1) < 90.0 + EPSILON && Math.abs(lat2) < 90.0 + EPSILON, "Latitude must be between -90 and 90");
         checkArgument(Math.abs(lon1) < 180.0 + EPSILON && Math.abs(lon2) < 180.0 + EPSILON, "Longitude must be between -180 and 180");
 
@@ -87,31 +82,25 @@ public final class UserDefinedFunctions
         return kmPerDegree * angle;
     }
 
-    @SqlNullable
     @Description("Returns the distance(in kilometers) between two points, assuming earth is spherical.")
     @ScalarFunction
     @SqlType(StandardTypes.DOUBLE)
-    public static Double distance(@SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat1,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon1,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat2,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon2)
+    public static double distance(@SqlType(StandardTypes.DOUBLE) double lat1,
+                                  @SqlType(StandardTypes.DOUBLE) double lon1,
+                                  @SqlType(StandardTypes.DOUBLE) double lat2,
+                                  @SqlType(StandardTypes.DOUBLE) double lon2)
     {
         return distance(lat1, lon1, lat2, lon2, AVERAGE_RADIUS_OF_EARTH_KM);
     }
 
-    @SqlNullable
     @Description("Returns the distance(in kilometers) between two points, using the Vincenty formula.")
     @ScalarFunction("vincenty_distance")
     @SqlType(StandardTypes.DOUBLE)
-    public static Double vincentyDistance(@SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat1,
-                                           @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon1,
-                                           @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat2,
-                                           @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon2)
+    public static double vincentyDistance(@SqlType(StandardTypes.DOUBLE) double lat1,
+                                          @SqlType(StandardTypes.DOUBLE) double lon1,
+                                          @SqlType(StandardTypes.DOUBLE) double lat2,
+                                          @SqlType(StandardTypes.DOUBLE) double lon2)
     {
-        if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
-            return null;
-        }
-
         checkArgument(Math.abs(lat1) < 90.0 + EPSILON && Math.abs(lat2) < 90.0 + EPSILON, "Latitude must be between -90 and 90");
         checkArgument(Math.abs(lon1) < 180.0 + EPSILON && Math.abs(lon2) < 180.0 + EPSILON, "Longitude must be between -180 and 180");
 
@@ -181,33 +170,25 @@ public final class UserDefinedFunctions
         return s / 1000.0;
     }
 
-    @SqlNullable
     @Description("Determines whether a point (lat,lon) is within a circle of radius" +
             " d kilometers centered at a given point (lat0,lon0).")
     @ScalarFunction("within_circle")
     @SqlType(StandardTypes.BOOLEAN)
-    public static Boolean withinCircle(@SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat0,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lon0,
-                                  @SqlType(StandardTypes.DOUBLE) @SqlNullable Double d)
+    public static boolean withinCircle(@SqlType(StandardTypes.DOUBLE) double lat,
+                                       @SqlType(StandardTypes.DOUBLE) double lon,
+                                       @SqlType(StandardTypes.DOUBLE) double lat0,
+                                       @SqlType(StandardTypes.DOUBLE) double lon0,
+                                       @SqlType(StandardTypes.DOUBLE) double d)
     {
-        if (lat == null || lon == null || lat0 == null || lon0 == null || d == null) {
-            return null;
-        }
         return distance(lat, lon, lat0, lon0) < d;
     }
 
-    @SqlNullable
     @Description("Returns str, with the first letter of each word in uppercase,"
             + " all other letters in lowercase. Words are delimited by white space.")
     @ScalarFunction("initcap")
     @SqlType(StandardTypes.VARCHAR)
     public static Slice initCap(@SqlType(StandardTypes.VARCHAR) Slice inputStr)
     {
-        if (inputStr == null) {
-            return null;
-        }
         String words = inputStr.toStringUtf8();
         return Slices.utf8Slice(WordUtils.capitalizeFully(words));
     }
@@ -216,24 +197,21 @@ public final class UserDefinedFunctions
     @Description("Returns the substring that matches a regular expression within a string.")
     @ScalarFunction("regexp_substr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long position,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long occurrence,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice regexpModifier,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long capturedSubexp)
+    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                     @SqlType(StandardTypes.VARCHAR) Slice patternStr,
+                                     @SqlType(StandardTypes.BIGINT) long position,
+                                     @SqlType(StandardTypes.BIGINT) long occurrence,
+                                     @SqlType(StandardTypes.VARCHAR) Slice regexpModifier,
+                                     @SqlType(StandardTypes.BIGINT) long capturedSubexp)
     {
-        if (source == null || patternStr == null) {
-            return null;
-        }
         int modifier = getRegexpModifier(regexpModifier);
-        String string = source.toStringUtf8().substring(position.intValue() - 1);
+        String string = source.toStringUtf8().substring((int) position - 1);
         Matcher matcher = Pattern.compile(patternStr.toStringUtf8(), modifier).matcher(string);
         int currentOccurrence = 1;
         while (matcher.find()) {
             if (currentOccurrence == occurrence) {
                 try {
-                    return Slices.utf8Slice(matcher.group(capturedSubexp.intValue()));
+                    return Slices.utf8Slice(matcher.group((int) capturedSubexp));
                 }
                 catch (IndexOutOfBoundsException ex) {
                     return null;
@@ -250,113 +228,109 @@ public final class UserDefinedFunctions
     @Description("Returns the substring that matches a regular expression within a string.")
     @ScalarFunction("regexp_substr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long position,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long occurrence,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice regexpModifier)
+    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                     @SqlType(StandardTypes.VARCHAR) Slice patternStr,
+                                     @SqlType(StandardTypes.BIGINT) long position,
+                                     @SqlType(StandardTypes.BIGINT) long occurrence,
+                                     @SqlType(StandardTypes.VARCHAR) Slice regexpModifier)
     {
-        return regexpSubstr(source, patternStr, position, occurrence, regexpModifier, Long.valueOf(0));
+        return regexpSubstr(source, patternStr, position, occurrence, regexpModifier, 0);
     }
 
     @SqlNullable
     @Description("Returns the substring that matches a regular expression within a string.")
     @ScalarFunction("regexp_substr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long position,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long occurrence)
+    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                     @SqlType(StandardTypes.VARCHAR) Slice patternStr,
+                                     @SqlType(StandardTypes.BIGINT) long position,
+                                     @SqlType(StandardTypes.BIGINT) long occurrence)
     {
-        return regexpSubstr(source, patternStr, position, occurrence, null);
+        return regexpSubstr(source, patternStr, position, occurrence, Slices.EMPTY_SLICE);
     }
 
     @SqlNullable
     @Description("Returns the substring that matches a regular expression within a string.")
     @ScalarFunction("regexp_substr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr,
-                                     @SqlType(StandardTypes.BIGINT) @SqlNullable Long position)
+    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                     @SqlType(StandardTypes.VARCHAR) Slice patternStr,
+                                     @SqlType(StandardTypes.BIGINT) long position)
     {
-        return regexpSubstr(source, patternStr, position, Long.valueOf(1));
+        return regexpSubstr(source, patternStr, position, 1);
     }
 
     @SqlNullable
     @Description("Returns the substring that matches a regular expression within a string.")
     @ScalarFunction("regexp_substr")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                     @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr)
+    public static Slice regexpSubstr(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                     @SqlType(StandardTypes.VARCHAR) Slice patternStr)
     {
-        return regexpSubstr(source, patternStr, Long.valueOf(1));
+        return regexpSubstr(source, patternStr, 1);
     }
 
     private static int getRegexpModifier(Slice flags)
     {
+        if (flags.length() <= 0) {
+            return 0;
+        }
+
         int ret = 0;
-        if (flags != null) {
-            String modifier = flags.toStringUtf8();
-            if (modifier.contains("b")) {
-                ret |= Pattern.LITERAL;
-            }
-            if (modifier.contains("i")) {
-                ret |= Pattern.CASE_INSENSITIVE;
-            }
-            if (modifier.contains("m")) {
-                ret |= Pattern.MULTILINE;
-            }
-            if (modifier.contains("n")) {
-                ret |= Pattern.DOTALL;
-            }
-            if (modifier.contains("x")) {
-                ret |= Pattern.COMMENTS;
-            }
+        String modifier = flags.toStringUtf8();
+        if (modifier.contains("b")) {
+            ret |= Pattern.LITERAL;
+        }
+        if (modifier.contains("i")) {
+            ret |= Pattern.CASE_INSENSITIVE;
+        }
+        if (modifier.contains("m")) {
+            ret |= Pattern.MULTILINE;
+        }
+        if (modifier.contains("n")) {
+            ret |= Pattern.DOTALL;
+        }
+        if (modifier.contains("x")) {
+            ret |= Pattern.COMMENTS;
         }
         return ret;
     }
 
-    @SqlNullable
     @Description("Returns the number times a regular expression matches a string.")
     @ScalarFunction("regexp_count")
     @SqlType(StandardTypes.BIGINT)
-    public static Long regexpCount(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                      @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr,
-                                      @SqlType(StandardTypes.BIGINT) @SqlNullable Long position,
-                                      @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice regexpModifier)
+    public static long regexpCount(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                   @SqlType(StandardTypes.VARCHAR) Slice patternStr,
+                                   @SqlType(StandardTypes.BIGINT) long position,
+                                   @SqlType(StandardTypes.VARCHAR) Slice regexpModifier)
     {
-        if (source == null || patternStr == null || position == null) {
-            return null;
-        }
-        int count = 0;
+        long count = 0;
         int modifier = getRegexpModifier(regexpModifier);
-        String string = source.toStringUtf8().substring(position.intValue() - 1);
+        String string = source.toStringUtf8().substring((int) position - 1);
         Matcher matcher = Pattern.compile(patternStr.toStringUtf8(), modifier).matcher(string);
         while (matcher.find()) {
             count++;
         }
-        return Long.valueOf(count);
+        return count;
     }
 
-    @SqlNullable
     @Description("Returns the number times a regular expression matches a string.")
     @ScalarFunction("regexp_count")
     @SqlType(StandardTypes.BIGINT)
-    public static Long regexpCount(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                   @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr,
-                                   @SqlType(StandardTypes.BIGINT) @SqlNullable Long position)
+    public static long regexpCount(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                   @SqlType(StandardTypes.VARCHAR) Slice patternStr,
+                                   @SqlType(StandardTypes.BIGINT) long position)
     {
-        return regexpCount(source, patternStr, position, null);
+        return regexpCount(source, patternStr, position, Slices.EMPTY_SLICE);
     }
 
-    @SqlNullable
     @Description("Returns the number times a regular expression matches a string.")
     @ScalarFunction("regexp_count")
     @SqlType(StandardTypes.BIGINT)
-    public static Long regexpCount(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice source,
-                                      @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice patternStr)
+    public static long regexpCount(@SqlType(StandardTypes.VARCHAR) Slice source,
+                                   @SqlType(StandardTypes.VARCHAR) Slice patternStr)
     {
-        return regexpCount(source, patternStr, Long.valueOf(1));
+        return regexpCount(source, patternStr, 1);
     }
 
     @Description("returns index of first occurrence of a substring (or 0 if not found) in string")
@@ -373,29 +347,21 @@ public final class UserDefinedFunctions
         return stringPosition(string, substring);
     }
 
-    @SqlNullable
     @Description("Returns the integer value of the specified day, where 1 AD is 1.")
     @ScalarFunction("days")
     @SqlType(StandardTypes.BIGINT)
-    public static Long days(@SqlType(StandardTypes.TIMESTAMP) @SqlNullable Long timestampLong)
+    public static long days(@SqlType(StandardTypes.TIMESTAMP) long timestampLong)
     {
-        if (timestampLong == null) {
-            return null;
-        }
         return ChronoUnit.DAYS.between(LocalDate.of(0, 12, 31).atStartOfDay().toInstant(ZoneOffset.UTC),
                                        Instant.ofEpochMilli(timestampLong));
     }
 
-    @SqlNullable
     @Description("Rounds the specified TIMESTAMP to the precision specified by user.")
     @ScalarFunction("timestamp_round")
     @SqlType(StandardTypes.TIMESTAMP)
-    public static Long timestampRound(@SqlType(StandardTypes.TIMESTAMP) @SqlNullable Long timestampLong,
+    public static long timestampRound(@SqlType(StandardTypes.TIMESTAMP) long timestampLong,
                                       @SqlType(StandardTypes.VARCHAR) Slice precisionSlice)
     {
-        if (timestampLong == null) {
-            return null;
-        }
         Date date = new Date(timestampLong);
         Calendar c = Calendar.getInstance();
         c.setTime(date);
@@ -450,26 +416,22 @@ public final class UserDefinedFunctions
         }
     }
 
-    @SqlNullable
     @Description("Rounds the specified TIMESTAMP to the precision specified by user.")
     @ScalarFunction("timestamp_round")
     @SqlType(StandardTypes.TIMESTAMP)
-    public static Long timestampRound(@SqlType(StandardTypes.TIMESTAMP) @SqlNullable Long timestampLong)
+    public static long timestampRound(@SqlType(StandardTypes.TIMESTAMP) long timestampLong)
     {
         return timestampRound(timestampLong, Slices.utf8Slice("day"));
     }
 
-    @SqlNullable
     @Description("Converts a TIMESTAMP value between time zones.")
     @ScalarFunction("to_timestamp_tz")
     @SqlType(StandardTypes.TIMESTAMP_WITH_TIME_ZONE)
-    public static Long toTimestampTimezone(ConnectorSession session, @SqlType(StandardTypes.TIMESTAMP) @SqlNullable Long timestampLong,
-                                            @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice timezone1,
-                                            @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice timezone2)
+    public static long toTimestampTimezone(ConnectorSession session,
+                                           @SqlType(StandardTypes.TIMESTAMP) long timestampLong,
+                                           @SqlType(StandardTypes.VARCHAR) Slice timezone1,
+                                           @SqlType(StandardTypes.VARCHAR) Slice timezone2)
     {
-        if (timestampLong == null || timezone1 == null || timezone2 == null) {
-            return null;
-        }
         ZoneId tz1 = getZoneIdFromSlice(timezone1);
         Instant instant = Instant.ofEpochMilli(timestampLong);
         ZonedDateTime passedInZonedDateTime = ZonedDateTime.ofInstant(instant, ZoneId.of(session.getTimeZoneKey().getId()));
@@ -492,25 +454,20 @@ public final class UserDefinedFunctions
         return ZoneId.of(timezoneString);
     }
 
-    @SqlNullable
     @Description("Returns the JSON representation of a lng/lat pair.")
     @ScalarFunction("uber_asgeojson")
     @SqlType(StandardTypes.VARCHAR)
-    public static Slice uberAsGeoJSON(@SqlType(StandardTypes.DOUBLE) @SqlNullable Double lng,
-                                       @SqlType(StandardTypes.DOUBLE) @SqlNullable Double lat)
+    public static Slice uberAsGeoJSON(@SqlType(StandardTypes.DOUBLE) double lng,
+                                      @SqlType(StandardTypes.DOUBLE) double lat)
     {
-        if (lng == null || lat == null) {
-            return null;
-        }
-        return Slices.utf8Slice("{\"type\":\"Point\",\"coordinates\":[" + lng.toString() + "," + lat.toString() + "]}");
+        return Slices.utf8Slice("{\"type\":\"Point\",\"coordinates\":[" + lng + "," + lat + "]}");
     }
 
-    @SqlNullable
     @Description("Replaces individual characters in string with other characters.")
     @ScalarFunction("translate")
     @SqlType(StandardTypes.VARCHAR)
     public static Slice translate(@SqlType(StandardTypes.VARCHAR) Slice str,
-                                      @SqlType(StandardTypes.VARCHAR) Slice from,
+                                  @SqlType(StandardTypes.VARCHAR) Slice from,
                                   @SqlType(StandardTypes.VARCHAR) Slice to)
     {
         return Slices.utf8Slice(StringUtils.replaceChars(str.toStringUtf8(), from.toStringUtf8(), to.toStringUtf8()));
@@ -530,12 +487,8 @@ public final class UserDefinedFunctions
     @Description("Compares two version strings for which is higher, returning 1, 0, or -1.")
     @ScalarFunction("version_compare")
     @SqlType(StandardTypes.INTEGER)
-    public static Long versionCompare(@SqlType(StandardTypes.VARCHAR) @SqlNullable Slice v1, @SqlType(StandardTypes.VARCHAR) @SqlNullable Slice v2)
+    public static Long versionCompare(@SqlType(StandardTypes.VARCHAR) Slice v1, @SqlType(StandardTypes.VARCHAR) Slice v2)
     {
-        if (v1 == null || v2 == null) {
-            return null;
-        }
-
         String v1str = v1.toStringUtf8();
         String v2str = v2.toStringUtf8();
         String versionRegex = "^\\d+(\\.\\d+)*$";
