@@ -153,7 +153,7 @@ public class BasePlanTest
     {
         List<PlanOptimizer> optimizers = ImmutableList.of(
                 new UnaliasSymbolReferences(),
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(queryRunner.getMetadata()),
                 new IterativeOptimizer(
                         new RuleStatsRecorder(),
                         queryRunner.getStatsCalculator(),

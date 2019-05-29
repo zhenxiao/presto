@@ -562,7 +562,7 @@ public class TestMergeWindows
                                 .add(new RemoveRedundantIdentityProjections())
                                 .addAll(GatherAndMergeWindows.rules())
                                 .build()),
-                new PruneUnreferencedOutputs());
+                new PruneUnreferencedOutputs(getQueryRunner().getMetadata()));
         assertPlan(sql, pattern, optimizers);
     }
 }

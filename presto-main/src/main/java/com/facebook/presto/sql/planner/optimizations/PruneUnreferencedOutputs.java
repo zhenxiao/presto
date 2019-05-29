@@ -15,7 +15,13 @@ package com.facebook.presto.sql.planner.optimizations;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.execution.warnings.WarningCollector;
+import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.PushDownExpression;
+import com.facebook.presto.spi.pipeline.PushDownInputColumn;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PartitioningScheme;
 import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
 import com.facebook.presto.sql.planner.Symbol;
@@ -70,6 +76,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -103,6 +110,13 @@ import static java.util.Objects.requireNonNull;
 public class PruneUnreferencedOutputs
         implements PlanOptimizer
 {
+    private final Metadata metadata;
+
+    public PruneUnreferencedOutputs(Metadata metadata)
+    {
+        this.metadata = metadata;
+    }
+
     @Override
     public PlanNode optimize(PlanNode plan, Session session, TypeProvider types, SymbolAllocator symbolAllocator, PlanNodeIdAllocator idAllocator, WarningCollector warningCollector)
     {
@@ -112,12 +126,25 @@ public class PruneUnreferencedOutputs
         requireNonNull(symbolAllocator, "symbolAllocator is null");
         requireNonNull(idAllocator, "idAllocator is null");
 
-        return SimplePlanRewriter.rewriteWith(new Rewriter(), plan, ImmutableSet.of());
+        return SimplePlanRewriter.rewriteWith(new Rewriter(session, types, metadata, idAllocator), plan, ImmutableSet.of());
     }
 
     private static class Rewriter
             extends SimplePlanRewriter<Set<Symbol>>
     {
+        private final Session session;
+        private final TypeProvider types;
+        private final Metadata metadata;
+        private final PlanNodeIdAllocator idAllocator;
+
+        public Rewriter(Session session, TypeProvider types, Metadata metadata, PlanNodeIdAllocator idAllocator)
+        {
+            this.session = session;
+            this.types = types;
+            this.metadata = metadata;
+            this.idAllocator = idAllocator;
+        }
+
         @Override
         public PlanNode visitExplainAnalyze(ExplainAnalyzeNode node, RewriteContext<Set<Symbol>> context)
         {
@@ -412,6 +439,21 @@ public class PruneUnreferencedOutputs
                     node.getPreSortedOrderPrefix());
         }
 
+        private Optional<TableScanPipeline> matchScanPipelineToNewAssignments(TableScanNode scanNode, TableScanPipeline existingScanPipeline, Map<Symbol, ColumnHandle> newAssignments)
+        {
+            List<Symbol> newSymbols = ImmutableList.copyOf(newAssignments.keySet());
+            List<String> newColumnNames = newSymbols.stream().map(Symbol::getName).collect(toImmutableList());
+            if (ImmutableSet.copyOf(newColumnNames).equals(ImmutableSet.copyOf(existingScanPipeline.getLastPipelineNodeOutputColumns()))) {
+                return Optional.of(existingScanPipeline);
+            }
+            List<Type> newTypes = newSymbols.stream().map(types::get).collect(toImmutableList());
+            List<PushDownExpression> exprs = Streams.zip(newSymbols.stream(), newTypes.stream(), (s, t) -> new PushDownInputColumn(t.getTypeSignature(), s.getName())).collect(toImmutableList());
+            ProjectPipelineNode projectPipelineNode = new ProjectPipelineNode(exprs, newColumnNames, newTypes);
+
+            return metadata.pushProjectIntoScan(
+                    session, scanNode.getTable(), existingScanPipeline, projectPipelineNode);
+        }
+
         @Override
         public PlanNode visitTableScan(TableScanNode node, RewriteContext<Set<Symbol>> context)
         {
@@ -422,6 +464,13 @@ public class PruneUnreferencedOutputs
             Map<Symbol, ColumnHandle> newAssignments = newOutputs.stream()
                     .collect(Collectors.toMap(Function.identity(), node.getAssignments()::get));
 
+            Optional<TableScanPipeline> scanPipeline = node.getScanPipeline();
+            if (scanPipeline.isPresent()) {
+                scanPipeline = matchScanPipelineToNewAssignments(node, scanPipeline.get(), newAssignments);
+                if (!scanPipeline.isPresent()) {
+                    return new ProjectNode(idAllocator.getNextId(), node, Assignments.identity(newOutputs));
+                }
+            }
             return new TableScanNode(
                     node.getId(),
                     node.getTable(),
@@ -431,7 +480,7 @@ public class PruneUnreferencedOutputs
                     node.getCurrentConstraint(),
                     node.getEnforcedConstraint(),
                     node.getCompactEffectiveConstraint(),
-                    node.getScanPipeline());
+                    scanPipeline);
         }
 
         @Override

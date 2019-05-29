@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.sql.planner.iterative.rule;
 
-import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
@@ -26,16 +25,18 @@ import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.sql.planner.assertions.PlanMatchPattern;
 import com.facebook.presto.sql.planner.iterative.rule.test.BasePushDownRuleTest;
 import com.facebook.presto.sql.planner.iterative.rule.test.RuleAssert;
 import com.google.common.collect.ImmutableMap;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.output;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.project;
 import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.strictTableScan;
+import static com.facebook.presto.sql.planner.assertions.PlanMatchPattern.tableScan;
 import static com.facebook.presto.sql.planner.iterative.rule.test.PlanBuilder.expression;
 
 public class TestPushFilterIntoTableScan
@@ -62,6 +63,16 @@ public class TestPushFilterIntoTableScan
     public void noPushDownFilter()
     {
         testHelper("c1 in (2, 3)", false);
+    }
+
+    @Test
+    public void testSQL()
+    {
+        // c1 can be pushed and pruned down
+        assertPlan("select abs(c1) from pushdowncatalog.pushdownschema.test where c2 = 3", output(project(tableScan("test", ImmutableMap.of("c1", "c1")))));
+
+        // c2 cannot be pruned down and thus we have an extra project
+        assertPlan("select abs(c2) from pushdowncatalog.pushdownschema.test where c1 = 3", output(project(project(ImmutableMap.of("c2", PlanMatchPattern.expression("c2")), tableScan("test", ImmutableMap.of("c1", "c1", "c2", "c2"))))));
     }
 
     private void testHelper(String predicate, boolean expectedPushDown)
@@ -92,7 +103,12 @@ public class TestPushFilterIntoTableScan
         {
             for (PushDownExpression projectExpr : project.getExprs()) {
                 if (projectExpr instanceof PushDownInputColumn) {
-                    continue;
+                    if (((PushDownInputColumn) projectExpr).getName().equalsIgnoreCase("c2")) {
+                        return Optional.empty();
+                    }
+                    else {
+                        continue; // fine to push c1
+                    }
                 }
                 else if (projectExpr instanceof PushDownFunction) {
                     PushDownFunction function = (PushDownFunction) projectExpr;
@@ -105,17 +121,7 @@ public class TestPushFilterIntoTableScan
                 }
             }
 
-            List<ColumnHandle> newColumnHandles = new ArrayList<>();
-            int index = 0;
-            for (String outputColumn : project.getOutputColumns()) {
-                newColumnHandles.add(new TestingColumnHandle(outputColumn, index, project.getRowType().get(index)));
-                index++;
-            }
-
-            TableScanPipeline pipeline = new TableScanPipeline();
-            pipeline.addPipeline(project, newColumnHandles);
-
-            return Optional.of(pipeline);
+            return merge(currentPipeline, project);
         }
 
         @Override

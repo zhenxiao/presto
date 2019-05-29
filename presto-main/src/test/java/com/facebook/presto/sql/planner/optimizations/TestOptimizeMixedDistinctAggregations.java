@@ -124,7 +124,7 @@ public class TestOptimizeMixedDistinctAggregations
                                 new SingleDistinctAggregationToGroupBy(),
                                 new MultipleDistinctAggregationToMarkDistinct())),
                 new OptimizeMixedDistinctAggregations(getQueryRunner().getMetadata()),
-                new PruneUnreferencedOutputs());
+                new PruneUnreferencedOutputs(getQueryRunner().getMetadata()));
         assertPlan(sql, pattern, optimizers);
     }
 }

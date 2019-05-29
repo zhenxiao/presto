@@ -312,7 +312,7 @@ public class PlanOptimizers
                 new SetFlatteningOptimizer(),
                 new ImplementIntersectAndExceptAsUnion(),
                 new LimitPushDown(), // Run the LimitPushDown after flattening set operators to make it easier to do the set flattening
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(metadata),
                 inlineProjections,
                 new IterativeOptimizer(
                         ruleStats,
@@ -356,7 +356,7 @@ public class PlanOptimizers
                 new CheckSubqueryNodesAreRewritten(),
                 // pushdown dereference
                 new PushDownDereferenceExpression(metadata, sqlParser),
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(metadata),
                 new MergeNestedColumn(metadata, sqlParser),
                 new IterativeOptimizer(ruleStats, statsCalculator, estimatedExchangesCostCalculator, ImmutableSet.of(new PruneTableScanColumns())),
                 predicatePushDown,
@@ -365,7 +365,7 @@ public class PlanOptimizers
                         statsCalculator,
                         estimatedExchangesCostCalculator,
                         new PickTableLayout(metadata, sqlParser).rules()),
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(metadata),
                 new IterativeOptimizer(
                         ruleStats,
                         statsCalculator,
@@ -377,7 +377,7 @@ public class PlanOptimizers
                 simplifyOptimizer, // Re-run the SimplifyExpressions to simplify any recomposed expressions from other optimizations
                 projectionPushDown,
                 new UnaliasSymbolReferences(), // Run again because predicate pushdown and projection pushdown might add more projections
-                new PruneUnreferencedOutputs(), // Make sure to run this before index join. Filtered projections may not have all the columns.
+                new PruneUnreferencedOutputs(metadata), // Make sure to run this before index join. Filtered projections may not have all the columns.
                 new IndexJoinOptimizer(metadata), // Run this after projections and filters have been fully simplified and pushed down
                 new IterativeOptimizer(
                         ruleStats,
@@ -396,7 +396,7 @@ public class PlanOptimizers
                                 .addAll(GatherAndMergeWindows.rules())
                                 .build()),
                 inlineProjections,
-                new PruneUnreferencedOutputs(), // Make sure to run this at the end to help clean the plan for logging/execution and not remove info that other optimizers might need at an earlier point
+                new PruneUnreferencedOutputs(metadata), // Make sure to run this at the end to help clean the plan for logging/execution and not remove info that other optimizers might need at an earlier point
                 new IterativeOptimizer(
                         ruleStats,
                         statsCalculator,
@@ -417,7 +417,7 @@ public class PlanOptimizers
                         estimatedExchangesCostCalculator,
                         new PickTableLayout(metadata, sqlParser).rules()),
                 projectionPushDown,
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(metadata),
                 new IterativeOptimizer(
                         ruleStats,
                         statsCalculator,
@@ -501,7 +501,7 @@ public class PlanOptimizers
         builder.add(projectionPushDown);
         builder.add(inlineProjections);
         builder.add(new UnaliasSymbolReferences()); // Run unalias after merging projections to simplify projections more efficiently
-        builder.add(new PruneUnreferencedOutputs());
+        builder.add(new PruneUnreferencedOutputs(metadata));
 
         builder.add(new IterativeOptimizer(
                 ruleStats,

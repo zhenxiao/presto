@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import javax.annotation.concurrent.Immutable;
 
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static java.util.Objects.requireNonNull;
 
 @Immutable
@@ -122,6 +124,11 @@ public class TableScanNode
         this.enforcedConstraint = requireNonNull(enforcedConstraint, "enforcedConstraint is null");
         if (!currentConstraint.isAll() || !enforcedConstraint.isAll()) {
             checkArgument(tableLayout.isPresent(), "tableLayout must be present when currentConstraint or enforcedConstraint is non-trivial");
+        }
+        if (scanPipeline.isPresent()) {
+            ImmutableSet<String> columnsInLastPipelineNode = ImmutableSet.copyOf(scanPipeline.get().getLastPipelineNodeOutputColumns());
+            ImmutableSet<String> newSymbols = assignments.keySet().stream().map(Symbol::getName).collect(toImmutableSet());
+            checkState(newSymbols.equals(columnsInLastPipelineNode), "Mismatch of columns %s in scan pipeline %s vs new output symbols %s", columnsInLastPipelineNode, scanPipeline.get(), newSymbols);
         }
         this.scanPipeline = scanPipeline;
         this.compactEffectiveConstraint = requireNonNull(compactEffectiveConstraint, "compactEffectiveConstraint is null");

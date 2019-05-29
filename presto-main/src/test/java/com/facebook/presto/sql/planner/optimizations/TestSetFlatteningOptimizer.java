@@ -127,7 +127,7 @@ public class TestSetFlatteningOptimizer
     {
         List<PlanOptimizer> optimizers = ImmutableList.of(
                 new UnaliasSymbolReferences(),
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(getQueryRunner().getMetadata()),
                 new IterativeOptimizer(
                         new RuleStatsRecorder(),
                         getQueryRunner().getStatsCalculator(),

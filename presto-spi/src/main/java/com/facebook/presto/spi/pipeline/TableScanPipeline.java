@@ -73,4 +73,12 @@ public class TableScanPipeline
                 .map(node -> node.toString())
                 .collect(Collectors.joining(","));
     }
+
+    public List<String> getLastPipelineNodeOutputColumns()
+    {
+        if (pipelineNodes.isEmpty()) {
+            throw new IllegalStateException("Expected to have non empty pipeline");
+        }
+        return pipelineNodes.get(pipelineNodes.size() - 1).getOutputColumns();
+    }
 }

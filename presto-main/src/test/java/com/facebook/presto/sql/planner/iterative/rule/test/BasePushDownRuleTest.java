@@ -53,6 +53,7 @@ import com.facebook.presto.sql.planner.iterative.IterativeOptimizer;
 import com.facebook.presto.sql.planner.iterative.Rule;
 import com.facebook.presto.sql.planner.iterative.rule.CreateTableScanPipeline;
 import com.facebook.presto.sql.planner.iterative.rule.GenerateTableLayoutWithPipeline;
+import com.facebook.presto.sql.planner.iterative.rule.InlineProjections;
 import com.facebook.presto.sql.planner.iterative.rule.PickTableLayout;
 import com.facebook.presto.sql.planner.iterative.rule.RemoveRedundantIdentityProjections;
 import com.facebook.presto.sql.planner.optimizations.PlanOptimizer;
@@ -191,14 +192,13 @@ public abstract class BasePushDownRuleTest
     {
         List<ColumnHandle> newColumnHandles = new ArrayList<>();
         int index = 0;
+        List<PipelineNode> newPipelineNodes = ImmutableList.<PipelineNode>builder().addAll(existingPipeline.getPipelineNodes()).add(pipelineNode).build();
         for (String outputColumn : pipelineNode.getOutputColumns()) {
             newColumnHandles.add(new TestingColumnHandle(outputColumn, index, pipelineNode.getRowType().get(index)));
             index++;
         }
 
-        existingPipeline.addPipeline(pipelineNode, newColumnHandles);
-
-        return Optional.of(existingPipeline);
+        return Optional.of(new TableScanPipeline(newPipelineNodes, newColumnHandles));
     }
 
     protected TableScanNode createTestScan(PlanBuilder planBuilder, String tableName)
@@ -239,7 +239,7 @@ public abstract class BasePushDownRuleTest
         ImmutableList.Builder<PlanOptimizer> planOptimizers = ImmutableList.builder();
         planOptimizers.addAll(ImmutableList.of(
                 new UnaliasSymbolReferences(),
-                new PruneUnreferencedOutputs(),
+                new PruneUnreferencedOutputs(tester.getQueryRunner().getMetadata()),
                 new IterativeOptimizer(
                         new RuleStatsRecorder(),
                         tester.getQueryRunner().getStatsCalculator(),
@@ -259,6 +259,15 @@ public abstract class BasePushDownRuleTest
                 tester.getQueryRunner().getStatsCalculator(),
                 tester.getQueryRunner().getCostCalculator(),
                 allPushdownRules.build()));
+        planOptimizers.add(new IterativeOptimizer(
+                new RuleStatsRecorder(),
+                tester.getQueryRunner().getStatsCalculator(),
+                tester.getQueryRunner().getEstimatedExchangesCostCalculator(),
+                ImmutableSet.of(
+                        new InlineProjections(),
+                        new RemoveRedundantIdentityProjections())));
+        planOptimizers.add(new UnaliasSymbolReferences());
+        planOptimizers.add(new PruneUnreferencedOutputs(tester.getQueryRunner().getMetadata()));
         planOptimizers.add(new IterativeOptimizer(
                 new RuleStatsRecorder(),
                 tester.getQueryRunner().getStatsCalculator(),

@@ -93,8 +93,8 @@ class PinotQueryGeneratorContext
      */
     PinotQueryGeneratorContext withProject(LinkedHashMap<String, Selection> newSelections)
     {
-        checkState(!hasAggregation(), "Pinot doesn't support new selections on top of the aggregated data");
-        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, 0, new LinkedHashSet<>(), limit);
+        checkState(groupByColumns.isEmpty(), "Pinot doesn't yet support new selections on top of the grouped by data");
+        return new PinotQueryGeneratorContext(newSelections, from, filter, timeBoundaryFilter, numAggregations, groupByColumns, limit);
     }
 
     /**
