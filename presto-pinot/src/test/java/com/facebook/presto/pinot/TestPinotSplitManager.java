@@ -24,8 +24,6 @@ import com.facebook.presto.spi.predicate.SortedRangeSet;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.predicate.ValueSet;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import io.airlift.http.client.testing.TestingHttpClient;
 import io.airlift.slice.Slices;
 import org.testng.annotations.Test;
 
@@ -63,7 +61,7 @@ public class TestPinotSplitManager
     private static final PinotConfig pinotConfig = new PinotConfig();
     private static final PinotSplitManager pinotSplitManager = new PinotSplitManager(
             new PinotConnectorId(""),
-            new PinotConnection(new MockPinotClusterInfoFetcher(), pinotConfig),
+            new PinotConnection(new MockPinotClusterInfoFetcher(pinotConfig), pinotConfig),
             pinotConfig);
     // Test table and related info
     private static final PinotColumnHandle columnCityId = new PinotColumnHandle("city_id", BIGINT, REGULAR);
@@ -260,46 +258,5 @@ public class TestPinotSplitManager
         Domain domain = Domain.create(sortedRangeSet, false);
 
         assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId), Optional.empty());
-    }
-
-    private static class MockPinotClusterInfoFetcher
-            extends PinotClusterInfoFetcher
-    {
-        public MockPinotClusterInfoFetcher()
-        {
-            super(pinotConfig, new PinotMetrics(), new TestingHttpClient(request -> null));
-        }
-
-        @Override
-        public Map<String, Map<String, List<String>>> getRoutingTableForTable(String tableName)
-        {
-            ImmutableMap.Builder<String, Map<String, List<String>>> routingTable = ImmutableMap.builder();
-
-            if (realtimeOnlyTable.getTableName().equalsIgnoreCase(tableName) || hybridTable.getTableName().equalsIgnoreCase(tableName)) {
-                routingTable.put(tableName + "_REALTIME", ImmutableMap.of(
-                        "server1", ImmutableList.of("segment11", "segment12"),
-                        "server2", ImmutableList.of("segment21", "segment22")));
-            }
-
-            if (hybridTable.getTableName().equalsIgnoreCase(tableName)) {
-                routingTable.put(tableName + "_OFFLINE", ImmutableMap.of(
-                        "server3", ImmutableList.of("segment31", "segment32"),
-                        "server4", ImmutableList.of("segment41", "segment42")));
-            }
-
-            return routingTable.build();
-        }
-
-        @Override
-        public Map<String, String> getTimeBoundaryForTable(String table)
-        {
-            if (hybridTable.getTableName().equalsIgnoreCase(table)) {
-                return ImmutableMap.of(
-                        "timeColumnName", "secondsSinceEpoch",
-                        "timeColumnValue", "4562345");
-            }
-
-            return ImmutableMap.of();
-        }
     }
 }

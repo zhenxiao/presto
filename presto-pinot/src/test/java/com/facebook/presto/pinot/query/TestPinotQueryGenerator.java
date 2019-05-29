@@ -434,7 +434,7 @@ public class TestPinotQueryGenerator
         ImmutableList<String> columns = ImmutableList.of("regionid", "city", "fare", "secondssinceepoch");
         ImmutableList<Type> columnTypes = ImmutableList.of(BIGINT, VARCHAR, DOUBLE, BIGINT);
         List<ColumnHandle> columnHandles = columnHandles(regionId, city, fare, secondsSinceEpoch);
-        TableScanPipeline pipeline = pipeline(scan(pinotTable, columnHandles), filter(pdExpr("fare > 20"), columns, columnTypes), limit(5, true, columns, columnTypes));
+        TableScanPipeline pipeline = pipeline(scan(pinotTable, columnHandles), filter(pdExpr("fare > 20"), columns, columnTypes), limit(5, false, columns, columnTypes));
         PinotQueryGenerator.GeneratedPql generatedPql = PinotQueryGenerator.generateForSingleBrokerRequest(pipeline, Optional.of(getOutputHandlesFromPipeline(pipeline)), Optional.of(new PinotConfig()));
         assertEquals(pinotTable.getTableName(), generatedPql.getTable());
         assertEquals(0, generatedPql.getNumGroupByClauses());

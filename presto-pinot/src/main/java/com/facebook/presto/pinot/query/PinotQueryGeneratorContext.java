@@ -100,13 +100,8 @@ class PinotQueryGeneratorContext
     /**
      * Apply limit to current context and return the updated context. Throws error for invalid operations.
      */
-    PinotQueryGeneratorContext withLimit(long limit, boolean isPartial)
+    PinotQueryGeneratorContext withLimit(long limit)
     {
-        if (!isPartial) {
-            // We support final limit only on top of the aggregated data.
-            checkState(hasAggregation(), "Final limit pushdown is supported only on top of the aggregated data");
-        }
-
         checkState(!hasLimit(), "Limit already exists. Pinot doesn't support limit on top of another limit");
         return new PinotQueryGeneratorContext(selections, from, filter, timeBoundaryFilter, numAggregations, groupByColumns, Optional.of(limit));
     }

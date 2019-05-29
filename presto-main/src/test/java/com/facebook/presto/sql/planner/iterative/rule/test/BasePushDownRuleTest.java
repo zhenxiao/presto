@@ -84,6 +84,7 @@ import java.util.stream.IntStream;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.testing.TestingMetadata.TestingTableHandle;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
@@ -146,6 +147,16 @@ public abstract class BasePushDownRuleTest
         public int hashCode()
         {
             return Objects.hash(table, constraint, scanPipeline);
+        }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("table", table)
+                    .add("constraint", constraint)
+                    .add("scanPipeline", scanPipeline)
+                    .toString();
         }
     }
 
@@ -278,12 +289,17 @@ public abstract class BasePushDownRuleTest
 
     protected void assertPlan(String sql, PlanMatchPattern pattern)
     {
-        assertPlan(sql, LogicalPlanner.Stage.OPTIMIZED_AND_VALIDATED, pattern);
+        assertPlan(sql, LogicalPlanner.Stage.OPTIMIZED_AND_VALIDATED, pattern, true);
     }
 
-    protected void assertPlan(String sql, LogicalPlanner.Stage stage, PlanMatchPattern pattern)
+    protected void assertDistributedPlan(String sql, PlanMatchPattern pattern)
     {
-        List<PlanOptimizer> optimizers = tester.getQueryRunner().getPlanOptimizers(true);
+        assertPlan(sql, LogicalPlanner.Stage.OPTIMIZED_AND_VALIDATED, pattern, false);
+    }
+
+    protected void assertPlan(String sql, LogicalPlanner.Stage stage, PlanMatchPattern pattern, boolean forceSingleNode)
+    {
+        List<PlanOptimizer> optimizers = tester.getQueryRunner().getPlanOptimizers(forceSingleNode);
 
         assertPlan(sql, stage, pattern, optimizers);
     }

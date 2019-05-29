@@ -22,16 +22,13 @@ import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.FixedSplitSource;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
-import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
-import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.facebook.presto.spi.pipeline.PushDownInExpression;
 import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
-import com.facebook.presto.spi.pipeline.SortPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.pipeline.TableScanPipelineVisitor;
 import com.facebook.presto.spi.predicate.Domain;
@@ -236,17 +233,17 @@ public class PinotSplitManager
 
         TableScanPipeline scanPipeline = getScanPipeline(pinotLayoutHandle);
 
-        if (pinotConfig.isScanParallelismEnabled() && ScanParallelismFinder.canParallelize(scanPipeline)) {
+        if (PinotScanParallelismFinder.canParallelize(pinotConfig, scanPipeline)) {
             scanPipeline = addTupleDomainToScanPipelineIfNeeded(pinotLayoutHandle.getConstraint(), scanPipeline);
 
             return generateSplitsForSegmentBasedScan(pinotLayoutHandle, scanPipeline);
         }
         else {
-            return generateSplitsForBrokerBasedScan(scanPipeline);
+            return generateSplitForBrokerBasedScan(scanPipeline);
         }
     }
 
-    protected ConnectorSplitSource generateSplitsForBrokerBasedScan(TableScanPipeline scanPipeline)
+    protected ConnectorSplitSource generateSplitForBrokerBasedScan(TableScanPipeline scanPipeline)
     {
         return new FixedSplitSource(singletonList(createBrokerSplit(connectorId, scanPipeline)));
     }
@@ -306,48 +303,6 @@ public class PinotSplitManager
                     splits.add(createSegmentSplit(connectorId, pql, segment, host));
                 }
             }
-        }
-    }
-
-    static class ScanParallelismFinder
-            extends TableScanPipelineVisitor<Boolean, Boolean>
-    {
-        // go through the pipeline operations and see if we parallelize the scan
-        static boolean canParallelize(TableScanPipeline scanPipeline)
-        {
-            Boolean canParallelize = true;
-
-            ScanParallelismFinder scanParallelismFinder = new ScanParallelismFinder();
-            for (PipelineNode pipelineNode : scanPipeline.getPipelineNodes()) {
-                canParallelize = pipelineNode.accept(scanParallelismFinder, canParallelize);
-            }
-
-            return canParallelize;
-        }
-
-        @Override
-        public Boolean visitNode(PipelineNode node, Boolean canParallelize)
-        {
-            return canParallelize;
-        }
-
-        @Override
-        public Boolean visitAggregationNode(AggregationPipelineNode aggregation, Boolean canParallelize)
-        {
-            return false;
-        }
-
-        @Override
-        public Boolean visitLimitNode(LimitPipelineNode limit, Boolean canParallelize)
-        {
-            // we can only parallelize if the limit pushdown is split level (aka partial limit)
-            return canParallelize && limit.isPartial();
-        }
-
-        @Override
-        public Boolean visitSortNode(SortPipelineNode limit, Boolean canParallelize)
-        {
-            return false;
         }
     }
 

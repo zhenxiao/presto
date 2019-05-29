@@ -289,7 +289,7 @@ public class PinotQueryGenerator
         public PinotQueryGeneratorContext visitLimitNode(LimitPipelineNode limit, PinotQueryGeneratorContext context)
         {
             requireNonNull(context, "context is null");
-            return context.withLimit(limit.getLimit(), limit.isPartial());
+            return context.withLimit(limit.getLimit());
         }
 
         @Override

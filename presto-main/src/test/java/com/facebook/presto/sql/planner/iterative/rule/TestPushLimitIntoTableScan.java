@@ -17,6 +17,7 @@ import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.FinalLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.PartialLimitPushDown;
@@ -59,8 +60,8 @@ public class TestPushLimitIntoTableScan
     @Test
     public void pushDownPartialLimitWithFullLimitIntoTableScan()
     {
-        assertPlan("select * from pushdowncatalog.pushdownschema.test where c1 = 5 limit 200", anyTree(
-                limit(200, false, exchange(ExchangeNode.Scope.LOCAL, ExchangeNode.Type.GATHER, tableScan("test")))));
+        assertDistributedPlan("select c2 from pushdowncatalog.pushdownschema.test where c1 = 5 limit 200", anyTree(
+                limit(200, false, exchange(ExchangeNode.Scope.LOCAL, ExchangeNode.Type.GATHER, exchange(ExchangeNode.Scope.REMOTE, ExchangeNode.Type.GATHER, tableScan("test"))))));
     }
 
     private RuleAssert getSinglePhaseLimitTest(long limit, boolean partial)
@@ -101,6 +102,13 @@ public class TestPushLimitIntoTableScan
         {
             // We are not really testing filtering logic here, just that there is some filter that is pushed down
             return merge(currentPipeline, filter);
+        }
+
+        @Override
+        public Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, ProjectPipelineNode project)
+        {
+            // We are not really testing project logic here, just that there is some project that is pushed down
+            return merge(currentPipeline, project);
         }
     }
 }

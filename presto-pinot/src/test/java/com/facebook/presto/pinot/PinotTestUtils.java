@@ -101,7 +101,7 @@ public class PinotTestUtils
         return new AggregationPipelineNode(nodes, partial);
     }
 
-    public static PipelineNode limit(long limit, boolean partial, List<String> outputColumns, List<Type> rowType)
+    public static LimitPipelineNode limit(long limit, boolean partial, List<String> outputColumns, List<Type> rowType)
     {
         return new LimitPipelineNode(limit, partial, outputColumns, rowType);
     }

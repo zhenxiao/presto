@@ -282,7 +282,12 @@ public class PinotMetadata
     @Override
     public Optional<TableScanPipeline> pushLimitIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, LimitPipelineNode limit)
     {
-        return tryCreatingNewPipeline(pinotConfig::isLimitPushDownEnabled, currentPipeline, limit);
+        if (!limit.isPartial() && PinotScanParallelismFinder.canParallelize(pinotConfig, currentPipeline)) {
+            return Optional.empty();
+        }
+        else {
+            return tryCreatingNewPipeline(pinotConfig::isLimitPushDownEnabled, currentPipeline, limit);
+        }
     }
 
     private Optional<TableScanPipeline> tryCreatingNewPipeline(Supplier<Boolean> isEnabled, TableScanPipeline scanPipeline, PipelineNode newPipelineNode)
