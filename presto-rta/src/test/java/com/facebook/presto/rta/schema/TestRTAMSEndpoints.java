@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
 import com.facebook.presto.testing.assertions.Assert;
 import org.testng.annotations.Test;

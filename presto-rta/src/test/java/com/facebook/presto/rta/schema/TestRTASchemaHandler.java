@@ -12,8 +12,9 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
+import com.facebook.presto.rta.RtaConfig;
 import com.facebook.presto.testing.assertions.Assert;
 import org.mockito.Mockito;
 import org.testng.annotations.BeforeClass;
@@ -21,8 +22,8 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 public class TestRTASchemaHandler
 {
@@ -38,37 +39,20 @@ public class TestRTASchemaHandler
         Mockito.doReturn(TestSchemaUtils.getDefinition()).when(client).getDefinition("rta", "rta_eats_order");
         Mockito.doReturn(TestSchemaUtils.getDeployments()).when(client).getDeployments("rta", "rta_eats_order");
         Mockito.doReturn(TestSchemaUtils.getDeployments()).when(client).getDeployments("rta", "rta_eats_order");
-        handler = new RTASchemaHandler(client);
+        handler = new RTASchemaHandler(client, new RtaConfig());
     }
 
     @Test
     public void testGetTimestampFields()
     {
-        List<RTADefinition.Field> timestampFields = handler.getTimestampFields("rta", "rta_eats_order");
-        Assert.assertEquals(timestampFields.toArray(), new RTADefinition.Field[]{new RTADefinition.Field("long", "createdAt", "Long", "time", "high")});
+        Assert.assertEquals(handler.getEntity("rta", "rta_eats_order").getTimestampField(), Optional.of("createdAt"));
     }
 
     @Test
-    public void testGetAresDeployment()
-    {
-        RTADeployment deployment = handler.getAresDeployment("rta", "rta_eats_order");
-        Assert.assertNotNull(deployment);
-        Assert.assertEquals(deployment.getCluster(), "stagingb");
-    }
-
-    @Test
-    public void testGetDefaultDeployment()
-    {
-        RTADeployment deployment = handler.getDefaultDeployment("rta", "rta_eats_order");
-        Assert.assertNotNull(deployment);
-        Assert.assertEquals(deployment.getCluster(), "stagingb");
-    }
-
-    @Test
-    public void testBadDeploymentRequest()
+    public void testBadEntityRequest()
     {
         try {
-            RTADeployment deployment = handler.getDefaultDeployment("rta", "not_exists");
+            handler.getEntity("rta", "not_exists");
             Assert.fail("Should have failed here");
         }
         catch (NoSuchElementException e) {

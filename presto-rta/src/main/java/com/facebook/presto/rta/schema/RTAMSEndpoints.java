@@ -12,15 +12,13 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
 public final class RTAMSEndpoints
 {
     private static final String RTAMS_HOST = "localhost";
     private static final int RTAMS_PORT = 5436;
     private static final String NAMESPACE_ENDPOINT = "namespaces";
-    // Parameter: namespace
-    private static final String TABLES_UNDER_NAMESPACE = "namespaces/%s";
     // Parameters: namespace, table
     private static final String SCHEMA_FROM_NAMESPACE_TABLE = "tables/definitions/%s/%s";
     private static final String DEPLOYMENT_FROM_NAMESPACE_TABLE = "tables/%s/%s/deployments";

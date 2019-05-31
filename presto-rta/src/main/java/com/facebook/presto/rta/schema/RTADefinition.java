@@ -12,12 +12,16 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 import java.util.Objects;
+
+import static com.facebook.presto.rta.RtaUtil.checked;
+import static com.facebook.presto.rta.RtaUtil.checkedOr;
+import static com.google.common.base.MoreObjects.toStringHelper;
 
 /**
  * This class communicates with the rta-ums (muttley)/rtaums (udeploy) service. It's api is available here:
@@ -41,6 +45,15 @@ public class RTADefinition
         return metadata;
     }
 
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("fields", fields)
+                .add("metadata", metadata)
+                .toString();
+    }
+
     public static class Field
     {
         @JsonProperty
@@ -60,11 +73,11 @@ public class RTADefinition
 
         public Field(@JsonProperty("type") String type, @JsonProperty("name") String name, @JsonProperty("uberLogicalType") String uberLogicalType, @JsonProperty("columnType") String columnType, @JsonProperty("cardinality") String cardinality)
         {
-            this.type = type;
-            this.name = name;
-            this.uberLogicalType = uberLogicalType;
-            this.columnType = columnType;
-            this.cardinality = cardinality;
+            this.type = checked(type, "type");
+            this.name = checked(name, "name");
+            this.uberLogicalType = checkedOr(uberLogicalType, "");
+            this.columnType = checkedOr(columnType, "");
+            this.cardinality = checkedOr(cardinality, "");
         }
 
         public String getType()
@@ -114,6 +127,18 @@ public class RTADefinition
         {
             return Objects.hash(type, name, uberLogicalType, columnType, cardinality);
         }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("type", type)
+                    .add("name", name)
+                    .add("uberLogicalType", uberLogicalType)
+                    .add("columnType", columnType)
+                    .add("cardinality", cardinality)
+                    .toString();
+        }
     }
 
     public static class RTAMetadata
@@ -140,6 +165,16 @@ public class RTADefinition
         public List<String> getQueryTypes()
         {
             return queryTypes;
+        }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("isFactTable", isFactTable)
+                    .add("primaryKeys", primaryKeys)
+                    .add("queryTypes", queryTypes)
+                    .toString();
         }
     }
 }

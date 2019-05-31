@@ -147,13 +147,19 @@
     </artifactSet>
 
     <artifactSet to="plugin/pinot">
-        <artifact id="${project.groupId}:presto-pinot:zip:${project.version}">
+        <artifact id="${project.groupId}:presto-pinot-plugin:zip:${project.version}">
             <unpack />
         </artifact>
     </artifactSet>
 
     <artifactSet to="plugin/aresdb">
-        <artifact id="${project.groupId}:presto-aresdb:zip:${project.version}">
+        <artifact id="${project.groupId}:presto-aresdb-plugin:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
+    <artifactSet to="plugin/rta">
+        <artifact id="${project.groupId}:presto-rta:zip:${project.version}">
             <unpack />
         </artifact>
     </artifactSet>

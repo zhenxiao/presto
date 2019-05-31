@@ -12,8 +12,9 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
+import com.facebook.presto.rta.RtaStorageType;
 import com.facebook.presto.testing.assertions.Assert;
 import org.testng.annotations.Test;
 
@@ -32,7 +33,7 @@ public class TestRTAClient
         Assert.assertEquals(deployment.getCluster(), "stagingb");
         Assert.assertEquals(deployment.getName(), "rta_eats_order");
         Assert.assertEquals(deployment.getNamespace(), "rta");
-        Assert.assertEquals(deployment.getStorageType(), RTADeployment.StorageType.ARESDB);
+        Assert.assertEquals(deployment.getStorageType(), RtaStorageType.ARESDB);
         Assert.assertEquals(deployment.getPhysicalSchema().getColumns().size(), 4);
     }
 

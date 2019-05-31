@@ -12,8 +12,9 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
+import com.facebook.presto.rta.RtaConfig;
 import com.google.common.collect.ImmutableListMultimap;
 import io.airlift.http.client.HttpClient;
 import io.airlift.http.client.HttpStatus;
@@ -24,6 +25,8 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+
+import static java.util.Objects.requireNonNull;
 
 public final class TestSchemaUtils
 {
@@ -39,7 +42,7 @@ public final class TestSchemaUtils
         return rtamsClient.getDefinition("rta", "rta_eats_order");
     }
 
-    static List<RTADeployment> getDeployments()
+    public static List<RTADeployment> getDeployments()
             throws IOException
     {
         String resource = "/eats_order_deployments.json";
@@ -65,14 +68,14 @@ public final class TestSchemaUtils
 
     static RTAMSClient getMockClient(String resource, int returnCode)
     {
-        InputStream deploymentOutput = TestRTAClient.class.getResourceAsStream(resource);
+        InputStream deploymentOutput = requireNonNull(TestRTAClient.class.getResourceAsStream(resource), resource + " not found");
         HttpClient client = new TestingHttpClient(request -> {
             HttpStatus status = HttpStatus.fromStatusCode(returnCode);
             com.google.common.collect.ImmutableListMultimap.Builder<String, String> headers = ImmutableListMultimap.builder();
             return new TestingResponse(status, headers.build(), deploymentOutput);
         });
         client = Mockito.spy(client);
-        RTAMSClient rtamsClient = new RTAMSClient(client);
+        RTAMSClient rtamsClient = new RTAMSClient(client, new RtaConfig().setRtaUmsService("rtaums-staging"));
         return rtamsClient;
     }
 }

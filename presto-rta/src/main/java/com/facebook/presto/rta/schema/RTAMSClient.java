@@ -12,8 +12,9 @@
  * limitations under the License.
  */
 
-package com.facebook.presto.aresdb.schema;
+package com.facebook.presto.rta.schema;
 
+import com.facebook.presto.rta.RtaConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,8 +43,6 @@ public class RTAMSClient
     private static final String MUTTLEY_RPC_CALLER_HEADER = "Rpc-Caller";
     private static final String MUTTLEY_RPC_CALLER_VALUE = "presto";
     private static final String MUTTLEY_RPC_SERVICE_HEADER = "Rpc-Service";
-    private static final String DEFAULT_MUTTLEY_CLUSTER = "rtaums-staging";
-    private static final String MUTTLEY_RPC_SERVICE_VALUE = "rtaums";
     private static final String APPLICATION_JSON = "application/json";
     private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -124,16 +123,16 @@ public class RTAMSClient
     private HttpClient httpClient;
     private final String muttleyService;
 
-    RTAMSClient(HttpClient httpClient, String muttleyRpcServiceValue)
+    private RTAMSClient(HttpClient httpClient, String muttleyRpcServiceValue)
     {
         muttleyService = muttleyRpcServiceValue;
         this.httpClient = httpClient;
     }
 
     @Inject
-    RTAMSClient(@ForRTAMS HttpClient httpClient)
+    RTAMSClient(@ForRTAMS HttpClient httpClient, RtaConfig rtaConfig)
     {
-        this(httpClient, DEFAULT_MUTTLEY_CLUSTER);
+        this(httpClient, rtaConfig.getRtaUmsService());
     }
 
     Request.Builder getBaseRequest()

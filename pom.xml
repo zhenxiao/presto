@@ -139,6 +139,9 @@
         <module>presto-pinot</module>
         <module>presto-security-uber</module>
         <module>presto-aresdb</module>
+        <module>presto-aresdb-plugin</module>
+        <module>presto-pinot-plugin</module>
+        <module>presto-rta</module>
     </modules>
 
     <dependencyManagement>
@@ -318,6 +321,24 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-aresdb</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-aresdb-plugin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-pinot-plugin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-rta</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
