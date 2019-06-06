@@ -159,25 +159,20 @@ public class AresDbConnection
 
         requestBuilder = requestBuilder.setBodyGenerator(createStaticBodyGenerator(payload, StandardCharsets.UTF_8));
 
-        StringResponse stringResponse = requestWithProxyServiceHeaders(requestBuilder, aresDbConfig.getServiceName());
+        Request request = requestBuilder.setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                .setHeader(aresDbConfig.getCallerHeaderParam(), aresDbConfig.getCallerHeaderValue())
+                .setHeader(aresDbConfig.getServiceHeaderParam(), aresDbConfig.getServiceName())
+                .build();
+
+        StringResponse stringResponse = httpClient.execute(request, createStringResponseHandler());
 
         if (isValidAresDbHttpResponseCode(stringResponse.getStatusCode())) {
             return stringResponse.getBody();
         }
         else {
             throw new AresDbException(ARESDB_HTTP_ERROR,
-                    format("Unexpected response status from AresDB: status code: %s, error: %s", stringResponse.getStatusCode(), stringResponse.getBody()),
+                    format("Unexpected response status from AresDB: status code: %s, error: %s, url: %s, headers: %s", stringResponse.getStatusCode(), stringResponse.getBody(), request.getUri(), request.getHeaders()),
                     payload);
         }
-    }
-
-    private StringResponse requestWithProxyServiceHeaders(Request.Builder requestBuilder, String serviceName)
-    {
-        Request request = requestBuilder.setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
-                .setHeader(aresDbConfig.getCallerHeaderParam(), aresDbConfig.getCallerHeaderValue())
-                .setHeader(aresDbConfig.getServiceHeaderParam(), serviceName)
-                .build();
-
-        return httpClient.execute(request, createStringResponseHandler());
     }
 }
