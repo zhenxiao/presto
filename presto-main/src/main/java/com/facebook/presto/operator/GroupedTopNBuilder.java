@@ -48,13 +48,20 @@ import static java.util.Objects.requireNonNull;
  */
 public class GroupedTopNBuilder
 {
+    enum RankingFunction
+    {
+        ROW_NUMBER, RANK, DENSE_RANK
+    }
+
     private static final long INSTANCE_SIZE = ClassLayout.parseClass(GroupedTopNBuilder.class).instanceSize();
     // compact a page when 50% of its positions are unreferenced
     private static final int COMPACT_THRESHOLD = 2;
 
     private final List<Type> sourceTypes;
     private final int topN;
-    private final boolean produceRowNumber;
+
+    private final RankingFunction rankingFunction;
+    private final boolean produceRanking;
     private final GroupByHash groupByHash;
 
     // a map of heaps, each of which records the top N rows
@@ -74,13 +81,15 @@ public class GroupedTopNBuilder
             List<Type> sourceTypes,
             PageWithPositionComparator comparator,
             int topN,
-            boolean produceRowNumber,
+            RankingFunction rankingFunction,
+            boolean produceRanking,
             GroupByHash groupByHash)
     {
         this.sourceTypes = requireNonNull(sourceTypes, "sourceTypes is null");
         checkArgument(topN > 0, "topN must be > 0");
         this.topN = topN;
-        this.produceRowNumber = produceRowNumber;
+        this.rankingFunction = rankingFunction;
+        this.produceRanking = produceRanking;
         this.groupByHash = requireNonNull(groupByHash, "groupByHash is not null");
 
         requireNonNull(comparator, "comparator is null");
@@ -391,7 +400,7 @@ public class GroupedTopNBuilder
 
         ResultIterator()
         {
-            if (produceRowNumber) {
+            if (produceRanking) {
                 pageBuilder = new PageBuilder(new ImmutableList.Builder<Type>().addAll(sourceTypes).add(BIGINT).build());
             }
             else {
@@ -421,7 +430,7 @@ public class GroupedTopNBuilder
                     sourceTypes.get(i).appendTo(pageReferences.get(row.getPageId()).getPage().getBlock(i), row.getPosition(), pageBuilder.getBlockBuilder(i));
                 }
 
-                if (produceRowNumber) {
+                if (produceRanking) {
                     BIGINT.writeLong(pageBuilder.getBlockBuilder(sourceTypes.size()), currentGroupPosition + 1);
                 }
                 pageBuilder.declarePosition();

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
 
+import static com.facebook.presto.operator.GroupedTopNBuilder.RankingFunction.ROW_NUMBER;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Verify.verify;
@@ -116,6 +117,7 @@ public class TopNOperator
                     types,
                     new SimplePageWithPositionComparator(types, sortChannels, sortOrders),
                     n,
+                    ROW_NUMBER,
                     false,
                     new NoChannelGroupByHash());
         }

@@ -38,6 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.facebook.presto.operator.GroupedTopNBuilder.RankingFunction.ROW_NUMBER;
 import static com.facebook.presto.spi.block.SortOrder.ASC_NULLS_FIRST;
 import static com.facebook.presto.spi.block.SortOrder.DESC_NULLS_LAST;
 import static com.facebook.presto.spi.type.DateType.DATE;
@@ -78,7 +79,7 @@ public class BenchmarkGroupedTopNBuilder
         public void setup()
         {
             page = createInputPage(Integer.valueOf(positions), types);
-            topNBuilder = new GroupedTopNBuilder(types, comparator, Integer.valueOf(topN), false, new NoChannelGroupByHash());
+            topNBuilder = new GroupedTopNBuilder(types, comparator, Integer.valueOf(topN), ROW_NUMBER, false, new NoChannelGroupByHash());
         }
 
         public GroupedTopNBuilder getTopNBuilder()

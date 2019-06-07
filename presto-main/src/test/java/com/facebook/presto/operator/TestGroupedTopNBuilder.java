@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.facebook.presto.RowPagesBuilder.rowPagesBuilder;
 import static com.facebook.presto.metadata.MetadataManager.createTestMetadataManager;
+import static com.facebook.presto.operator.GroupedTopNBuilder.RankingFunction.ROW_NUMBER;
 import static com.facebook.presto.operator.PageAssertions.assertPageEquals;
 import static com.facebook.presto.operator.UpdateMemory.NOOP;
 import static com.facebook.presto.spi.block.SortOrder.ASC_NULLS_LAST;
@@ -76,6 +77,7 @@ public class TestGroupedTopNBuilder
                     throw new UnsupportedOperationException();
                 },
                 5,
+                ROW_NUMBER,
                 false,
                 new NoChannelGroupByHash());
         assertFalse(groupedTopNBuilder.buildResult().hasNext());
@@ -111,6 +113,7 @@ public class TestGroupedTopNBuilder
                 types,
                 new SimplePageWithPositionComparator(types, ImmutableList.of(1), ImmutableList.of(ASC_NULLS_LAST)),
                 2,
+                ROW_NUMBER,
                 produceRowNumbers,
                 groupByHash);
         assertBuilderSize(groupByHash, types, ImmutableList.of(), ImmutableList.of(), groupedTopNBuilder.getEstimatedSizeInBytes());
@@ -183,6 +186,7 @@ public class TestGroupedTopNBuilder
                 types,
                 new SimplePageWithPositionComparator(types, ImmutableList.of(1), ImmutableList.of(ASC_NULLS_LAST)),
                 5,
+                ROW_NUMBER,
                 produceRowNumbers,
                 new NoChannelGroupByHash());
         assertBuilderSize(new NoChannelGroupByHash(), types, ImmutableList.of(), ImmutableList.of(), groupedTopNBuilder.getEstimatedSizeInBytes());
@@ -243,6 +247,7 @@ public class TestGroupedTopNBuilder
                 types,
                 new SimplePageWithPositionComparator(types, ImmutableList.of(1), ImmutableList.of(ASC_NULLS_LAST)),
                 5,
+                ROW_NUMBER,
                 false,
                 groupByHash);
         assertBuilderSize(groupByHash, types, ImmutableList.of(), ImmutableList.of(), groupedTopNBuilder.getEstimatedSizeInBytes());
@@ -293,6 +298,7 @@ public class TestGroupedTopNBuilder
                 types,
                 new SimplePageWithPositionComparator(types, ImmutableList.of(1), ImmutableList.of(ASC_NULLS_LAST)),
                 1,
+                ROW_NUMBER,
                 false,
                 createGroupByHash(ImmutableList.of(types.get(0)), ImmutableList.of(0), NOOP));
 
@@ -387,6 +393,7 @@ public class TestGroupedTopNBuilder
                 types,
                 new SimplePageWithPositionComparator(types, ImmutableList.of(1), ImmutableList.of(ASC_NULLS_LAST)),
                 pageCount * rowCount,
+                ROW_NUMBER,
                 false,
                 groupByHash);
 
