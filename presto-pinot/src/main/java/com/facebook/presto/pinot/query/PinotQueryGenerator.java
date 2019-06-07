@@ -17,7 +17,6 @@ import com.facebook.presto.pinot.PinotColumnHandle;
 import com.facebook.presto.pinot.PinotConfig;
 import com.facebook.presto.pinot.PinotException;
 import com.facebook.presto.pinot.PinotTableHandle;
-import com.facebook.presto.pinot.query.PinotExpressionConverter.PinotExpression;
 import com.facebook.presto.pinot.query.PinotQueryGeneratorContext.Selection;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
@@ -260,7 +259,7 @@ public class PinotQueryGenerator
         public PinotQueryGeneratorContext visitFilterNode(FilterPipelineNode filter, PinotQueryGeneratorContext context)
         {
             requireNonNull(context, "context is null");
-            String predicate = filter.getPredicate().accept(new PinotExpressionConverter(), context.getSelections()).getDefinition();
+            String predicate = filter.getPredicate().accept(new PinotFilterExpressionConverter(), context.getSelections()).getDefinition();
             return context.withFilter(predicate);
         }
 
@@ -276,7 +275,7 @@ public class PinotQueryGenerator
             List<Type> outputTypes = project.getRowType();
             for (int fieldId = 0; fieldId < pushdownExpressions.size(); fieldId++) {
                 PushDownExpression pushdownExpression = pushdownExpressions.get(fieldId);
-                PinotExpression pinotExpression = pushdownExpression.accept(new PinotExpressionConverter(), context.getSelections());
+                PinotExpression pinotExpression = pushdownExpression.accept(new PinotProjectExpressionConverter(), context.getSelections());
                 newSelections.put(
                         outputColumns.get(fieldId),
                         new Selection(pinotExpression.getDefinition(), pinotExpression.getOrigin(), outputTypes.get(fieldId)));

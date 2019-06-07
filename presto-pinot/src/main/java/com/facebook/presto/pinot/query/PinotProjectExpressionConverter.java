@@ -35,19 +35,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION;
-import static com.facebook.presto.pinot.query.PinotExpressionConverter.PinotExpression.derived;
+import static com.facebook.presto.pinot.query.PinotExpression.derived;
 import static java.lang.String.format;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Convert {@link PushDownExpression} into Pinot complaint expression text
+ * Convert {@link PushDownExpression} in project into Pinot complaint expression text
  */
-class PinotExpressionConverter
-        extends PushDownExpressionVisitor<PinotExpressionConverter.PinotExpression, Map<String, Selection>>
+class PinotProjectExpressionConverter
+        extends PushDownExpressionVisitor<PinotExpression, Map<String, Selection>>
 {
     // Pinot does not support modulus yet
     private static final Map<String, String> PRESTO_TO_PINOT_OP = ImmutableMap.of(
@@ -157,32 +156,25 @@ class PinotExpressionConverter
     public PinotExpression visitLogicalBinary(PushDownLogicalBinaryExpression logical, Map<String, Selection> context)
     {
         return derived(format("(%s %s %s)",
-                logical.getLeft().accept(this, context).definition, logical.getOperator(), logical.getRight().accept(this, context).definition));
+                logical.getLeft().accept(this, context).getDefinition(), logical.getOperator(), logical.getRight().accept(this, context).getDefinition()));
     }
 
     @Override
     public PinotExpression visitInExpression(PushDownInExpression in, Map<String, Selection> context)
     {
-        return derived(format("(%s IN (%s))",
-                in.getValue().accept(this, context).definition,
-                in.getArguments().stream()
-                        .map(a -> a.accept(this, context).definition)
-                        .collect(Collectors.joining(", "))));
+        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "IN <list> expressions is not supported in project");
     }
 
     @Override
     public PinotExpression visitBetweenExpression(PushDownBetweenExpression between, Map<String, Selection> context)
     {
-        return derived(format("(%s BETWEEN %s AND %s)",
-                between.getValue().accept(this, context).definition,
-                between.getLeft().accept(this, context).definition,
-                between.getRight().accept(this, context).definition));
+        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "BETWEEN expressions is not supported in project");
     }
 
     @Override
     public PinotExpression visitNotExpression(PushDownNotExpression not, Map<String, Selection> context)
     {
-        return derived(format("NOT %s", not.getInput().accept(this, context).definition));
+        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "NOT expressions is not supported in project");
     }
 
     @Override
@@ -214,7 +206,7 @@ class PinotExpressionConverter
         if (expression.getLeft() == null) {
             // unary ...
             String prefix = expression.getOperator().equals("-") ? "-" : "";
-            return derived(prefix + right.definition);
+            return derived(prefix + right.getDefinition());
         }
 
         PinotExpression left = expression.getLeft().accept(this, context);
@@ -224,33 +216,6 @@ class PinotExpressionConverter
             throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "Unsupported binary expression " + prestoOp);
         }
 
-        return derived(format("%s(%s, %s)", pinotOp, left.definition, right.definition));
-    }
-
-    public static class PinotExpression
-    {
-        private final String definition;
-        private final Origin origin;
-
-        PinotExpression(String definition, Origin origin)
-        {
-            this.definition = definition;
-            this.origin = origin;
-        }
-
-        static PinotExpression derived(String definition)
-        {
-            return new PinotExpression(definition, Origin.DERIVED);
-        }
-
-        public String getDefinition()
-        {
-            return definition;
-        }
-
-        public Origin getOrigin()
-        {
-            return origin;
-        }
+        return derived(format("%s(%s, %s)", pinotOp, left.getDefinition(), right.getDefinition()));
     }
 }
