@@ -24,11 +24,11 @@ import com.facebook.presto.spi.predicate.SortedRangeSet;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.predicate.ValueSet;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.slice.Slices;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,6 +52,7 @@ import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.type.ColorType.COLOR;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.airlift.concurrent.MoreFutures.getFutureValue;
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -139,6 +140,47 @@ public class TestPinotSplitManager
         }
     }
 
+    @Test
+    public void testGetSplitsWithTupleDomainScanOutputColumnAliases()
+    {
+        Domain regionIdDomain = Domain.create(ValueSet.ofRanges(
+                Range.lessThan(BIGINT, 10L)), false);
+
+        Domain cityDomain = Domain.create(ValueSet.ofRanges(
+                Range.equal(VARCHAR, Slices.utf8Slice("Campbell")),
+                Range.equal(VARCHAR, Slices.utf8Slice("Union City"))), false);
+
+        Map<ColumnHandle, Domain> domainMap = new HashMap<>();
+        domainMap.put(regionId, regionIdDomain);
+        domainMap.put(city, cityDomain);
+        TupleDomain<ColumnHandle> constraintSummary = TupleDomain.withColumnDomains(domainMap);
+
+        TableScanPipeline scanPipeline = pipeline(
+                scan(realtimeOnlyTable,
+                        columnHandles(TestPinotSplitManager.regionId, TestPinotSplitManager.city, fare, secondsSinceEpoch),
+                        asList("region_id_123", "city_124", "fare_125", "secondssinceepoch")));
+        List<PinotSplit> splits = getSplitsHelper(realtimeOnlyTable, scanPipeline, Optional.of(constraintSummary));
+        assertEquals(splits.size(), 4); // expects 4 splits as there are 2 servers holding 4 segments total
+        for (PinotSplit split : splits) {
+            // make sure all splits contain the filter that comes from TupleDomain
+            assertTrue(split.getPql().get().contains("((regionId < 10) AND ((city = 'Campbell') OR (city = 'Union City'))"));
+        }
+
+        scanPipeline = pipeline(
+                scan(hybridTable,
+                        columnHandles(TestPinotSplitManager.regionId, TestPinotSplitManager.city, fare, secondsSinceEpoch),
+                        asList("region_id_123", "city_124", "fare_125", "secondssinceepoch")));
+
+        splits = getSplitsHelper(hybridTable, scanPipeline, Optional.of(constraintSummary));
+        assertEquals(splits.size(), 8); // expects 8 splits as there are 4 servers holding 4 segments total (split between offline and online)
+        for (PinotSplit split : splits) {
+            // make sure all splits contain the filter that comes from TupleDomain and the time filter
+            String pql = split.getPql().get();
+            assertTrue(pql.contains("((regionId < 10) AND ((city = 'Campbell') OR (city = 'Union City'))"), pql);
+            assertTrue(pql.contains("secondsSinceEpoch >=") || pql.contains("secondsSinceEpoch <"), pql);
+        }
+    }
+
     private List<PinotSplit> getSplitsHelper(PinotTableHandle pinotTable, TableScanPipeline scanPipeline, Optional<TupleDomain<ColumnHandle>> constraint)
     {
         PinotTableLayoutHandle pinotTableLayout = new PinotTableLayoutHandle(pinotTable, constraint, Optional.of(scanPipeline));
@@ -155,10 +197,10 @@ public class TestPinotSplitManager
     @Test
     public void testSingleValueRanges()
     {
-        Domain domain = com.facebook.presto.spi.predicate.Domain.multipleValues(BIGINT, new ArrayList<>(Arrays.asList(1L, 10L)));
-        String expectedFilter = "((city_id = 1) OR (city_id = 10))";
+        Domain domain = com.facebook.presto.spi.predicate.Domain.multipleValues(BIGINT, new ArrayList<>(asList(1L, 10L)));
 
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, "city_id").get().toString(), "((city_id = 1) OR (city_id = 10))");
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, "city_id_123").get().toString(), "((city_id_123 = 1) OR (city_id_123 = 10))");
     }
 
     @Test
@@ -168,7 +210,7 @@ public class TestPinotSplitManager
                 Range.greaterThan(BIGINT, 1L).intersect(Range.lessThan(BIGINT, 10L))), false);
 
         String expectedFilter = "((1 < city_id) AND (city_id < 10))";
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, columnCityId.getColumnName()).get().toString(), expectedFilter);
     }
 
     @Test
@@ -178,7 +220,7 @@ public class TestPinotSplitManager
                 Range.lessThanOrEqual(BIGINT, 10L)), false);
 
         String expectedFilter = "(city_id <= 10)";
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, columnCityId.getColumnName()).get().toString(), expectedFilter);
     }
 
     @Test
@@ -190,7 +232,7 @@ public class TestPinotSplitManager
                 Range.greaterThan(BIGINT, 12L).intersect(Range.lessThan(BIGINT, 18L))), false);
 
         String expectedFilter = "(((1 < city_id) AND (city_id < 10)) OR (((12 < city_id) AND (city_id < 18)) OR (city_id = 20)))";
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId).get().toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, columnCityId.getColumnName()).get().toString(), expectedFilter);
     }
 
     @Test
@@ -208,8 +250,12 @@ public class TestPinotSplitManager
         domainMap.put(columnCountryName, domain2);
         TupleDomain<ColumnHandle> constraintSummary = TupleDomain.withColumnDomains(domainMap);
 
+        Map<ColumnHandle, String> columnAliasMap = ImmutableMap.of(
+                columnCityId, columnCityId.getColumnName(),
+                columnCountryName, columnCountryName.getColumnName());
+
         String expectedFilter = "((city_id < 10) AND ((country_name = 'cn') OR (country_name = 'us')))";
-        assertEquals(pinotSplitManager.getPredicate(constraintSummary).toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getPredicate(constraintSummary, columnAliasMap).toString(), expectedFilter);
     }
 
     @Test
@@ -221,9 +267,13 @@ public class TestPinotSplitManager
         Domain domain1 = Domain.create(new EquatableValueSet(COLOR, false, set), false);
         Map<ColumnHandle, Domain> domainMap = new HashMap<>();
         domainMap.put(columnColor, domain1);
+
+        Map<ColumnHandle, String> columnAliasMap = ImmutableMap.of(columnColor, columnColor.getColumnName());
+
         TupleDomain<ColumnHandle> constraintSummary = TupleDomain.withColumnDomains(domainMap);
+
         String expectedFilter = "color NOT IN (1, 2)";
-        assertEquals(pinotSplitManager.getPredicate(constraintSummary).toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getPredicate(constraintSummary, columnAliasMap).toString(), expectedFilter);
     }
 
     /**
@@ -246,9 +296,10 @@ public class TestPinotSplitManager
         Map<ColumnHandle, Domain> domainMap = new HashMap<>();
         domainMap.put(columnCityId, domain1);
         TupleDomain<ColumnHandle> constraintSummary = TupleDomain.withColumnDomains(domainMap);
+        Map<ColumnHandle, String> columnAliasMap = ImmutableMap.of(columnCityId, columnCityId.getColumnName());
 
         String expectedFilter = "((city_id < 1) OR (((1 < city_id) AND (city_id < 10)) OR (10 < city_id)))";
-        assertEquals(pinotSplitManager.getPredicate(constraintSummary).toString(), expectedFilter);
+        assertEquals(pinotSplitManager.getPredicate(constraintSummary, columnAliasMap).toString(), expectedFilter);
     }
 
     @Test
@@ -257,6 +308,6 @@ public class TestPinotSplitManager
         SortedRangeSet sortedRangeSet = SortedRangeSet.copyOf(BIGINT, new ArrayList<>());
         Domain domain = Domain.create(sortedRangeSet, false);
 
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId), Optional.empty());
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, columnCityId.getColumnName()), Optional.empty());
     }
 }

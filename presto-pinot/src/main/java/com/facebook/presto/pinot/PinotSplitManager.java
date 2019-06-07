@@ -29,6 +29,7 @@ import com.facebook.presto.spi.pipeline.PushDownInExpression;
 import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
+import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.pipeline.TableScanPipelineVisitor;
 import com.facebook.presto.spi.predicate.Domain;
@@ -45,6 +46,7 @@ import javax.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,7 +59,6 @@ import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
-import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 public class PinotSplitManager
@@ -103,13 +104,13 @@ public class PinotSplitManager
         throw new PinotException(PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), "unsupported market type in TupleDomain: " + value.getClass());
     }
 
-    static PushDownExpression getPredicate(TupleDomain<ColumnHandle> constraint)
+    static PushDownExpression getPredicate(TupleDomain<ColumnHandle> constraint, Map<ColumnHandle, String> columnAliasMap)
     {
         List<PushDownExpression> expressions = new ArrayList<>();
         Map<ColumnHandle, Domain> columnHandleDomainMap = constraint.getDomains().get();
         for (ColumnHandle k : columnHandleDomainMap.keySet()) {
             Domain domain = columnHandleDomainMap.get(k);
-            Optional<PushDownExpression> columnPredicate = getColumnPredicate(domain, ((PinotColumnHandle) k));
+            Optional<PushDownExpression> columnPredicate = getColumnPredicate(domain, ((PinotColumnHandle) k), columnAliasMap.get(k));
             if (columnPredicate.isPresent()) {
                 expressions.add(columnPredicate.get());
             }
@@ -123,9 +124,9 @@ public class PinotSplitManager
         return predicate.get();
     }
 
-    static Optional<PushDownExpression> getColumnPredicate(Domain domain, PinotColumnHandle columnHandle)
+    static Optional<PushDownExpression> getColumnPredicate(Domain domain, PinotColumnHandle columnHandle, String columnAlias)
     {
-        PushDownExpression inputColumn = new PushDownInputColumn(columnHandle.getDataType().getTypeSignature(), columnHandle.getColumnName().toLowerCase(ENGLISH));
+        PushDownExpression inputColumn = new PushDownInputColumn(columnHandle.getDataType().getTypeSignature(), columnAlias);
         List<PushDownExpression> conditions = new ArrayList<>();
         TypeSignature booleanType = BOOLEAN.getTypeSignature();
         domain.getValues().getValuesProcessor().consume(
@@ -208,15 +209,28 @@ public class PinotSplitManager
             return existingPipeline;
         }
 
-        // convert TupleDomain into FilterPipelineNode
-        PushDownExpression predicate = getPredicate(constraint.get());
-
         checkArgument(existingPipeline.getPipelineNodes().size() == 1, "expected to contain just the scan node in pipeline");
-        final PipelineNode scanNode = existingPipeline.getPipelineNodes().get(0);
-        final FilterPipelineNode filterNode = new FilterPipelineNode(predicate, scanNode.getOutputColumns(), scanNode.getRowType());
+        final PipelineNode baseNode = existingPipeline.getPipelineNodes().get(0);
+        checkArgument(baseNode instanceof TablePipelineNode, "expected ");
+        final TablePipelineNode tablePipelineNode = (TablePipelineNode) baseNode;
+
+        // Create map of underlying column to column alias that TablePipelineNode node exposes as. We are constructing filter on top of the TablePipelineNode and
+        // the filter should refer the column names in terms of what is exposed by the TablePipelineNode. TablePipelineNode can map the underlying ColumnHandle to a different
+        // name than the actual column name.
+        Map<ColumnHandle, String> columnAliasMap = new HashMap<>();
+        List<ColumnHandle> inputColumns = tablePipelineNode.getInputColumns();
+        List<String> outputColumnAliases = tablePipelineNode.getOutputColumns();
+        for (int i = 0; i < inputColumns.size(); i++) {
+            columnAliasMap.put(inputColumns.get(i), outputColumnAliases.get(i));
+        }
+
+        // convert TupleDomain into FilterPipelineNode
+        PushDownExpression predicate = getPredicate(constraint.get(), columnAliasMap);
+
+        final FilterPipelineNode filterNode = new FilterPipelineNode(predicate, tablePipelineNode.getOutputColumns(), tablePipelineNode.getRowType());
 
         TableScanPipeline newScanPipeline = new TableScanPipeline();
-        newScanPipeline.addPipeline(scanNode, existingPipeline.getOutputColumnHandles());
+        newScanPipeline.addPipeline(tablePipelineNode, existingPipeline.getOutputColumnHandles());
         newScanPipeline.addPipeline(filterNode, existingPipeline.getOutputColumnHandles());
 
         return newScanPipeline;

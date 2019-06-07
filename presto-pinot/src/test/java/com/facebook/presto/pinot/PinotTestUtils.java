@@ -92,8 +92,13 @@ public class PinotTestUtils
     public static PipelineNode scan(ConnectorTableHandle tableHandle, List<ColumnHandle> inputColumns)
     {
         List<String> columnNames = inputColumns.stream().map(c -> ((PinotColumnHandle) c).getColumnName().toLowerCase(ENGLISH)).collect(Collectors.toList());
+        return scan(tableHandle, inputColumns, columnNames);
+    }
+
+    public static PipelineNode scan(ConnectorTableHandle tableHandle, List<ColumnHandle> inputColumns, List<String> outputColumnNames)
+    {
         List<Type> rowType = inputColumns.stream().map(c -> ((PinotColumnHandle) c).getDataType()).collect(Collectors.toList());
-        return new TablePipelineNode(tableHandle, inputColumns, columnNames, rowType);
+        return new TablePipelineNode(tableHandle, inputColumns, outputColumnNames, rowType);
     }
 
     public static PipelineNode agg(List<AggregationPipelineNode.Node> nodes, boolean partial)
