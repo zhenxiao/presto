@@ -23,6 +23,7 @@ import com.linkedin.pinot.common.response.ProcessingException;
 import com.linkedin.pinot.common.response.ServerInstance;
 import com.linkedin.pinot.common.utils.DataTable;
 import com.linkedin.pinot.core.common.datatable.DataTableFactory;
+import com.linkedin.pinot.pql.parsers.Pql2CompilationException;
 import com.linkedin.pinot.pql.parsers.Pql2Compiler;
 import com.linkedin.pinot.serde.SerDe;
 import com.linkedin.pinot.transport.common.CompositeFuture;
@@ -48,14 +49,19 @@ import javax.annotation.Nullable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
+
+import static com.facebook.presto.pinot.PinotErrorCode.PINOT_INVALID_PQL_GENERATED;
+import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNCLASSIFIED_ERROR;
+import static java.lang.String.format;
 
 public class PinotScatterGatherQueryClient
 {
@@ -64,7 +70,6 @@ public class PinotScatterGatherQueryClient
     private static final String PRESTO_HOST_PREFIX = "presto-pinot-master";
     private static final boolean DEFAULT_EMIT_TABLE_LEVEL_METRICS = true;
 
-    private final AtomicLong requestIdGenerator;
     private final String prestoHostId;
     private final MetricsRegistry registry;
     private final BrokerMetrics brokerMetrics;
@@ -81,7 +86,6 @@ public class PinotScatterGatherQueryClient
     @Inject
     public PinotScatterGatherQueryClient(PinotConfig pinotConfig)
     {
-        requestIdGenerator = new AtomicLong(0);
         prestoHostId = getDefaultPrestoId();
 
         registry = new MetricsRegistry();
@@ -125,14 +129,13 @@ public class PinotScatterGatherQueryClient
 
     public Map<ServerInstance, DataTable> queryPinotServerForDataTable(String pql, String serverHost, String segment)
     {
-        long requestId = requestIdGenerator.incrementAndGet();
         BrokerRequest brokerRequest;
         try {
             brokerRequest = REQUEST_COMPILER.compileToBrokerRequest(pql);
         }
-        catch (Exception e) {
-            log.info("Parsing error on requestId %d, PQL = %s, Error = %s", requestId, pql, e.getMessage());
-            return null;
+        catch (Pql2CompilationException e) {
+            throw new PinotException(PINOT_INVALID_PQL_GENERATED, Optional.of(pql),
+                    format("Parsing error on %s, Error = %s", serverHost, e.getMessage()), e);
         }
 
         Map<String, List<String>> routingTable = new HashMap<>();
@@ -146,15 +149,25 @@ public class PinotScatterGatherQueryClient
 
         if (compositeFuture == null) {
             // No server found in either OFFLINE or REALTIME table.
-            return null;
+            throw new PinotException(PINOT_UNCLASSIFIED_ERROR, Optional.of(pql), format("Failed to send read request to %s", serverHost));
         }
 
         Map<ServerInstance, DataTable> dataTableMap = new HashMap<>();
 
-        List<ProcessingException> processingExceptions = new ArrayList<>();
         Map<ServerInstance, byte[]> serverResponseMap = null;
-        serverResponseMap = gatherServerResponses(compositeFuture, scatterGatherStats, true, brokerRequest.getQuerySource().getTableName(), processingExceptions);
-        deserializeServerResponses(serverResponseMap, true, dataTableMap, brokerRequest.getQuerySource().getTableName(), processingExceptions);
+        try {
+            serverResponseMap = gatherServerResponses(compositeFuture, scatterGatherStats, true, brokerRequest.getQuerySource().getTableName());
+        }
+        catch (ProcessingException e) {
+            throw new PinotException(PINOT_UNCLASSIFIED_ERROR, Optional.of(pql), format("Failed to gather responses from server %s", serverHost), e);
+        }
+
+        try {
+            deserializeServerResponses(serverResponseMap, true, dataTableMap, brokerRequest.getQuerySource().getTableName());
+        }
+        catch (ProcessingException e) {
+            throw new PinotException(PINOT_UNCLASSIFIED_ERROR, Optional.of(pql), format("Failed to parse response from server %s", serverHost), e);
+        }
         return dataTableMap;
     }
 
@@ -165,15 +178,14 @@ public class PinotScatterGatherQueryClient
      * @param scatterGatherStats scatter-gather statistics.
      * @param isOfflineTable whether the scatter-gather target is an OFFLINE table.
      * @param tableNameWithType table name with type suffix.
-     * @param processingExceptions list of processing exceptions.
      * @return server response map.
      */
     @Nullable
     private Map<ServerInstance, byte[]> gatherServerResponses(
             @Nonnull CompositeFuture<byte[]> compositeFuture,
             @Nonnull ScatterGatherStats scatterGatherStats, boolean isOfflineTable,
-            @Nonnull String tableNameWithType,
-            @Nonnull List<ProcessingException> processingExceptions)
+            @Nonnull String tableNameWithType)
+            throws ProcessingException
     {
         try {
             Map<ServerInstance, byte[]> serverResponseMap = compositeFuture.get();
@@ -181,7 +193,7 @@ public class PinotScatterGatherQueryClient
             while (iterator.hasNext()) {
                 Map.Entry<ServerInstance, byte[]> entry = iterator.next();
                 if (entry.getValue().length == 0) {
-                    log.warn("Got empty response from server: %s", entry.getKey().getShortHostName());
+                    log.debug("Got empty response from server: %s", entry.getKey().getShortHostName());
                     iterator.remove();
                 }
             }
@@ -192,8 +204,7 @@ public class PinotScatterGatherQueryClient
         catch (Exception e) {
             log.error("Caught exception while fetching responses for table: %s", tableNameWithType, e);
             brokerMetrics.addMeteredTableValue(tableNameWithType, BrokerMeter.RESPONSE_FETCH_EXCEPTIONS, 1L);
-            processingExceptions.add(QueryException.getException(QueryException.BROKER_GATHER_ERROR, e));
-            return null;
+            throw QueryException.getException(QueryException.BROKER_GATHER_ERROR, e);
         }
     }
 
@@ -207,13 +218,12 @@ public class PinotScatterGatherQueryClient
      * @param isOfflineTable whether the responses are from an OFFLINE table.
      * @param dataTableMap map from server to data table.
      * @param tableNameWithType table name with type suffix.
-     * @param processingExceptions list of processing exceptions.
      */
     private void deserializeServerResponses(
             @Nonnull Map<ServerInstance, byte[]> responseMap, boolean isOfflineTable,
             @Nonnull Map<ServerInstance, DataTable> dataTableMap,
-            @Nonnull String tableNameWithType,
-            @Nonnull List<ProcessingException> processingExceptions)
+            @Nonnull String tableNameWithType)
+            throws ProcessingException
     {
         for (Map.Entry<ServerInstance, byte[]> entry : responseMap.entrySet()) {
             ServerInstance serverInstance = entry.getKey();
@@ -226,7 +236,7 @@ public class PinotScatterGatherQueryClient
             catch (Exception e) {
                 log.error("Caught exceptions while deserializing response for table: %s from server: %s", tableNameWithType, serverInstance, e);
                 brokerMetrics.addMeteredTableValue(tableNameWithType, BrokerMeter.DATA_TABLE_DESERIALIZATION_EXCEPTIONS, 1L);
-                processingExceptions.add(QueryException.getException(QueryException.DATA_TABLE_DESERIALIZATION_ERROR, e));
+                throw QueryException.getException(QueryException.DATA_TABLE_DESERIALIZATION_ERROR, e);
             }
         }
     }
@@ -238,8 +248,9 @@ public class PinotScatterGatherQueryClient
             compositeFuture = this.scatterGatherer.scatterGather(scatterRequest, scatterGatherStats, true, brokerMetrics);
         }
         catch (InterruptedException e) {
-            log.error("Got exceptions querying Pinot servers. ", e);
+            throw new PinotException(PINOT_UNCLASSIFIED_ERROR, Optional.empty(), format("Interrupted while sending request: %s", scatterRequest), e);
         }
+
         return compositeFuture;
     }
 
@@ -296,6 +307,16 @@ public class PinotScatterGatherQueryClient
         public BrokerRequest getBrokerRequest()
         {
             return brokerRequest;
+        }
+
+        @Override
+        public String toString()
+        {
+            if (routingTable == null) {
+                return null;
+            }
+
+            return Arrays.toString(routingTable.entrySet().toArray());
         }
     }
 }
