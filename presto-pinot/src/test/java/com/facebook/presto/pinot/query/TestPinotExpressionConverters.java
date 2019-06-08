@@ -54,6 +54,9 @@ public class TestPinotExpressionConverters
         // combinations
         testProject("date_trunc('hour', from_unixtime(secondssinceepoch + 2))",
                 "dateTimeConvert(ADD(secondsSinceEpoch, 2), '1:SECONDS:EPOCH', '1:MILLISECONDS:EPOCH', '1:HOURS')");
+
+        testProject("secondssinceepoch + 1559978258.674", "ADD(secondsSinceEpoch, 1559978258.674000)");
+        testProject("secondssinceepoch + 1559978258", "ADD(secondsSinceEpoch, 1559978258)");
     }
 
     @Test
@@ -76,6 +79,8 @@ public class TestPinotExpressionConverters
         // combinations
         testFilter("totalfare between 20 and 30 AND regionid > 20 OR city = 'Campbell'",
                 "((((fare + trip) BETWEEN 20 AND 30) AND (regionId > 20)) OR (city = 'Campbell'))");
+
+        testFilter("secondssinceepoch > 1559978258", "(secondsSinceEpoch > 1559978258)");
     }
 
     private void testProject(String sqlExpression, String expectedPinotExpression)

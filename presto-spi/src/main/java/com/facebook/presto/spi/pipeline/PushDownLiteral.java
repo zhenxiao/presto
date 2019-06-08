@@ -18,6 +18,8 @@ import com.facebook.presto.spi.type.TypeSignature;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import static java.lang.String.format;
+
 public class PushDownLiteral
         extends PushDownExpression
 {
@@ -73,11 +75,11 @@ public class PushDownLiteral
         }
 
         if (longValue != null) {
-            return String.valueOf(longValue);
+            return format("%d", longValue);
         }
 
         if (doubleValue != null) {
-            return String.valueOf(doubleValue);
+            return format("%f", doubleValue);
         }
 
         if (booleanValue != null) {

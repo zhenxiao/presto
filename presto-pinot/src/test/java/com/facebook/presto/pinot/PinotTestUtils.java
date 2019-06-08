@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
+import static com.facebook.presto.sql.parser.ParsingOptions.DecimalLiteralTreatment.AS_DOUBLE;
 import static java.util.Locale.ENGLISH;
 
 public class PinotTestUtils
@@ -50,7 +51,7 @@ public class PinotTestUtils
     // This method is copied from PlanBuilder in presto-main module. Pinot doesn't depend upon the presto-main module.
     public static Expression expression(String sql)
     {
-        return rewriteIdentifiersToSymbolReferences(new SqlParser().createExpression(sql, new ParsingOptions()));
+        return rewriteIdentifiersToSymbolReferences(new SqlParser().createExpression(sql, new ParsingOptions(AS_DOUBLE)));
     }
 
     // This method is copied from PlanBuilder in presto-main module. Pinot doesn't depend upon the presto-main module.
