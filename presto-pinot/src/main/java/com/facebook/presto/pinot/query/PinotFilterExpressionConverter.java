@@ -75,8 +75,9 @@ class PinotFilterExpressionConverter
     @Override
     public PinotExpression visitInExpression(PushDownInExpression in, Map<String, Selection> context)
     {
-        return derived(format("(%s IN (%s))",
+        return derived(format("(%s %s (%s))",
                 in.getValue().accept(this, context).getDefinition(),
+                in.isWhiteList() ? "IN" : "NOT IN",
                 in.getArguments().stream()
                         .map(a -> a.accept(this, context).getDefinition())
                         .collect(Collectors.joining(", "))));
@@ -94,7 +95,16 @@ class PinotFilterExpressionConverter
     @Override
     public PinotExpression visitNotExpression(PushDownNotExpression not, Map<String, Selection> context)
     {
-        return derived(format("NOT %s", not.getInput().accept(this, context).getDefinition()));
+        PushDownExpression input = not.getInput();
+        if (input instanceof PushDownInExpression) {
+            // NOT operator is only supported on top of the IN expression
+            PushDownInExpression in = (PushDownInExpression) input;
+            in = new PushDownInExpression(in.getType(), !in.isWhiteList(), in.getValue(), in.getArguments());
+
+            return in.accept(this, context);
+        }
+
+        throw new PinotException(PINOT_UNSUPPORTED_EXPRESSION, Optional.empty(), format("NOT operator is supported only on top of IN operator. Received: ", input));
     }
 
     @Override

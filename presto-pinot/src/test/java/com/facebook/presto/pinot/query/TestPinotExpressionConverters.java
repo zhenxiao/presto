@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.pinot.query;
 
+import com.facebook.presto.pinot.PinotException;
 import com.facebook.presto.pinot.query.PinotQueryGeneratorContext.Selection;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.google.common.collect.ImmutableMap;
@@ -20,6 +21,7 @@ import org.testng.annotations.Test;
 
 import java.util.Map;
 
+import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION;
 import static com.facebook.presto.pinot.PinotTestUtils.pdExpr;
 import static com.facebook.presto.pinot.query.PinotQueryGeneratorContext.Origin.DERIVED;
 import static com.facebook.presto.pinot.query.PinotQueryGeneratorContext.Origin.TABLE_COLUMN;
@@ -27,6 +29,7 @@ import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.fail;
 
 public class TestPinotExpressionConverters
 {
@@ -72,9 +75,11 @@ public class TestPinotExpressionConverters
 
         // in, not in
         testFilter("regionid in (20, 30, 40)", "(regionId IN (20, 30, 40))");
-        testFilter("regionid not in (20, 30, 40)", "NOT (regionId IN (20, 30, 40))");
+        testFilter("regionid not in (20, 30, 40)", "(regionId NOT IN (20, 30, 40))");
         testFilter("city in ('San Jose', 'Campbell', 'Union City')", "(city IN ('San Jose', 'Campbell', 'Union City'))");
-        testFilter("city not in ('San Jose', 'Campbell', 'Union City')", "NOT (city IN ('San Jose', 'Campbell', 'Union City'))");
+        testFilter("city not in ('San Jose', 'Campbell', 'Union City')", "(city NOT IN ('San Jose', 'Campbell', 'Union City'))");
+        testFilterUnsupported("secondssinceepoch + 1 in (234, 24324)");
+        testFilterUnsupported("NOT (secondssinceepoch = 2323)");
 
         // combinations
         testFilter("totalfare between 20 and 30 AND regionid > 20 OR city = 'Campbell'",
@@ -95,5 +100,17 @@ public class TestPinotExpressionConverters
         PushDownExpression pushDownExpression = pdExpr(sqlExpression);
         String actualPinotExpression = pushDownExpression.accept(new PinotFilterExpressionConverter(), TEST_INPUT).getDefinition();
         assertEquals(actualPinotExpression, expectedPinotExpression);
+    }
+
+    private void testFilterUnsupported(String sqlExpression)
+    {
+        try {
+            PushDownExpression pushDownExpression = pdExpr(sqlExpression);
+            pushDownExpression.accept(new PinotFilterExpressionConverter(), TEST_INPUT).getDefinition();
+            fail("expected to not reach here");
+        }
+        catch (PinotException e) {
+            assertEquals(e.getErrorCode(), PINOT_UNSUPPORTED_EXPRESSION.toErrorCode());
+        }
     }
 }
