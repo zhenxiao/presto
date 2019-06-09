@@ -126,7 +126,8 @@ public class TestPinotSplitManager
         assertEquals(splits.size(), 4); // expects 4 splits as there are 2 servers holding 4 segments total
         for (PinotSplit split : splits) {
             // make sure all splits contain the filter that comes from TupleDomain
-            assertTrue(split.getPql().get().contains("((regionId < 10) AND ((city = 'Campbell') OR (city = 'Union City'))"));
+            String pql = split.getPql().get();
+            assertTrue(pql.contains("((regionId < 10) AND (city IN ('Campbell', 'Union City'))"), pql);
         }
 
         scanPipeline = pipeline(scan(hybridTable, columnHandles(TestPinotSplitManager.regionId, TestPinotSplitManager.city, fare, secondsSinceEpoch)));
@@ -135,7 +136,7 @@ public class TestPinotSplitManager
         for (PinotSplit split : splits) {
             // make sure all splits contain the filter that comes from TupleDomain and the time filter
             String pql = split.getPql().get();
-            assertTrue(pql.contains("((regionId < 10) AND ((city = 'Campbell') OR (city = 'Union City'))"), pql);
+            assertTrue(pql.contains("((regionId < 10) AND (city IN ('Campbell', 'Union City'))"), pql);
             assertTrue(pql.contains("secondsSinceEpoch >=") || pql.contains("secondsSinceEpoch <"), pql);
         }
     }
@@ -163,7 +164,8 @@ public class TestPinotSplitManager
         assertEquals(splits.size(), 4); // expects 4 splits as there are 2 servers holding 4 segments total
         for (PinotSplit split : splits) {
             // make sure all splits contain the filter that comes from TupleDomain
-            assertTrue(split.getPql().get().contains("((regionId < 10) AND ((city = 'Campbell') OR (city = 'Union City'))"));
+            String pql = split.getPql().get();
+            assertTrue(pql.contains("((regionId < 10) AND (city IN ('Campbell', 'Union City'))"), pql);
         }
 
         scanPipeline = pipeline(
@@ -176,7 +178,7 @@ public class TestPinotSplitManager
         for (PinotSplit split : splits) {
             // make sure all splits contain the filter that comes from TupleDomain and the time filter
             String pql = split.getPql().get();
-            assertTrue(pql.contains("((regionId < 10) AND ((city = 'Campbell') OR (city = 'Union City'))"), pql);
+            assertTrue(pql.contains("((regionId < 10) AND (city IN ('Campbell', 'Union City'))"), pql);
             assertTrue(pql.contains("secondsSinceEpoch >=") || pql.contains("secondsSinceEpoch <"), pql);
         }
     }
@@ -199,8 +201,13 @@ public class TestPinotSplitManager
     {
         Domain domain = com.facebook.presto.spi.predicate.Domain.multipleValues(BIGINT, new ArrayList<>(asList(1L, 10L)));
 
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, "city_id").get().toString(), "((city_id = 1) OR (city_id = 10))");
-        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, "city_id_123").get().toString(), "((city_id_123 = 1) OR (city_id_123 = 10))");
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, "city_id").get().toString(), "city_id IN (1, 10)");
+        assertEquals(pinotSplitManager.getColumnPredicate(domain, columnCityId, "city_id_123").get().toString(), "city_id_123 IN (1, 10)");
+
+        Domain domainSingleValue = com.facebook.presto.spi.predicate.Domain.multipleValues(BIGINT, new ArrayList<>(asList(1L)));
+
+        assertEquals(pinotSplitManager.getColumnPredicate(domainSingleValue, columnCityId, "city_id").get().toString(), "(city_id = 1)");
+        assertEquals(pinotSplitManager.getColumnPredicate(domainSingleValue, columnCityId, "city_id_123").get().toString(), "(city_id_123 = 1)");
     }
 
     @Test
@@ -254,7 +261,7 @@ public class TestPinotSplitManager
                 columnCityId, columnCityId.getColumnName(),
                 columnCountryName, columnCountryName.getColumnName());
 
-        String expectedFilter = "((city_id < 10) AND ((country_name = 'cn') OR (country_name = 'us')))";
+        String expectedFilter = "((city_id < 10) AND country_name IN ('cn', 'us'))";
         assertEquals(pinotSplitManager.getPredicate(constraintSummary, columnAliasMap).toString(), expectedFilter);
     }
 

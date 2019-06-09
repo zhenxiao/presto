@@ -129,11 +129,15 @@ public class PinotSplitManager
         PushDownExpression inputColumn = new PushDownInputColumn(columnHandle.getDataType().getTypeSignature(), columnAlias);
         List<PushDownExpression> conditions = new ArrayList<>();
         TypeSignature booleanType = BOOLEAN.getTypeSignature();
+
+        final List<PushDownExpression> discreteValuesWhiteList = new ArrayList<>();
+
         domain.getValues().getValuesProcessor().consume(
                 ranges -> {
                     for (Range range : ranges.getOrderedRanges()) {
                         if (range.isSingleValue()) {
-                            conditions.add(new PushDownLogicalBinaryExpression(booleanType, inputColumn, "=", getLiteralFromMarker(range.getLow())));
+                            // accumulate all white list values and later convert them into an IN list
+                            discreteValuesWhiteList.add(getLiteralFromMarker(range.getLow()));
                         }
                         else {
                             // get low bound
@@ -158,12 +162,26 @@ public class PinotSplitManager
                     }
 
                     List<PushDownExpression> inList = discreteValues.getValues().stream().map(v -> getLiteralFromMarkerObject(domain.getValues().getType(), v)).collect(Collectors.toList());
-                    conditions.add(new PushDownInExpression(booleanType, discreteValues.isWhiteList(), inputColumn, inList));
+                    if (discreteValues.isWhiteList()) {
+                        discreteValuesWhiteList.addAll(inList);
+                    }
+                    else {
+                        conditions.add(new PushDownInExpression(booleanType, discreteValues.isWhiteList(), inputColumn, inList));
+                    }
                 },
                 allOrNone ->
                 {
                     //no-op
                 });
+
+        if (!discreteValuesWhiteList.isEmpty()) {
+            if (discreteValuesWhiteList.size() == 1) {
+                conditions.add(new PushDownLogicalBinaryExpression(booleanType, inputColumn, "=", discreteValuesWhiteList.get(0)));
+            }
+            else {
+                conditions.add(new PushDownInExpression(booleanType, true, inputColumn, discreteValuesWhiteList));
+            }
+        }
 
         return combineExpressions(conditions, "OR");
     }
