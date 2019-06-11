@@ -38,7 +38,6 @@ public class PinotConfig
 
     private static final int DEFAULT_ESTIMATED_SIZE_IN_BYTES_FOR_NON_NUMERIC_COLUMN = 20;
 
-    private String zkUrl;
     private String pinotCluster;
     private String controllerRestService;
     private String serviceHeaderParam = "RPC-Service";
@@ -71,35 +70,6 @@ public class PinotConfig
     private long maxSelectLimitWhenSinglePage = 1_000;
     private boolean scanParallelismEnabled = true;
     private boolean forceSingleNodePlan;
-
-    @NotNull
-    public String getZkUrl()
-    {
-        return zkUrl;
-    }
-
-    @Config("zk-uri")
-    public PinotConfig setZkUrl(String zkUrl)
-    {
-        if (zkUrl != null && zkUrl.endsWith("/")) {
-            zkUrl = zkUrl.substring(0, zkUrl.length() - 1);
-        }
-        this.zkUrl = zkUrl;
-        return this;
-    }
-
-    @NotNull
-    public String getPinotCluster()
-    {
-        return pinotCluster;
-    }
-
-    @Config("pinot-cluster")
-    public PinotConfig setPinotCluster(String pinotCluster)
-    {
-        this.pinotCluster = pinotCluster;
-        return this;
-    }
 
     @NotNull
     public Map<String, String> getExtraHttpHeaders()

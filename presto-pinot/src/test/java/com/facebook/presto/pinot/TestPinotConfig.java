@@ -28,8 +28,6 @@ public class TestPinotConfig
     {
         ConfigAssertions.assertRecordedDefaults(
                 ConfigAssertions.recordDefaults(PinotConfig.class)
-                        .setZkUrl(null)
-                        .setPinotCluster(null)
                         .setExtraHttpHeaders("")
                         .setControllerUrl(null)
                         .setIdleTimeout(new Duration(5, TimeUnit.MINUTES))
@@ -61,8 +59,6 @@ public class TestPinotConfig
     public void testExplicitPropertyMappings()
     {
         Map<String, String> properties = new ImmutableMap.Builder<String, String>()
-                .put("zk-uri", "localhost:2181")
-                .put("pinot-cluster", "upinot")
                 .put("extra-http-headers", "k:v")
                 .put("controller-rest-service", "pinot-controller-service")
                 .put("controller-url", "localhost:15982")
@@ -91,8 +87,6 @@ public class TestPinotConfig
                 .build();
 
         PinotConfig expected = new PinotConfig()
-                .setZkUrl("localhost:2181")
-                .setPinotCluster("upinot")
                 .setExtraHttpHeaders("k:v")
                 .setControllerRestService("pinot-controller-service")
                 .setControllerUrl("localhost:15982")
