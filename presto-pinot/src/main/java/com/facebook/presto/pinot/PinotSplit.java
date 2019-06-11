@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Optional;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -38,6 +39,19 @@ public class PinotSplit
     private final Optional<String> pql;
     private final Optional<String> segment;
     private final Optional<String> segmentHost;
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("connectorId", connectorId)
+                .add("splitType", splitType)
+                .add("pipeline", pipeline)
+                .add("pql", pql)
+                .add("segment", segment)
+                .add("segmentHost", segmentHost)
+                .toString();
+    }
 
     @JsonCreator
     public PinotSplit(

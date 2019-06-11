@@ -26,6 +26,7 @@ import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -142,6 +143,20 @@ public class PinotSegmentPageSource
         return page;
     }
 
+    private static void checkExceptions(DataTable dataTable, PinotSplit split)
+    {
+        Map<String, String> metadata = dataTable.getMetadata();
+        List<String> exceptions = new ArrayList<>();
+        metadata.forEach((k, v) -> {
+            if (k.startsWith(DataTable.EXCEPTION_METADATA_KEY)) {
+                exceptions.add(v);
+            }
+        });
+        if (exceptions.size() > 0) {
+            throw new PinotException(PinotErrorCode.PINOT_EXCEPTION, split.getPql(), String.format("Encountered %d pinot exceptions for split %s: %s", exceptions.size(), split, exceptions));
+        }
+    }
+
     /**
      * Fetch data from Pinot for the current split and store the {@link com.linkedin.pinot.common.utils.DataTable} returned from each Pinto server.
      */
@@ -160,6 +175,7 @@ public class PinotSegmentPageSource
                 .filter(table -> table != null && table.getNumberOfRows() > 0)
                 .forEach(dataTable ->
                 {
+                    checkExceptions(dataTable, split);
                     // Store each dataTable which will later be constructed into Pages.
                     // Also update estimatedMemoryUsage, mostly represented by the size of all dataTables, using numberOfRows and fieldTypes combined as an estimate
                     int estimatedTableSizeInBytes = IntStream.rangeClosed(0, dataTable.getDataSchema().size() - 1)
