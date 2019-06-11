@@ -82,26 +82,26 @@ public class TestPinotQueryGenerator
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, aggInputColHandle)),
                 agg(ImmutableList.of(aggregation, groupByRegionId), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId TOP 1000000", expectedAggOutput));
+                format("SELECT %s FROM tbl GROUP BY regionId TOP 10000", expectedAggOutput));
 
         // `select regionid, agg from tbl group by regionId`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(aggInputColHandle, regionId)),
                 agg(ImmutableList.of(aggregation, groupByRegionId), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId TOP 1000000", expectedAggOutput));
+                format("SELECT %s FROM tbl GROUP BY regionId TOP 10000", expectedAggOutput));
 
         // `select regionid, agg, city from tbl group by regionId`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, aggInputColHandle, city)),
                 agg(ImmutableList.of(groupByRegionId, aggregation, groupByCityId), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId, city TOP 1000000", expectedAggOutput));
+                format("SELECT %s FROM tbl GROUP BY regionId, city TOP 10000", expectedAggOutput));
 
         // `select regionid, agg, city from tbl group by regionId where regionid > 20`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, aggInputColHandle, city)),
                 filter(pdExpr("regionid > 20"), cols("regionid", aggInputColumnName, "city"), types(BIGINT, aggInputDataType, VARCHAR)),
                 agg(ImmutableList.of(groupByRegionId, aggregation, groupByCityId), false)),
-                format("SELECT %s FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 1000000", expectedAggOutput));
+                format("SELECT %s FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 10000", expectedAggOutput));
 
         // `select regionid, agg, city from tbl group by regionId where secondssinceepoch between 200 and 300 and regionid >= 40`
         testPQL(pipeline(
@@ -109,21 +109,21 @@ public class TestPinotQueryGenerator
                 filter(pdExpr("secondssinceepoch between 200 and 300 and regionid >= 40"), cols("regionid", "city", "secondssinceepoch", aggInputColumnName),
                         types(BIGINT, VARCHAR, BIGINT, aggInputDataType)),
                 agg(ImmutableList.of(groupByRegionId, aggregation, groupByCityId), false)),
-                format("SELECT %s FROM tbl WHERE ((secondsSinceEpoch BETWEEN 200 AND 300) AND (regionId >= 40)) GROUP BY regionId, city TOP 1000000", expectedAggOutput));
+                format("SELECT %s FROM tbl WHERE ((secondsSinceEpoch BETWEEN 200 AND 300) AND (regionId >= 40)) GROUP BY regionId, city TOP 10000", expectedAggOutput));
     }
 
     @Test
     public void testSimpleSelectStar()
     {
         testPQL(pipeline(scan(pinotTable, columnHandles(regionId, city, fare, secondsSinceEpoch))),
-                "SELECT regionId, city, fare, secondsSinceEpoch FROM tbl LIMIT 1000000");
+                "SELECT regionId, city, fare, secondsSinceEpoch FROM tbl LIMIT 2147483647");
     }
 
     @Test
     public void testSimplePartialColumnSelection()
     {
         testPQL(pipeline(scan(pinotTable, columnHandles(regionId, secondsSinceEpoch))),
-                "SELECT regionId, secondsSinceEpoch FROM tbl LIMIT 1000000");
+                "SELECT regionId, secondsSinceEpoch FROM tbl LIMIT 2147483647");
     }
 
     @Test
@@ -141,7 +141,7 @@ public class TestPinotQueryGenerator
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(city, secondsSinceEpoch)),
                 filter(pdExpr("secondssinceepoch > 20"), cols("city", "secondssinceepoch"), types(VARCHAR, BIGINT))),
-                "SELECT city, secondsSinceEpoch FROM tbl WHERE (secondsSinceEpoch > 20) LIMIT 1000000");
+                "SELECT city, secondsSinceEpoch FROM tbl WHERE (secondsSinceEpoch > 20) LIMIT 2147483647");
     }
 
     @Test
@@ -183,33 +183,33 @@ public class TestPinotQueryGenerator
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId)),
                 agg(ImmutableList.of(countStar, groupByRegionId), false)),
-                "SELECT count(*) FROM tbl GROUP BY regionId TOP 1000000");
+                "SELECT count(*) FROM tbl GROUP BY regionId TOP 10000");
 
         // `select regionid, count(*) from tbl group by regionId`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId)),
                 agg(ImmutableList.of(groupByRegionId, countStar), false)),
-                "SELECT count(*) FROM tbl GROUP BY regionId TOP 1000000");
+                "SELECT count(*) FROM tbl GROUP BY regionId TOP 10000");
 
         // `select regionid, count(*), city from tbl group by regionId`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, city)),
                 agg(ImmutableList.of(groupByRegionId, countStar, groupByCityId), false)),
-                "SELECT count(*) FROM tbl GROUP BY regionId, city TOP 1000000");
+                "SELECT count(*) FROM tbl GROUP BY regionId, city TOP 10000");
 
         // `select regionid, count(*), city from tbl group by regionId where regionid > 20`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, city)),
                 filter(pdExpr("regionid > 20"), cols("regionid", "city"), types(BIGINT, VARCHAR)),
                 agg(ImmutableList.of(groupByRegionId, countStar, groupByCityId), false)),
-                "SELECT count(*) FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 1000000");
+                "SELECT count(*) FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 10000");
 
         // `select regionid, count(*), city from tbl group by regionId where secondssinceepoch between 200 and 300 and regionid >= 40`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, city, secondsSinceEpoch)),
                 filter(pdExpr("secondssinceepoch between 200 and 300 and regionid >= 40"), cols("regionid", "city", "secondssinceepoch"), types(BIGINT, VARCHAR, BIGINT)),
                 agg(ImmutableList.of(groupByRegionId, countStar, groupByCityId), false)),
-                "SELECT count(*) FROM tbl WHERE ((secondsSinceEpoch BETWEEN 200 AND 300) AND (regionId >= 40)) GROUP BY regionId, city TOP 1000000");
+                "SELECT count(*) FROM tbl WHERE ((secondsSinceEpoch BETWEEN 200 AND 300) AND (regionId >= 40)) GROUP BY regionId, city TOP 10000");
     }
 
     @Test
@@ -253,14 +253,14 @@ public class TestPinotQueryGenerator
                 scan(pinotTable, columnHandles(regionId, fare)),
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare"), pdExpr("1")), cols("regionid", "fare", "percentile"), types(BIGINT, DOUBLE, DOUBLE)),
                 agg(ImmutableList.of(percentile, groupByRegionId), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId TOP 1000000", "PERCENTILEEST1(fare)"));
+                format("SELECT %s FROM tbl GROUP BY regionId TOP 10000", "PERCENTILEEST1(fare)"));
 
         // `select regionid, agg from tbl group by regionId`
         testPQL(pipeline(
                 scan(pinotTable, columnHandles(regionId, fare)),
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare"), pdExpr("2")), cols("regionid", "fare", "percentile"), types(BIGINT, DOUBLE, DOUBLE)),
                 agg(ImmutableList.of(groupByRegionId, percentile), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId TOP 1000000", "PERCENTILEEST2(fare)"));
+                format("SELECT %s FROM tbl GROUP BY regionId TOP 10000", "PERCENTILEEST2(fare)"));
 
         // `select regionid, agg, city from tbl group by regionId`
         testPQL(pipeline(
@@ -268,7 +268,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare"), pdExpr("city"), pdExpr("3")),
                         cols("regionid", "fare", "city", "percentile"), types(BIGINT, DOUBLE, VARCHAR, DOUBLE)),
                 agg(ImmutableList.of(groupByRegionId, percentile, groupByCityId), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId, city TOP 1000000", "PERCENTILEEST3(fare)"));
+                format("SELECT %s FROM tbl GROUP BY regionId, city TOP 10000", "PERCENTILEEST3(fare)"));
 
         // `select regionid, agg, city from tbl group by regionId where regionid > 20`
         testPQL(pipeline(
@@ -277,7 +277,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare"), pdExpr("city"), pdExpr("4")),
                         cols("regionid", "fare", "city", "percentile"), types(BIGINT, DOUBLE, VARCHAR, DOUBLE)),
                 agg(ImmutableList.of(groupByRegionId, percentile, groupByCityId), false)),
-                format("SELECT %s FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 1000000", "PERCENTILEEST4(fare)"));
+                format("SELECT %s FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 10000", "PERCENTILEEST4(fare)"));
 
         // `select regionid, agg, city from tbl group by regionId where secondssinceepoch between 200 and 300 and regionid >= 40`
         testPQL(pipeline(
@@ -287,7 +287,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("city"), pdExpr("fare"), pdExpr("5")),
                         cols("regionid", "city", "fare", "percentile"), types(BIGINT, VARCHAR, DOUBLE, DOUBLE)),
                 agg(ImmutableList.of(groupByRegionId, percentile, groupByCityId), false)),
-                format("SELECT %s FROM tbl WHERE ((secondsSinceEpoch BETWEEN 200 AND 300) AND (regionId >= 40)) GROUP BY regionId, city TOP 1000000", "PERCENTILEEST5(fare)"));
+                format("SELECT %s FROM tbl WHERE ((secondsSinceEpoch BETWEEN 200 AND 300) AND (regionId >= 40)) GROUP BY regionId, city TOP 10000", "PERCENTILEEST5(fare)"));
     }
 
     @Test
@@ -309,7 +309,7 @@ public class TestPinotQueryGenerator
                 scan(pinotTable, columnHandles(regionId, fare)),
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare")), cols("regionid", "fare"), types(BIGINT, DOUBLE)),
                 agg(ImmutableList.of(distinct, groupByRegionId), false)),
-                format("SELECT %s FROM tbl GROUP BY regionId TOP 1000000", "DISTINCTCOUNTHLL(fare)"));
+                format("SELECT %s FROM tbl GROUP BY regionId TOP 10000", "DISTINCTCOUNTHLL(fare)"));
 
         // `select regionid, agg, city from tbl group by regionId where regionid > 20`
         testPQL(pipeline(
@@ -318,7 +318,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare"), pdExpr("city")),
                         cols("regionid", "fare", "city"), types(BIGINT, DOUBLE, VARCHAR)),
                 agg(ImmutableList.of(groupByRegionId, distinct, groupByCityId), false)),
-                format("SELECT %s FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 1000000", "DISTINCTCOUNTHLL(fare)"));
+                format("SELECT %s FROM tbl WHERE (regionId > 20) GROUP BY regionId, city TOP 10000", "DISTINCTCOUNTHLL(fare)"));
     }
 
     @Test
@@ -333,7 +333,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("city"), pdExpr("fare"), dateTrunc, pdExpr("99")),
                         cols("city", "fare", "day", "percentile"), types(VARCHAR, DOUBLE, BIGINT, DOUBLE)),
                 agg(ImmutableList.of(percentile, groupByDay, groupByCityId), false)),
-                "SELECT PERCENTILEEST99(fare) FROM tbl GROUP BY dateTimeConvert(SUB(secondsSinceEpoch, 50), '1:SECONDS:EPOCH', '1:MILLISECONDS:EPOCH', '1:DAYS'), city TOP 1000000");
+                "SELECT PERCENTILEEST99(fare) FROM tbl GROUP BY dateTimeConvert(SUB(secondsSinceEpoch, 50), '1:SECONDS:EPOCH', '1:MILLISECONDS:EPOCH', '1:DAYS'), city TOP 10000");
     }
 
     @Test
@@ -385,7 +385,7 @@ public class TestPinotQueryGenerator
                 project(ImmutableList.of(pdExpr("city"), pdExpr("fare"), pdExpr("99")),
                         cols("city", "fare", "percentile"), types(VARCHAR, DOUBLE, DOUBLE)),
                 agg(ImmutableList.of(min, max, count, percentile, groupByCityId), false)), pinotConfig);
-        assertEquals(actualPQL, "SELECT min(fare), max(fare), count(fare), PERCENTILEEST99(fare) FROM tbl GROUP BY city TOP 1000000");
+        assertEquals(actualPQL, "SELECT min(fare), max(fare), count(fare), PERCENTILEEST99(fare) FROM tbl GROUP BY city TOP 10000");
     }
 
     @Test(expectedExceptions = PinotException.class)

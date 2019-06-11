@@ -27,7 +27,11 @@ import java.util.concurrent.TimeUnit;
 
 public class PinotConfig
 {
-    public static final long DEFAULT_LIMIT_LARGE = 1_000_000;
+    public static final long DEFAULT_LIMIT_LARGE = Integer.MAX_VALUE;
+
+    // There is a perf penalty of having a large topN since the structures are allocated to this size
+    // So size this judiciously
+    public static final long DEFAULT_TOPN_LARGE = 10_000;
 
     private static final long DEFAULT_IDLE_TIMEOUT_MINUTE = 5L; // 5 minutes
     private static final long DEFAULT_CONNECTION_TIMEOUT_MINUTE = 1L; // 1 minute
@@ -49,6 +53,7 @@ public class PinotConfig
     private String restProxyServiceForQuery;
 
     private long limitLarge = DEFAULT_LIMIT_LARGE;
+    private long topNLarge = DEFAULT_TOPN_LARGE;
 
     private Duration idleTimeout = new Duration(DEFAULT_IDLE_TIMEOUT_MINUTE, TimeUnit.MINUTES);
     private Duration connectionTimeout = new Duration(DEFAULT_CONNECTION_TIMEOUT_MINUTE, TimeUnit.MINUTES);
@@ -67,7 +72,7 @@ public class PinotConfig
     private boolean limitPushDownEnabled = true;
 
     private boolean allowMultipleAggregations;
-    private long maxSelectLimitWhenSinglePage = 1_000;
+    private long maxSelectLimitWhenSinglePage = 50_000;
     private boolean scanParallelismEnabled = true;
     private boolean forceSingleNodePlan;
 
@@ -150,6 +155,24 @@ public class PinotConfig
         }
         catch (Exception e) {
             this.limitLarge = DEFAULT_LIMIT_LARGE;
+        }
+        return this;
+    }
+
+    @NotNull
+    public long getTopNLarge()
+    {
+        return topNLarge;
+    }
+
+    @Config("topn-large")
+    public PinotConfig setTopNLarge(String topNLarge)
+    {
+        try {
+            this.topNLarge = Long.valueOf(topNLarge);
+        }
+        catch (Exception e) {
+            this.topNLarge = DEFAULT_TOPN_LARGE;
         }
         return this;
     }

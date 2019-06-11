@@ -170,9 +170,9 @@ class PinotQueryGeneratorContext
 
         String limitKeyWord = "";
         long limitLong = -1;
-        long defaultLimit = pinotConfig.map(PinotConfig::getLimitLarge).orElse(PinotConfig.DEFAULT_LIMIT_LARGE);
 
         if (!hasAggregation()) {
+            long defaultLimit = pinotConfig.map(PinotConfig::getLimitLarge).orElse(PinotConfig.DEFAULT_LIMIT_LARGE);
             if (forSinglePageSource && pinotConfig.isPresent()) {
                 long maxLimit = pinotConfig.get().getMaxSelectLimitWhenSinglePage();
                 long givenLimit = limit.orElse(defaultLimit);
@@ -195,7 +195,7 @@ class PinotQueryGeneratorContext
                 }
             }
             else {
-                limitLong = defaultLimit;
+                limitLong = pinotConfig.map(PinotConfig::getTopNLarge).orElse(PinotConfig.DEFAULT_TOPN_LARGE);
             }
         }
 
