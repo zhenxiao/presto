@@ -62,6 +62,7 @@ public class PushDownLiteral
         return doubleValue;
     }
 
+    @JsonProperty
     public Boolean getBooleanValue()
     {
         return booleanValue;

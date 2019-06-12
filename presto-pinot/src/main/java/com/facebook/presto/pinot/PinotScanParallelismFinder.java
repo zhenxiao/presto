@@ -24,10 +24,8 @@ class PinotScanParallelismFinder
         extends TableScanPipelineVisitor<Boolean, Boolean>
 {
     // go through the pipeline operations and see if we parallelize the scan
-    public static boolean canParallelize(PinotConfig pinotConfig, TableScanPipeline scanPipeline)
+    public static boolean canParallelize(boolean canParallelize, TableScanPipeline scanPipeline)
     {
-        Boolean canParallelize = pinotConfig.isScanParallelismEnabled();
-
         PinotScanParallelismFinder scanParallelismFinder = new PinotScanParallelismFinder();
         for (PipelineNode pipelineNode : scanPipeline.getPipelineNodes()) {
             canParallelize = pipelineNode.accept(scanParallelismFinder, canParallelize);

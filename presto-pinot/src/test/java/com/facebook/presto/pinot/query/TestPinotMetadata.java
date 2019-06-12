@@ -19,9 +19,12 @@ import com.facebook.presto.pinot.PinotConfig;
 import com.facebook.presto.pinot.PinotConnection;
 import com.facebook.presto.pinot.PinotConnectorId;
 import com.facebook.presto.pinot.PinotMetadata;
+import com.facebook.presto.pinot.PinotSessionProperties;
 import com.facebook.presto.pinot.PinotTableHandle;
 import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.testing.TestingConnectorSession;
@@ -51,17 +54,18 @@ public class TestPinotMetadata
 {
     // Test table and related info
     private static PinotConnectorId pinotConnectorId = new PinotConnectorId("connId");
-    private static ConnectorSession pinotConnectorSession = new TestingConnectorSession(ImmutableList.of());
     private static PinotTableHandle pinotTable = new PinotTableHandle("connId", "schema", "tbl");
     private static PinotColumnHandle regionId = new PinotColumnHandle("regionId", BIGINT, REGULAR);
     private static PinotColumnHandle city = new PinotColumnHandle("city", VARCHAR, REGULAR);
     private static PinotColumnHandle fare = new PinotColumnHandle("fare", DOUBLE, REGULAR);
     private static PinotColumnHandle secondsSinceEpoch = new PinotColumnHandle("secondsSinceEpoch", BIGINT, REGULAR);
 
-    private static final PinotMetadata createPinotMetadata(boolean scanParallelismEnabled)
+    private static Optional<TableScanPipeline> pushLimitIntoScan(boolean scanParallelismEnabled, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, LimitPipelineNode limit)
     {
         PinotConfig pinotConfig = new PinotConfig().setScanParallelismEnabled(scanParallelismEnabled);
-        return new PinotMetadata(pinotConnectorId, new PinotConnection(new MockPinotClusterInfoFetcher(pinotConfig), pinotConfig), pinotConfig);
+        PinotMetadata metadata = new PinotMetadata(pinotConnectorId, new PinotConnection(new MockPinotClusterInfoFetcher(pinotConfig), pinotConfig), pinotConfig);
+        ConnectorSession session = new TestingConnectorSession(new PinotSessionProperties(pinotConfig).getSessionProperties());
+        return metadata.pushLimitIntoScan(session, connectorTableHandle, currentPipeline, limit);
     }
 
     @Test
@@ -72,9 +76,9 @@ public class TestPinotMetadata
         TableScanPipeline existingPipeline = pipeline(
                 scan(pinotTable, columnHandles(regionId, fare)),
                 project(ImmutableList.of(pdExpr("regionid"), pdExpr("fare"), pdExpr("2")), cols, columnTypes));
-        Optional<TableScanPipeline> resultingPipelineWithDefault = createPinotMetadata(true).pushLimitIntoScan(pinotConnectorSession, pinotTable, existingPipeline, limit(5, false, cols, columnTypes));
+        Optional<TableScanPipeline> resultingPipelineWithDefault = pushLimitIntoScan(true, pinotTable, existingPipeline, limit(5, false, cols, columnTypes));
         assertFalse(resultingPipelineWithDefault.isPresent());
-        Optional<TableScanPipeline> resultingPipelineWithNoScanParallelism = createPinotMetadata(false).pushLimitIntoScan(pinotConnectorSession, pinotTable, existingPipeline, limit(5, false, cols, columnTypes));
+        Optional<TableScanPipeline> resultingPipelineWithNoScanParallelism = pushLimitIntoScan(false, pinotTable, existingPipeline, limit(5, false, cols, columnTypes));
         assertTrue(resultingPipelineWithNoScanParallelism.isPresent());
     }
 
@@ -89,9 +93,9 @@ public class TestPinotMetadata
                 project(ImmutableList.of(pdExpr("city"), pdExpr("fare"), pdExpr("99")),
                         cols("city", "fare", "percentile"), types(VARCHAR, DOUBLE, DOUBLE)),
                 agg(ImmutableList.of(min, groupByCityId), false));
-        Optional<TableScanPipeline> resultingPipelineWithDefault = createPinotMetadata(true).pushLimitIntoScan(pinotConnectorSession, pinotTable, existingPipeline, limit(5, false, cols("fare_min", "city"), types(DOUBLE, VARCHAR)));
+        Optional<TableScanPipeline> resultingPipelineWithDefault = pushLimitIntoScan(true, pinotTable, existingPipeline, limit(5, false, cols("fare_min", "city"), types(DOUBLE, VARCHAR)));
         assertTrue(resultingPipelineWithDefault.isPresent());
-        Optional<TableScanPipeline> resultingPipelineWithNoScanParallelism = createPinotMetadata(false).pushLimitIntoScan(pinotConnectorSession, pinotTable, existingPipeline, limit(5, false, cols("fare_min", "city"), types(DOUBLE, VARCHAR)));
+        Optional<TableScanPipeline> resultingPipelineWithNoScanParallelism = pushLimitIntoScan(false, pinotTable, existingPipeline, limit(5, false, cols("fare_min", "city"), types(DOUBLE, VARCHAR)));
         assertTrue(resultingPipelineWithNoScanParallelism.isPresent());
     }
 }

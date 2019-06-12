@@ -22,6 +22,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import com.linkedin.pinot.common.data.Schema;
 import io.airlift.http.client.HttpClient;
@@ -214,7 +215,7 @@ public class PinotClusterInfoFetcher
     public Map<String, Map<String, List<String>>> getRoutingTableForTable(String tableName)
             throws Exception
     {
-        final Map<String, Map<String, List<String>>> routingTableMap = new HashMap<>();
+        ImmutableMap.Builder<String, Map<String, List<String>>> routingTableMap = ImmutableMap.builder();
         log.debug("Trying to get routingTable for %s from broker", tableName);
         String responseBody = sendHttpGetToBroker(tableName, String.format(ROUTING_TABLE_API_TEMPLATE, tableName));
         JSONObject resp = JSONObject.parseObject(responseBody);
@@ -234,10 +235,16 @@ public class PinotClusterInfoFetcher
                 throw new RuntimeException("RoutingTable is empty for " + tableName);
             }
             String routingTableEntries = routingTableEntriesArray.getJSONObject(new Random().nextInt(routingTableEntriesArray.size())).toJSONString();
-            Map<String, List<String>> routingTable = new ObjectMapper().readValue(routingTableEntries, Map.class);
-            routingTableMap.put(tableNameWithType, routingTable);
+            ImmutableMap.Builder<String, List<String>> routingTableBuilder = ImmutableMap.builder();
+            Map<String, List<String>> routingTableEntriesParsed = new ObjectMapper().readValue(routingTableEntries, Map.class);
+            routingTableEntriesParsed.forEach((host, segments) -> {
+                ArrayList<String> segmentsCopied = new ArrayList<>(segments);
+                Collections.shuffle(segmentsCopied);
+                routingTableBuilder.put(host, ImmutableList.copyOf(segmentsCopied));
+            });
+            routingTableMap.put(tableNameWithType, routingTableBuilder.build());
         }
-        return routingTableMap;
+        return routingTableMap.build();
     }
 
     @Override

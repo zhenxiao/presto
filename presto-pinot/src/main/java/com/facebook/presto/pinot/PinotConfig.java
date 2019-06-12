@@ -75,6 +75,7 @@ public class PinotConfig
     private long maxSelectLimitWhenSinglePage = 50_000;
     private boolean scanParallelismEnabled = true;
     private boolean forceSingleNodePlan;
+    private int numSegmentsPerSplit = 1;
 
     @NotNull
     public Map<String, String> getExtraHttpHeaders()
@@ -442,6 +443,21 @@ public class PinotConfig
     public PinotConfig setForceSingleNodePlan(boolean forceSingleNodePlan)
     {
         this.forceSingleNodePlan = forceSingleNodePlan;
+        return this;
+    }
+
+    public int getNumSegmentsPerSplit()
+    {
+        return this.numSegmentsPerSplit;
+    }
+
+    @Config("num-segments-per-split")
+    public PinotConfig setNumSegmentsPerSplit(int numSegmentsPerSplit)
+    {
+        if (numSegmentsPerSplit <= 0) {
+            throw new IllegalArgumentException("Number of segments per split must be more than zero");
+        }
+        this.numSegmentsPerSplit = numSegmentsPerSplit;
         return this;
     }
 }

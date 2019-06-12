@@ -135,7 +135,7 @@ public class PinotMetadata
     public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
         PinotTableLayoutHandle pinotTableLayoutHandle = (PinotTableLayoutHandle) handle;
-        if (pinotConfig.isForceSingleNodePlan() && pinotTableLayoutHandle.getScanPipeline().isPresent()) {
+        if (PinotSessionProperties.isForceSingleNodePlan(session) && pinotTableLayoutHandle.getScanPipeline().isPresent()) {
             // create a single node only distribution
             return new ConnectorTableLayout(
                     handle,
@@ -282,7 +282,7 @@ public class PinotMetadata
     @Override
     public Optional<TableScanPipeline> pushLimitIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle, TableScanPipeline currentPipeline, LimitPipelineNode limit)
     {
-        if (!limit.isPartial() && PinotScanParallelismFinder.canParallelize(pinotConfig, currentPipeline)) {
+        if (!limit.isPartial() && PinotScanParallelismFinder.canParallelize(PinotSessionProperties.isScanParallelismEnabled(session), currentPipeline)) {
             return Optional.empty();
         }
         else {

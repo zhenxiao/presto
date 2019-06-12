@@ -18,6 +18,7 @@ import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +38,7 @@ public class PinotSplit
 
     // Properties needed for segment split type
     private final Optional<String> pql;
-    private final Optional<String> segment;
+    private final List<String> segments;
     private final Optional<String> segmentHost;
 
     @Override
@@ -48,7 +49,7 @@ public class PinotSplit
                 .add("splitType", splitType)
                 .add("pipeline", pipeline)
                 .add("pql", pql)
-                .add("segment", segment)
+                .add("segments", segments)
                 .add("segmentHost", segmentHost)
                 .toString();
     }
@@ -59,20 +60,20 @@ public class PinotSplit
             @JsonProperty("splitType") SplitType splitType,
             @JsonProperty("pipeline") Optional<TableScanPipeline> pipeline,
             @JsonProperty("pql") Optional<String> pql,
-            @JsonProperty("segment") Optional<String> segment,
+            @JsonProperty("segments") List<String> segments,
             @JsonProperty("segmentHost") Optional<String> segmentHost)
     {
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.splitType = requireNonNull(splitType, "splitType id is null");
         this.pipeline = requireNonNull(pipeline, "pipeline is null");
         this.pql = requireNonNull(pql, "table name is null");
-        this.segment = requireNonNull(segment, "segment is null");
+        this.segments = ImmutableList.copyOf(requireNonNull(segments, "segment is null"));
         this.segmentHost = requireNonNull(segmentHost, "host is null");
 
         // make sure the segment properties are present when the split type is segment
         if (splitType == SplitType.SEGMENT) {
             checkArgument(pql.isPresent(), "Table name is missing from the split");
-            checkArgument(segment.isPresent(), "Segment is missing from the split");
+            checkArgument(!segments.isEmpty(), "Segments are missing from the split");
             checkArgument(segmentHost.isPresent(), "Segment host address is missing from the split");
         }
         else {
@@ -87,18 +88,18 @@ public class PinotSplit
                 SplitType.BROKER,
                 Optional.of(requireNonNull(pipeline, "pipeline is null")),
                 Optional.empty(),
-                Optional.empty(),
+                ImmutableList.of(),
                 Optional.empty());
     }
 
-    public static PinotSplit createSegmentSplit(String connectorId, String pql, String segment, String segmentHost)
+    public static PinotSplit createSegmentSplit(String connectorId, String pql, List<String> segments, String segmentHost)
     {
         return new PinotSplit(
                 requireNonNull(connectorId, "connector id is null"),
                 SplitType.SEGMENT,
                 Optional.empty(),
                 Optional.of(requireNonNull(pql, "pql is null")),
-                Optional.of(requireNonNull(segment, "segment is null")),
+                requireNonNull(segments, "segments are null"),
                 Optional.of(requireNonNull(segmentHost, "segmentHost is null")));
     }
 
@@ -133,9 +134,9 @@ public class PinotSplit
     }
 
     @JsonProperty
-    public Optional<String> getSegment()
+    public List<String> getSegments()
     {
-        return segment;
+        return segments;
     }
 
     @Override

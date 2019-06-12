@@ -22,11 +22,12 @@ import com.google.inject.Inject;
 import com.linkedin.pinot.common.data.Schema;
 import io.airlift.log.Logger;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Objects.requireNonNull;
 
 public class PinotConnection
 {
@@ -34,15 +35,14 @@ public class PinotConnection
 
     private final LoadingCache<String, List<PinotColumn>> pinotTableColumnCache;
     private final LoadingCache<String, PinotTable> pinotTableCache;
-    private final LoadingCache<String, Map<String, Map<String, List<String>>>> pinotRoutingTableCache;
-    private final LoadingCache<String, Map<String, String>> pinotTimeBoundaryCache;
     private final Supplier<List<String>> allTablesCache;
+    private final PinotClusterInfoFetcher pinotClusterInfoFetcher;
 
     @Inject
     public PinotConnection(PinotClusterInfoFetcher pinotClusterInfoFetcher, PinotConfig pinotConfig)
     {
         final long cacheExpiryMs = pinotConfig.getMetadataCacheExpiry().roundTo(TimeUnit.MILLISECONDS);
-
+        this.pinotClusterInfoFetcher = requireNonNull(pinotClusterInfoFetcher, "cluster info fetcher is null");
         this.allTablesCache = Suppliers.memoizeWithExpiration(
                 () -> pinotClusterInfoFetcher.getAllTables(),
                 cacheExpiryMs,
@@ -75,48 +75,6 @@ public class PinotConnection
                                 return PinotColumnUtils.getPinotColumnsForPinotSchema(tablePinotSchema);
                             }
                         });
-
-        this.pinotRoutingTableCache =
-                CacheBuilder.newBuilder()
-                        .expireAfterWrite(cacheExpiryMs, TimeUnit.MILLISECONDS)
-                        .build(new CacheLoader<String, Map<String, Map<String, List<String>>>>()
-                        {
-                            @Override
-                            public Map<String, Map<String, List<String>>> load(String tableName)
-                                    throws Exception
-                            {
-                                Map<String, Map<String, List<String>>> routingTableForTable = pinotClusterInfoFetcher.getRoutingTableForTable(tableName);
-                                log.debug("RoutingTable for table: %s is %s", tableName, Arrays.toString(routingTableForTable.entrySet().toArray()));
-                                return routingTableForTable;
-                            }
-                        });
-
-        this.pinotTimeBoundaryCache =
-                CacheBuilder.newBuilder()
-                        .expireAfterWrite(cacheExpiryMs, TimeUnit.MILLISECONDS)
-                        .build(new CacheLoader<String, Map<String, String>>()
-                        {
-                            @Override
-                            public Map<String, String> load(String tableName)
-                                    throws Exception
-                            {
-                                Map<String, String> timeBoundaryForTable = pinotClusterInfoFetcher.getTimeBoundaryForTable(tableName);
-                                log.debug("TimeBoundary for table: %s is %s", tableName, Arrays.toString(timeBoundaryForTable.entrySet().toArray()));
-                                return timeBoundaryForTable;
-                            }
-                        });
-    }
-
-    public Map<String, Map<String, List<String>>> getRoutingTable(String table)
-            throws Exception
-    {
-        return pinotRoutingTableCache.get(table);
-    }
-
-    public Map<String, String> getTimeBoundary(String table)
-            throws Exception
-    {
-        return pinotTimeBoundaryCache.get(table);
     }
 
     public List<String> getTableNames()
@@ -138,5 +96,16 @@ public class PinotConnection
             throws Exception
     {
         return pinotTableColumnCache.get(tableName);
+    }
+
+    public Map<String, Map<String, List<String>>> getRoutingTable(String tableName)
+            throws Exception
+    {
+        return pinotClusterInfoFetcher.getRoutingTableForTable(tableName);
+    }
+
+    public Map<String, String> getTimeBoundary(String tableName)
+    {
+        return pinotClusterInfoFetcher.getTimeBoundaryForTable(tableName);
     }
 }

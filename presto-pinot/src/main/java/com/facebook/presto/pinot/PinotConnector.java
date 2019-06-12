@@ -19,11 +19,15 @@ import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.session.PropertyMetadata;
 import com.facebook.presto.spi.transaction.IsolationLevel;
+import com.google.common.collect.ImmutableList;
 import io.airlift.bootstrap.LifeCycleManager;
 import io.airlift.log.Logger;
 
 import javax.inject.Inject;
+
+import java.util.List;
 
 import static com.facebook.presto.pinot.PinotTransactionHandle.INSTANCE;
 import static java.util.Objects.requireNonNull;
@@ -37,16 +41,18 @@ public class PinotConnector
     private final PinotSplitManager splitManager;
     private final PinotPageSourceProvider pageSourceProvider;
     private final PinotNodePartitioningProvider partitioningProvider;
+    private final List<PropertyMetadata<?>> sessionProperties;
 
     @Inject
     public PinotConnector(LifeCycleManager lifeCycleManager, PinotMetadata metadata, PinotSplitManager splitManager, PinotPageSourceProvider pageSourceProvider,
-            PinotNodePartitioningProvider partitioningProvider, PinotConfig pinotConfig)
+            PinotNodePartitioningProvider partitioningProvider, PinotSessionProperties pinotSessionProperties)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
-        this.partitioningProvider = pinotConfig.isForceSingleNodePlan() ? requireNonNull(partitioningProvider, "partitioningProvider is null") : null;
+        this.partitioningProvider = requireNonNull(partitioningProvider, "partitioningProvider is null");
+        this.sessionProperties = ImmutableList.copyOf(requireNonNull(pinotSessionProperties, "sessionProperties is null").getSessionProperties());
     }
 
     @Override
@@ -76,12 +82,13 @@ public class PinotConnector
     @Override
     public ConnectorNodePartitioningProvider getNodePartitioningProvider()
     {
-        if (partitioningProvider != null) {
-            return partitioningProvider;
-        }
-        else {
-            throw new UnsupportedOperationException("Don't have a valid node partitioning provider");
-        }
+        return partitioningProvider;
+    }
+
+    @Override
+    public List<PropertyMetadata<?>> getSessionProperties()
+    {
+        return sessionProperties;
     }
 
     @Override

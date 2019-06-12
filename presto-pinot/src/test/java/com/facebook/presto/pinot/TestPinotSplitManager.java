@@ -14,6 +14,7 @@
 package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode.Aggregation;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
@@ -23,9 +24,11 @@ import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.SortedRangeSet;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.predicate.ValueSet;
+import com.facebook.presto.testing.TestingConnectorSession;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.slice.Slices;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -59,11 +62,8 @@ import static org.testng.Assert.assertTrue;
 
 public class TestPinotSplitManager
 {
-    private static final PinotConfig pinotConfig = new PinotConfig();
-    private static final PinotSplitManager pinotSplitManager = new PinotSplitManager(
-            new PinotConnectorId(""),
-            new PinotConnection(new MockPinotClusterInfoFetcher(pinotConfig), pinotConfig),
-            pinotConfig);
+    private PinotConfig pinotConfig;
+    private PinotSplitManager pinotSplitManager;
     // Test table and related info
     private static final PinotColumnHandle columnCityId = new PinotColumnHandle("city_id", BIGINT, REGULAR);
     private static final PinotColumnHandle columnCountryName = new PinotColumnHandle("country_name", VARCHAR, REGULAR);
@@ -75,6 +75,21 @@ public class TestPinotSplitManager
     public static ColumnHandle city = new PinotColumnHandle("city", VARCHAR, REGULAR);
     public static ColumnHandle fare = new PinotColumnHandle("fare", DOUBLE, REGULAR);
     public static ColumnHandle secondsSinceEpoch = new PinotColumnHandle("secondsSinceEpoch", BIGINT, REGULAR);
+
+    private void createPinotSplitManagerHelper(int numSegmentsPerSplit)
+    {
+        pinotConfig = new PinotConfig().setNumSegmentsPerSplit(numSegmentsPerSplit);
+        pinotSplitManager = new PinotSplitManager(
+                new PinotConnectorId(""),
+                new PinotConnection(new MockPinotClusterInfoFetcher(pinotConfig), pinotConfig),
+                pinotConfig);
+    }
+
+    @BeforeMethod
+    public void createPinotSplitManager()
+    {
+        createPinotSplitManagerHelper(1);
+    }
 
     @Test
     public void testGetSplitsWithNoTupleDomainSingleSplit()
@@ -92,6 +107,15 @@ public class TestPinotSplitManager
         assertEquals(pinotSplit.getSplitType(), BROKER);
         assertTrue(pinotSplit.getPipeline().isPresent());
         assertEquals(pinotSplit.getPipeline().get(), scanPipeline);
+    }
+
+    @Test
+    public void testGetSplitsOnePerServer()
+    {
+        createPinotSplitManagerHelper(Integer.MAX_VALUE);
+        TableScanPipeline scanPipeline = pipeline(scan(realtimeOnlyTable, columnHandles(regionId, city, fare, secondsSinceEpoch)));
+        List<PinotSplit> splits = getSplitsHelper(realtimeOnlyTable, scanPipeline, Optional.empty());
+        assertEquals(splits.size(), 2); // expects 2 splits as there are 2 servers
     }
 
     @Test
@@ -186,8 +210,8 @@ public class TestPinotSplitManager
     private List<PinotSplit> getSplitsHelper(PinotTableHandle pinotTable, TableScanPipeline scanPipeline, Optional<TupleDomain<ColumnHandle>> constraint)
     {
         PinotTableLayoutHandle pinotTableLayout = new PinotTableLayoutHandle(pinotTable, constraint, Optional.of(scanPipeline));
-
-        ConnectorSplitSource splitSource = pinotSplitManager.getSplits(null, null, pinotTableLayout, null);
+        ConnectorSession session = new TestingConnectorSession(new PinotSessionProperties(pinotConfig).getSessionProperties());
+        ConnectorSplitSource splitSource = pinotSplitManager.getSplits(null, session, pinotTableLayout, null);
         List<PinotSplit> splits = new ArrayList<>();
         while (!splitSource.isFinished()) {
             splits.addAll(getFutureValue(splitSource.getNextBatch(NOT_PARTITIONED, 1000)).getSplits().stream().map(s -> (PinotSplit) s).collect(toList()));

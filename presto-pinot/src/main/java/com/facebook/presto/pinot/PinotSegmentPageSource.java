@@ -14,6 +14,7 @@
 package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.ConnectorPageSource;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PageBuilder;
 import com.facebook.presto.spi.PrestoException;
@@ -56,6 +57,7 @@ public class PinotSegmentPageSource
     private final PinotConfig pinotConfig;
     private final PinotSplit split;
     private final PinotScatterGatherQueryClient pinotQueryClient;
+    private final ConnectorSession session;
 
     // Stores the mapping between pinot column name and the column index
     private Map<String, Integer> pinotColumnNameIndexMap = new HashMap<>();
@@ -69,13 +71,14 @@ public class PinotSegmentPageSource
     private boolean closed;
     private boolean isPinotDataFetched;
 
-    public PinotSegmentPageSource(PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient, PinotSplit split, List<PinotColumnHandle> columnHandles)
+    public PinotSegmentPageSource(ConnectorSession session, PinotConfig pinotConfig, PinotScatterGatherQueryClient pinotQueryClient, PinotSplit split, List<PinotColumnHandle> columnHandles)
     {
         requireNonNull(split, "split is null");
         this.pinotConfig = requireNonNull(pinotConfig, "pinotConfig is null");
         this.split = requireNonNull(split, "split is null");
         this.pinotQueryClient = requireNonNull(pinotQueryClient, "pinotQueryClient is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
+        this.session = requireNonNull(session, "session is null");
     }
 
     @Override
@@ -162,14 +165,14 @@ public class PinotSegmentPageSource
      */
     private void fetchPinotData()
     {
-        log.debug("Fetching data from Pinot for table %s, segment %s", split.getPql(), split.getSegment());
+        log.debug("Fetching data from Pinot for table %s, segments %s", split.getPql(), split.getSegments());
         long startTimeNanos = System.nanoTime();
         int idx = 0;
         for (PinotColumnHandle columnHandle : columnHandles) {
             pinotColumnNameIndexMap.put(columnHandle.getColumnName(), idx++);
         }
 
-        Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(split.getPql().get(), split.getSegmentHost().get(), split.getSegment().get());
+        Map<ServerInstance, DataTable> dataTableMap = pinotQueryClient.queryPinotServerForDataTable(split.getPql().get(), split.getSegmentHost().get(), split.getSegments(), PinotSessionProperties.getConnectionTimeout(session));
         dataTableMap.values().stream()
                 // ignore empty tables and tables with 0 rows
                 .filter(table -> table != null && table.getNumberOfRows() > 0)

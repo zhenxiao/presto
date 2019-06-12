@@ -61,7 +61,7 @@ public class PinotPageSourceProvider
 
         switch (pinotSplit.getSplitType()) {
             case SEGMENT:
-                return new PinotSegmentPageSource(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles);
+                return new PinotSegmentPageSource(session, this.pinotConfig, this.pinotQueryClient, pinotSplit, handles);
             case BROKER:
                 return new PinotBrokerPageSource(this.pinotConfig, pinotSplit.getPipeline().get(), handles, clusterInfoFetcher);
             default:

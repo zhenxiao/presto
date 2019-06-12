@@ -82,7 +82,6 @@ public class PinotScatterGatherQueryClient
     private KeyedPool<PooledNettyClientResourceManager.PooledClientConnection> connPool;
     private ScheduledThreadPoolExecutor poolTimeoutExecutor;
     private ExecutorService requestSenderPool;
-    private Duration connectionTimeout;
 
     @Inject
     public PinotScatterGatherQueryClient(PinotConfig pinotConfig)
@@ -106,7 +105,6 @@ public class PinotScatterGatherQueryClient
 
         requestSenderPool = Executors.newFixedThreadPool(pinotConfig.getThreadPoolSize());
         poolTimeoutExecutor = new ScheduledThreadPoolExecutor(50);
-        connectionTimeout = pinotConfig.getConnectionTimeout();
         connPool = new KeyedPoolImpl<>(pinotConfig.getMinConnectionsPerServer(), pinotConfig.getMaxConnectionsPerServer(), pinotConfig.getIdleTimeout().toMillis(),
                 pinotConfig.getMaxBacklogPerServer(), resourceManager, poolTimeoutExecutor, requestSenderPool, registry);
         resourceManager.setPool(connPool);
@@ -128,7 +126,7 @@ public class PinotScatterGatherQueryClient
         return defaultBrokerId;
     }
 
-    public Map<ServerInstance, DataTable> queryPinotServerForDataTable(String pql, String serverHost, String segment)
+    public Map<ServerInstance, DataTable> queryPinotServerForDataTable(String pql, String serverHost, List<String> segments, Duration connectionTimeout)
     {
         BrokerRequest brokerRequest;
         try {
@@ -139,7 +137,7 @@ public class PinotScatterGatherQueryClient
                     format("Parsing error on %s, Error = %s", serverHost, e.getMessage()), e);
         }
 
-        Map<String, List<String>> routingTable = ImmutableMap.of(serverHost, ImmutableList.of(segment));
+        Map<String, List<String>> routingTable = ImmutableMap.of(serverHost, ImmutableList.copyOf(segments));
         ScatterGatherRequestImpl scatterRequest = new ScatterGatherRequestImpl(brokerRequest, routingTable, 0, connectionTimeout.toMillis(), prestoHostId);
 
         ScatterGatherStats scatterGatherStats = new ScatterGatherStats();
