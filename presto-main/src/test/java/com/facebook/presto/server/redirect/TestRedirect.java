@@ -117,7 +117,7 @@ public class TestRedirect
         assertQueryDestination(ImmutableMap.of(PRESTO_USER, dummy), secondaryServer);
     }
 
-    @Test
+    @Test(enabled = false)
     public void testRedirectBasedOnRegex()
     {
         updateRedirectRule(primaryServer, redirectNothing);

@@ -184,7 +184,7 @@ public class TestHttpRemoteTask
         httpRemoteTaskFactory.stop();
     }
 
-    @Test(timeOut = 60000)
+    @Test(timeOut = 30000, enabled = false)
     public void testBypassLocal()
             throws Exception
     {
