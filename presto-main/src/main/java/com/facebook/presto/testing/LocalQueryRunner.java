@@ -56,7 +56,6 @@ import com.facebook.presto.execution.RollbackTask;
 import com.facebook.presto.execution.ScheduledSplit;
 import com.facebook.presto.execution.SetPathTask;
 import com.facebook.presto.execution.SetSessionTask;
-import com.facebook.presto.execution.SqlCachingPlanner;
 import com.facebook.presto.execution.StartTransactionTask;
 import com.facebook.presto.execution.TaskManagerConfig;
 import com.facebook.presto.execution.TaskSource;
@@ -129,6 +128,7 @@ import com.facebook.presto.sql.planner.NodePartitioningManager;
 import com.facebook.presto.sql.planner.Plan;
 import com.facebook.presto.sql.planner.PlanFragmenter;
 import com.facebook.presto.sql.planner.PlanOptimizers;
+import com.facebook.presto.sql.planner.SqlCachingPlanner;
 import com.facebook.presto.sql.planner.SubPlan;
 import com.facebook.presto.sql.planner.optimizations.PlanOptimizer;
 import com.facebook.presto.sql.planner.plan.PlanNode;
@@ -848,7 +848,7 @@ public class LocalQueryRunner
 
         // The plan is not really cached since we are creating new instance of this each time
         return new SqlCachingPlanner(sqlParser, optimizers, statsCalculator, costCalculator, new Duration(1, TimeUnit.HOURS), 10, planSanityChecker)
-                .getPlanAndStuff(analysis, session, warningCollector, metadata, stage)
+                .getPlanDetails(analysis, session, warningCollector, metadata, stage)
                 .getPlan();
     }
 

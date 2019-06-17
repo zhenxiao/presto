@@ -11,30 +11,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.execution;
+
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.facebook.presto.sql.planner;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.SystemSessionProperties;
 import com.facebook.presto.cost.CostCalculator;
 import com.facebook.presto.cost.StatsCalculator;
+import com.facebook.presto.execution.Input;
+import com.facebook.presto.execution.Output;
 import com.facebook.presto.execution.warnings.WarningCollector;
+import com.facebook.presto.metadata.FunctionManager;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.sql.analyzer.Analysis;
 import com.facebook.presto.sql.analyzer.FeaturesConfig;
 import com.facebook.presto.sql.parser.SqlParser;
-import com.facebook.presto.sql.planner.InputExtractor;
-import com.facebook.presto.sql.planner.LogicalPlanner;
-import com.facebook.presto.sql.planner.OutputExtractor;
-import com.facebook.presto.sql.planner.Plan;
-import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
-import com.facebook.presto.sql.planner.PlanOptimizers;
 import com.facebook.presto.sql.planner.optimizations.PlanOptimizer;
 import com.facebook.presto.sql.planner.sanity.PlanSanityChecker;
+import com.facebook.presto.sql.tree.CurrentTime;
+import com.facebook.presto.sql.tree.DefaultTraversalVisitor;
+import com.facebook.presto.sql.tree.FunctionCall;
+import com.facebook.presto.sql.tree.QualifiedName;
 import com.facebook.presto.sql.tree.Query;
 import com.facebook.presto.sql.tree.Statement;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableSet;
 import io.airlift.units.Duration;
 import org.weakref.jmx.Managed;
 
@@ -43,6 +59,7 @@ import javax.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -81,7 +98,7 @@ public class SqlCachingPlanner
     }
 
     @Override
-    public PlanDetails getPlanAndStuff(Analysis analysis, Session session, WarningCollector warningCollector, Metadata metadata, LogicalPlanner.Stage stage)
+    public PlanDetails getPlanDetails(Analysis analysis, Session session, WarningCollector warningCollector, Metadata metadata, LogicalPlanner.Stage stage)
     {
         PlanNodeIdAllocator idAllocator = new PlanNodeIdAllocator();
         Statement statement = analysis.getStatement();
@@ -92,7 +109,7 @@ public class SqlCachingPlanner
             return new PlanDetails(plan, inputs, output);
         };
         PlanDetails planDetails;
-        boolean useCachedPlan = SystemSessionProperties.isPlanCachingEnabled(session) && statement instanceof Query;
+        boolean useCachedPlan = SystemSessionProperties.isPlanCachingEnabled(session) && statement instanceof Query && isSafeToCache((Query) statement, metadata.getFunctionManager());
         if (useCachedPlan) {
             try {
                 planDetails = cache.get(new CacheKey(statement, stage), planGetter);
@@ -112,6 +129,59 @@ public class SqlCachingPlanner
             }
         }
         return planDetails;
+    }
+
+    private static final Set<QualifiedName> TIME_FUNCTIONS = ImmutableSet.of(
+            QualifiedName.of("now"), // alias for current_timestamp, since aliases aren't resolved yet
+            QualifiedName.of("current_date"),
+            QualifiedName.of("current_time"),
+            QualifiedName.of("localtime"),
+            QualifiedName.of("current_timestamp"),
+            QualifiedName.of("localtimestamp"));
+
+    private static class SafeToCacheContext
+    {
+        private boolean safe = true;
+
+        public void no()
+        {
+            if (this.safe) {
+                this.safe = false;
+            }
+        }
+
+        public boolean get()
+        {
+            return safe;
+        }
+    }
+
+    private boolean isSafeToCache(Query statement, FunctionManager functionManager)
+    {
+        SafeToCacheContext safeToCacheContext = new SafeToCacheContext();
+        new DefaultTraversalVisitor<Void, SafeToCacheContext>()
+        {
+            @Override
+            protected Void visitCurrentTime(CurrentTime node, SafeToCacheContext context)
+            {
+                context.no();
+                return null;
+            }
+
+            @Override
+            protected Void visitFunctionCall(FunctionCall node, SafeToCacheContext context)
+            {
+                // Note that non deterministic functions are fine to cache, because they are not made into a
+                // constant during planning. Time functions are not marked as non deterministic sadly and hence this
+                // check
+                if (TIME_FUNCTIONS.contains(node.getName())) {
+                    context.no();
+                }
+                super.visitFunctionCall(node, context);
+                return null;
+            }
+        }.process(statement, safeToCacheContext);
+        return safeToCacheContext.get();
     }
 
     @Managed

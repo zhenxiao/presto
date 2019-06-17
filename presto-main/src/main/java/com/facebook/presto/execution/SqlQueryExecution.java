@@ -42,6 +42,7 @@ import com.facebook.presto.sql.analyzer.Analysis;
 import com.facebook.presto.sql.analyzer.Analyzer;
 import com.facebook.presto.sql.analyzer.QueryExplainer;
 import com.facebook.presto.sql.parser.SqlParser;
+import com.facebook.presto.sql.planner.CachingPlanner;
 import com.facebook.presto.sql.planner.DistributedExecutionPlanner;
 import com.facebook.presto.sql.planner.NodePartitioningManager;
 import com.facebook.presto.sql.planner.PartitioningHandle;
@@ -408,7 +409,7 @@ public class SqlQueryExecution
         stateMachine.beginAnalysis();
 
         // plan query
-        CachingPlanner.PlanDetails planDetails = cachingPlanner.getPlanAndStuff(analysis, stateMachine.getSession(), stateMachine.getWarningCollector(), metadata, OPTIMIZED_AND_VALIDATED);
+        CachingPlanner.PlanDetails planDetails = cachingPlanner.getPlanDetails(analysis, stateMachine.getSession(), stateMachine.getWarningCollector(), metadata, OPTIMIZED_AND_VALIDATED);
         Plan plan = planDetails.getPlan();
         stateMachine.setInputs(planDetails.getInputs());
         stateMachine.setOutput(planDetails.getOutput());
