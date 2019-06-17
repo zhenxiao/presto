@@ -37,7 +37,14 @@ public class PushDownLiteral
             @JsonProperty("booleanValue") Boolean booleanValue)
     {
         super(type);
-        // TODO: check only one of them is non-null
+        int numNonNull = 0;
+        numNonNull += strValue == null ? 0 : 1;
+        numNonNull += longValue == null ? 0 : 1;
+        numNonNull += doubleValue == null ? 0 : 1;
+        numNonNull += booleanValue == null ? 0 : 1;
+        if (numNonNull != 1) {
+            throw new IllegalArgumentException(String.format("Expected exactly one of input literal arguments to be non null: %s %s %s %s (for type %s)", strValue, longValue, doubleValue, booleanValue, type));
+        }
         this.strValue = strValue;
         this.longValue = longValue;
         this.doubleValue = doubleValue;

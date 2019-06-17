@@ -36,6 +36,7 @@ import com.facebook.presto.sql.tree.SymbolReference;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
@@ -82,7 +83,7 @@ public class PinotTestUtils
 
     public static PipelineNode filter(PushDownExpression predicate, List<String> outputColumns, List<Type> rowType)
     {
-        return new FilterPipelineNode(predicate, outputColumns, rowType);
+        return new FilterPipelineNode(predicate, outputColumns, rowType, Optional.empty(), Optional.empty());
     }
 
     public static PipelineNode project(List<PushDownExpression> expressions, List<String> outputColumns, List<Type> rowType)

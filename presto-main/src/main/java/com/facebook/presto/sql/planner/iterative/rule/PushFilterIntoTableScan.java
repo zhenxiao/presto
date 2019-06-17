@@ -20,7 +20,9 @@ import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.sql.parser.SqlParser;
+import com.facebook.presto.sql.planner.DomainTranslator;
 import com.facebook.presto.sql.planner.PushDownExpressionGenerator;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.TypeProvider;
@@ -113,9 +115,21 @@ public class PushFilterIntoTableScan
             return Optional.empty();
         }
 
+        DomainTranslator.ExtractionResult extractionResult = DomainTranslator.fromPredicate(metadata, context.getSession(), predicate, context.getSymbolAllocator().getTypes());
+        Optional<PushDownExpression> remainingPredicate = Optional.ofNullable(new PushDownExpressionGenerator(typeConverter).process(extractionResult.getRemainingExpression()));
+        Optional<TupleDomain<String>> symbolNameToDomains;
+
+        // only do this if the remainingPushdownPredicate is not null
+        if (remainingPredicate.isPresent() && !extractionResult.getTupleDomain().isAll()) {
+            symbolNameToDomains = Optional.of(extractionResult.getTupleDomain().transform(Symbol::getName));
+        }
+        else {
+            symbolNameToDomains = Optional.empty();
+        }
+
         return Optional.of(new FilterPipelineNode(
                 pushdownPredicate,
                 outputSymbols.stream().map(s -> s.getName()).collect(Collectors.toList()),
-                outputSymbols.stream().map(s -> typeProvider.get(s)).collect(Collectors.toList())));
+                outputSymbols.stream().map(s -> typeProvider.get(s)).collect(Collectors.toList()), symbolNameToDomains, remainingPredicate));
     }
 }

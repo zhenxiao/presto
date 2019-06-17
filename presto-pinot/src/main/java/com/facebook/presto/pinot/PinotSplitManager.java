@@ -246,7 +246,7 @@ public class PinotSplitManager
         // convert TupleDomain into FilterPipelineNode
         PushDownExpression predicate = getPredicate(constraint.get(), columnAliasMap);
 
-        final FilterPipelineNode filterNode = new FilterPipelineNode(predicate, tablePipelineNode.getOutputColumns(), tablePipelineNode.getRowType());
+        final FilterPipelineNode filterNode = new FilterPipelineNode(predicate, tablePipelineNode.getOutputColumns(), tablePipelineNode.getRowType(), Optional.empty(), Optional.empty());
 
         TableScanPipeline newScanPipeline = new TableScanPipeline();
         newScanPipeline.addPipeline(tablePipelineNode, existingPipeline.getOutputColumnHandles());
