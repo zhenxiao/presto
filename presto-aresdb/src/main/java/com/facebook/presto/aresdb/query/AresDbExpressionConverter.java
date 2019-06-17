@@ -34,15 +34,15 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNSUPPORTED_EXPRESSION;
-import static com.facebook.presto.aresdb.query.AresDbExpressionCoverter.AresDbExpression.derived;
+import static com.facebook.presto.aresdb.query.AresDbExpressionConverter.AresDbExpression.derived;
 import static com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.Origin.DERIVED;
 import static com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.Origin.LITERAL;
 import static java.lang.String.format;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
-public class AresDbExpressionCoverter
-        extends PushDownExpressionVisitor<AresDbExpressionCoverter.AresDbExpression, Map<String, Selection>>
+public class AresDbExpressionConverter
+        extends PushDownExpressionVisitor<AresDbExpressionConverter.AresDbExpression, Map<String, Selection>>
 {
     public static class AresDbExpression
     {
@@ -143,7 +143,7 @@ public class AresDbExpressionCoverter
         }
 
         PushDownLiteral intervalUnit = (PushDownLiteral) intervalParameter;
-        switch (intervalUnit.getStrValue()) {
+        switch (intervalUnit.getStrValue().toLowerCase(ENGLISH)) {
             case "second":
             case "minute":
             case "hour":

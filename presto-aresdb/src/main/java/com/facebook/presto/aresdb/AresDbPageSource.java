@@ -37,17 +37,14 @@ import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 
-import java.sql.Date;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNEXPECTED_ERROR;
 import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNSUPPORTED_OUTPUT_TYPE;
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.String.format;
-import static java.util.Locale.ENGLISH;
 
 public class AresDbPageSource
         implements ConnectorPageSource
@@ -67,9 +64,9 @@ public class AresDbPageSource
         this.aresDbConnection = aresDbConnection;
     }
 
-    private static void setValue(Type type, BlockBuilder blockBuilder, Optional<String> timeBucketizer, Object value)
+    private static void setValue(Type type, BlockBuilder blockBuilder, Object value)
     {
-        if (value == null) {
+        if (value == null || "NULL".equals(value)) {
             blockBuilder.appendNull();
             return;
         }
@@ -89,30 +86,8 @@ public class AresDbPageSource
             type.writeLong(blockBuilder, parsedValue);
         }
         else if (type instanceof TimestampType) {
-            checkArgument(timeBucketizer.isPresent(), "Expected to have time bucketizer");
-
-            long parsedValue;
-            switch (timeBucketizer.get().toLowerCase(ENGLISH)) {
-                case "month":
-                    parsedValue = Double.valueOf((String) value).longValue() * 1000;
-                    break;
-                case "day":
-                    // expected output format YYYY-MM-DD
-                    parsedValue = Date.valueOf((String) value).getTime();
-                    break;
-                case "hour":
-                    // expected output format YYYY-MM-DD hh
-                case "minute":
-                    // expected output format YYYY-MM-DD hh:mm
-                case "second":
-                    // expected output format YYYY-MM-DD hh:mm:ss
-                case "millisecond":
-                    // expected output format YYYY-MM-DD hh:mm:ss.sss
-                default:
-                    throw new AresDbException(ARESDB_UNSUPPORTED_OUTPUT_TYPE,
-                            format("For type '%s' received unsupported output type: %s, value: %s", type, value.getClass(), value));
-            }
-
+            // output is always seconds since timeUnit is seconds
+            long parsedValue = Long.parseUnsignedLong((String) value, 10) * 1000;
             type.writeLong(blockBuilder, parsedValue);
         }
         else if (type instanceof IntegerType) {
@@ -245,6 +220,9 @@ public class AresDbPageSource
         String response = aresDbConnection.queryAndGetResults(aresQL.getAql());
 
         JSONObject responseJson = JSONObject.parseObject(response);
+        if (Optional.ofNullable(responseJson.getJSONArray("errors")).map(x -> x.size()).orElse(0) > 0) {
+            throw new AresDbException(ARESDB_UNEXPECTED_ERROR, "Error in response " + response, aresQL.getAql());
+        }
         if (!responseJson.containsKey("results")) {
             return 0;
         }
@@ -254,15 +232,16 @@ public class AresDbPageSource
             return 0;
         }
 
-        if (resultsJson.getJSONObject(0).containsKey("matrixData")) {
+        if (resultsJson.getJSONObject(0).containsKey("matrixData") || resultsJson.getJSONObject(0).containsKey("headers")) {
             JSONArray rows = resultsJson.getJSONObject(0).getJSONArray("matrixData");
+            int numRows = rows == null ? 0 : rows.size();
             final int numCols = blockBuilders.size();
-            for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
+            for (int rowIdx = 0; rowIdx < numRows; rowIdx++) {
                 JSONArray row = rows.getJSONArray(rowIdx);
                 for (int columnIdx = 0; columnIdx < numCols; columnIdx++) {
                     AresDbOutputInfo outputInfo = outputInfos.get(columnIdx);
                     int outputIdx = outputInfo.index;
-                    setValue(types.get(outputIdx), blockBuilders.get(outputIdx), outputInfo.timeBucketizer, row.get(columnIdx));
+                    setValue(types.get(outputIdx), blockBuilders.get(outputIdx), row.get(columnIdx));
                 }
             }
 
@@ -299,7 +278,7 @@ public class AresDbPageSource
             for (int columnIdx = 0; columnIdx <= startingColumnIndex; columnIdx++) {
                 AresDbOutputInfo outputInfo = outputInfos.get(columnIdx);
                 int outputIdx = outputInfo.index;
-                setValue(types.get(outputIdx), blockBuilders.get(outputIdx), outputInfo.timeBucketizer, valuesSoFar.get(columnIdx));
+                setValue(types.get(outputIdx), blockBuilders.get(outputIdx), valuesSoFar.get(columnIdx));
             }
 
             removeLastColumnFromCurrentRow(valuesSoFar);

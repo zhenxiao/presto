@@ -30,10 +30,10 @@ public class AresDbException
         this.request = Optional.of(request);
     }
 
-    public AresDbException(ErrorCodeSupplier errorCode, String message, String request, Throwable cause)
+    public AresDbException(ErrorCodeSupplier errorCode, String message, Throwable cause)
     {
         super(errorCode, message, cause);
-        this.request = Optional.of(request);
+        this.request = Optional.empty();
     }
 
     public AresDbException(ErrorCodeSupplier errorCode, String message)

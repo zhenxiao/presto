@@ -16,7 +16,7 @@ package com.facebook.presto.aresdb.query;
 import com.facebook.presto.aresdb.AresDbColumnHandle;
 import com.facebook.presto.aresdb.AresDbException;
 import com.facebook.presto.aresdb.AresDbTableHandle;
-import com.facebook.presto.aresdb.query.AresDbExpressionCoverter.AresDbExpression;
+import com.facebook.presto.aresdb.query.AresDbExpressionConverter.AresDbExpression;
 import com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.Selection;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
@@ -25,9 +25,11 @@ import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
+import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.pipeline.TableScanPipelineVisitor;
+import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableMap;
 
@@ -52,7 +54,8 @@ public class AresDbQueryGenerator
             "min", "min",
             "max", "max",
             "avg", "avg",
-            "sum", "sum");
+            "sum", "sum",
+            "approx_distinct", "countdistincthll");
 
     public static AresDbQueryGeneratorContext.AugmentedAQL generate(TableScanPipeline scanPipeline, Optional<List<AresDbColumnHandle>> columnHandles)
     {
@@ -119,7 +122,7 @@ public class AresDbQueryGenerator
         List<Type> outputTypes = project.getRowType();
         for (int fieldId = 0; fieldId < pushdownExpressions.size(); fieldId++) {
             PushDownExpression pushdownExpression = pushdownExpressions.get(fieldId);
-            AresDbExpression aresDbExpression = pushdownExpression.accept(new AresDbExpressionCoverter(), context.getSelections());
+            AresDbExpression aresDbExpression = pushdownExpression.accept(new AresDbExpressionConverter(), context.getSelections());
             newSelections.put(
                     outputColumns.get(fieldId),
                     Selection.of(aresDbExpression.getDefinition(), aresDbExpression.getOrigin(), outputTypes.get(fieldId), aresDbExpression.getTimeBucketizer()));
@@ -128,21 +131,40 @@ public class AresDbQueryGenerator
         return context.withProject(newSelections);
     }
 
+    private static boolean isBooleanTrue(PushDownExpression expression)
+    {
+        if (!(expression instanceof PushDownLiteral)) {
+            return false;
+        }
+        Boolean booleanValue = ((PushDownLiteral) expression).getBooleanValue();
+        return booleanValue != null && booleanValue.booleanValue();
+    }
+
     @Override
     public AresDbQueryGeneratorContext visitFilterNode(FilterPipelineNode filter, AresDbQueryGeneratorContext context)
     {
         requireNonNull(context, "context is null");
-
-        AresDbTimeFilterExtractor.AresDbFilter aresDbFilter = AresDbTimeFilterExtractor.extract(filter.getPredicate(), context.getTimeColumn().get(), context.getSelections());
-
-        String remainingFilter = null;
-        if (aresDbFilter.containsTimeFilter()) {
-            if (aresDbFilter.getNonTimeFilter().isPresent()) {
-                remainingFilter = aresDbFilter.getNonTimeFilter().get().accept(new AresDbExpressionCoverter(), context.getSelections()).getDefinition();
-            }
+        Optional<Domain> timeFilter;
+        PushDownExpression predicate = filter.getPredicate();
+        Optional<String> filterPredicateOptional;
+        if (isBooleanTrue(predicate)) {
+            filterPredicateOptional = Optional.empty();
         }
-
-        return context.withFilter(remainingFilter, aresDbFilter.getTimeFilter());
+        else {
+            String filterPredicate = predicate.accept(new AresDbExpressionConverter(), context.getSelections()).getDefinition();
+            if (filterPredicate == null) {
+                throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, String.format("Cannot convert the filter %s", predicate));
+            }
+            filterPredicateOptional = Optional.of(filterPredicate);
+        }
+        if (context.getTimeColumn().isPresent() && filter.getSymbolNameToDomains().isPresent()) {
+            String timeColumn = context.getTimeColumn().get();
+            timeFilter = filter.getSymbolNameToDomains().get().getDomains().flatMap(domains -> Optional.ofNullable(domains.get(timeColumn)));
+        }
+        else {
+            timeFilter = Optional.empty();
+        }
+        return context.withFilter(filterPredicateOptional, timeFilter);
     }
 
     @Override

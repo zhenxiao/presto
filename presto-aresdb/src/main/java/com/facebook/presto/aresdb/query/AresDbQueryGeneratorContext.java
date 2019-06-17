@@ -17,9 +17,10 @@ package com.facebook.presto.aresdb.query;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.facebook.presto.aresdb.AresDbColumnHandle;
-import com.facebook.presto.aresdb.AresDbException;
-import com.facebook.presto.spi.pipeline.PushDownBetweenExpression;
-import com.facebook.presto.spi.pipeline.PushDownExpression;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.Range;
+import com.facebook.presto.spi.predicate.SortedRangeSet;
+import com.facebook.presto.spi.predicate.ValueSet;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
@@ -32,7 +33,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNSUPPORTED_EXPRESSION;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -49,18 +49,18 @@ public class AresDbQueryGeneratorContext
     private final List<String> groupByColumns;
     private final String from;
     private final Optional<String> timeColumn;
-    private final Optional<PushDownExpression> timeFilter;
-    private final String filter;
+    private final Optional<Domain> timeFilter;
+    private final Optional<String> filter;
     private final Long limit;
     private final boolean aggregationApplied;
 
     AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeColumn)
     {
-        this(selections, from, timeColumn, Optional.empty(), null, false, ImmutableList.of(), null);
+        this(selections, from, timeColumn, Optional.empty(), Optional.empty(), false, ImmutableList.of(), null);
     }
 
-    private AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeColumn, Optional<PushDownExpression> timeFilter,
-            String filter, boolean aggregationApplied, List<String> groupByColumns, Long limit)
+    private AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeColumn, Optional<Domain> timeFilter,
+            Optional<String> filter, boolean aggregationApplied, List<String> groupByColumns, Long limit)
     {
         this.selections = requireNonNull(selections, "selections can't be null");
         this.from = requireNonNull(from, "source can't be null");
@@ -75,7 +75,7 @@ public class AresDbQueryGeneratorContext
     /**
      * Apply the given filter to current context and return the updated context. Throws error for invalid operations.
      */
-    AresDbQueryGeneratorContext withFilter(String filter, Optional<PushDownExpression> timeFilter)
+    AresDbQueryGeneratorContext withFilter(Optional<String> filter, Optional<Domain> timeFilter)
     {
         checkArgument(!hasFilter(), "There already exists a filter. AresDb doesn't support filters at multiple levels");
         checkArgument(!hasAggregation(), "AresDB doesn't support filtering the results of aggregation");
@@ -113,7 +113,7 @@ public class AresDbQueryGeneratorContext
 
     private boolean hasFilter()
     {
-        return filter != null || timeFilter.isPresent();
+        return filter.isPresent() || timeFilter.isPresent();
     }
 
     private boolean hasAggregation()
@@ -175,6 +175,7 @@ public class AresDbQueryGeneratorContext
             dimensionJson.put("sqlExpression", dimension.getDefinition());
             if (dimension.timeTokenizer.isPresent()) {
                 dimensionJson.put("timeBucketizer", dimension.timeTokenizer.get());
+                dimensionJson.put("timeUnit", "second");
             }
             dimensionsJson.add(dimensionJson);
         }
@@ -182,15 +183,13 @@ public class AresDbQueryGeneratorContext
         request.put("table", from);
         request.put("measures", measuresJson);
         request.put("dimensions", dimensionsJson);
-        if (timeFilter.isPresent()) {
-            addTimeFilter(request, timeColumn.get(), timeFilter.get());
-        }
+        timeFilter.ifPresent(timeFilter -> addTimeFilter(request, timeColumn.get(), timeFilter));
 
-        if (filter != null) {
+        filter.ifPresent(filter -> {
             JSONArray filterJson = new JSONArray();
             filterJson.add(filter);
             request.put("rowFilters", filterJson);
-        }
+        });
 
         if (limit != null) {
             request.put("limit", limit);
@@ -262,20 +261,45 @@ public class AresDbQueryGeneratorContext
         });
     }
 
-    private void addTimeFilter(JSONObject request, String timeColumn, PushDownExpression timeFilter)
+    private void addTimeFilter(JSONObject request, String timeColumn, Domain timeFilter)
     {
-        if (timeFilter instanceof PushDownBetweenExpression) {
-            PushDownBetweenExpression betweenExpression = (PushDownBetweenExpression) timeFilter;
-            JSONObject timeFilterJson = new JSONObject();
-            timeFilterJson.put("column", timeColumn);
-            timeFilterJson.put("from", betweenExpression.getLeft().toString());
-            timeFilterJson.put("to", betweenExpression.getRight().toString());
-            request.put("timeFilter", timeFilterJson);
-
+        if (timeFilter.isAll()) {
             return;
         }
+        Optional<String> from = Optional.empty();
+        Optional<String> to = Optional.empty();
+        ValueSet values = timeFilter.getValues();
+        if (values.isSingleValue()) {
+            from = objectToTimeLiteral(values.getSingleValue(), true);
+            to = objectToTimeLiteral(values.getSingleValue(), false);
+        }
+        else if (values instanceof SortedRangeSet) {
+            Range span = ((SortedRangeSet) values).getSpan();
+            if (!span.getLow().isLowerUnbounded()) {
+                from = objectToTimeLiteral(span.getLow().getValue(), true);
+            }
+            if (!span.getHigh().isUpperUnbounded()) {
+                to = objectToTimeLiteral(span.getHigh().getValue(), false);
+            }
+        }
+        if (!from.isPresent()) {
+            throw new IllegalArgumentException(String.format("Expected to extract a from for the time column %s from the given domain filter %s", timeColumn, timeFilter));
+        }
+        JSONObject timeFilterJson = new JSONObject();
+        timeFilterJson.put("column", timeColumn);
+        timeFilterJson.put("from", from.get());
+        to.ifPresent(s -> timeFilterJson.put("to", s));
+        request.put("timeFilter", timeFilterJson);
+    }
 
-        throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Unsupported time filter: " + timeFilter);
+    private Optional<String> objectToTimeLiteral(Object literal, boolean isLow)
+    {
+        if (!(literal instanceof Number)) {
+            return Optional.empty();
+        }
+        double num = ((Number) literal).doubleValue();
+        long numAsLong = (long) (isLow ? Math.floor(num) : Math.ceil(num));
+        return Optional.of(Long.toString(numAsLong));
     }
 
     public enum Origin
