@@ -23,8 +23,8 @@ debian_packages_for_runtime:
 custom:
   build_cmds:
       # Assuming that the tests are already passing, the rest of exclusions are because of the super old
-      # maven version 3.3.9 in the base debian image
-    - RUN mvn clean install -TC1 -DskipTests -Dmaven.javadoc.skip=true -Dair.check.skip-dependency=true
+      # maven version 3.3.9 in the base debian image, and that the udocker build env is so f*ing flaky
+    - RUN mvn clean install -TC1 -DskipTests -Dmaven.javadoc.skip=true -Dair.check.fail-all=false -Dmaven.test.skip=true
     - RUN chown -R udocker:udocker /home/udocker/neutrino
 applications:
   - udeploy_app_id: 'neutrino'

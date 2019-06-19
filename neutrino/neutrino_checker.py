@@ -29,8 +29,6 @@ import time
 import urllib3
 from six import string_types
 
-import ubermon
-
 METRICS = [
 {
     "prefix": "jvm.Memory",
@@ -124,6 +122,19 @@ METRICS = [
     "prefix": "presto.worker.runtime",
     "mbean": "java.lang:type=Runtime",
     "metrics": ["Uptime"]
+},
+{
+    "prefix": "presto.sql.planner.cachingplanner",
+    "mbean": "com.facebook.presto.sql.planner:name=CachingPlanner",
+    "metrics": ["CachedPlanCalls", "NonCachedPlanCalls"]
+},
+{
+    "prefix": "presto.sql.planner.optimizations.planoptimizer",
+    "mbean_prefix": "com.facebook.presto.sql.planner.optimizations:name=PlanOptimizer"
+},
+{
+    "prefix": "presto.sql.planner.optimizations.iterativeoptimizer",
+    "mbean_prefix": "com.facebook.presto.sql.planner.iterative:name=IterativeOptimizer"
 }
 ]
 
@@ -134,7 +145,18 @@ for pinot_cluster in ["pinotstg", "pinotsandbox", "pinotprod", "pinotadhoc", "pi
         "mbean": "com.facebook.presto.pinot:type=PinotMetrics,name=" + pinot_cluster
         })
 
-app_log = None
+def compile_metrics(metrics):
+    mbeans = {}
+    prefix_mbeans = {}
+    for m in metrics:
+        mbean = m.get('mbean')
+        mbean_prefix = m.get('mbean_prefix')
+        if mbean:
+            mbeans[mbean] = m
+        elif mbean_prefix:
+            prefix_mbeans[mbean_prefix] = (m, [])
+
+    return (mbeans, prefix_mbeans)
 
 def setup_logging(args):
     global app_log
@@ -166,9 +188,6 @@ def filter_none(result):
 def construct_regex(ll):
     return re.compile('|'.join(str(l).lower() for l in ll))
 
-def jmx_http_url(port):
-    return 'http://localhost:' + str(port) + '/v1/jmx/mbean/'
-
 DEFAULT_TYPE_MATCHER = construct_regex(['double', 'long', 'int'])
 
 def requests_retry_session(
@@ -192,15 +211,54 @@ def requests_retry_session(
 
 ALL_TIME_SERIES = construct_regex(['OneMinute', 'FiveMinute', 'FifteenMinute', 'AllTime'])
 
-def get_metrics(port, metrics):
-    ret = get_metrics_helper(port, metrics)
-    app_log.debug("For the metrics spec {}, returning {}".format(metrics, ret))
-    return ret
-    
-def get_metrics_helper(port, metrics):
+def get_all_jmx_metrics(port):
+    url = 'http://127.0.0.1:' + str(port) + '/v1/jmx/mbean'
+    try:
+        response = requests_retry_session().get(url, timeout=5)
+    except Exception as x:
+        app_log.error("Error fetching %s", url)
+        return {}
+
+    if not response.ok:
+        app_log.error("Error fetching %s: return code is %s", url, response.status_code)
+        return {}
+
+    if not response.text:
+        app_log.warn("Response fetching %s is empty", url)
+        return {}
+
+    ret = {}
+    for obj in response.json():
+        object_name = obj.get('objectName')
+        if not object_name:
+            next
+        interested = object_name in metrics_per_mbean
+        for k, v in prefix_mbeans.items():
+            if object_name.startswith(k):
+                v[1].append(object_name)
+                interested = True
+        if interested:
+            ret[object_name] = obj
+    ts = time.time()
+    if app_log.isEnabledFor(logging.DEBUG):
+        app_log.debug('All the metrics at time ' + str(int(ts)))
+        app_log.debug(ret)
+    return (ret, ts)
+
+def get_metrics_helper(all_metrics, metric_name, metrics, ts):
     prefix = metrics['prefix']
-    mbean_object = metrics['mbean']
-   
+    mbean_object = all_metrics.get(metric_name)
+    if not mbean_object:
+        return {}
+
+    mbean_prefix = metrics.get('mbean_prefix', None)
+    if mbean_prefix and metric_name.startswith(mbean_prefix):
+        for extra_word in metric_name[len(mbean_prefix):].split(','):
+            extra_word = extra_word.strip()
+            if extra_word:
+                k, v = extra_word.split('=')
+                prefix += '.' + v
+
     desired_attributes = {}
     for metric in metrics.get('metrics', []):
         if isinstance(metric, tuple):
@@ -209,24 +267,8 @@ def get_metrics_helper(port, metrics):
         elif isinstance(metric, string_types):
             desired_attributes[metric.lower()] = (metric, None, 'GAUGE')
 
-    url = jmx_http_url(port) + mbean_object
-    try:
-        response = requests_retry_session().get(url, timeout=5)
-    except Exception as x:
-        app_log.error("Error fetching %s. %s", mbean_object, x)
-        return {}
-
-    if not response.ok:
-        app_log.error("Error fetching %s: return code is %s", mbean_object, response.status_code)
-        return {}
-
-    if not response.text:
-        app_log.warn("Response fetching %s is empty", mbean_object)
-        return {}
-
     results = {}
-    ts = time.time()
-    for attr in response.json().get('attributes', []):
+    for attr in mbean_object.get('attributes', []):
         if 'name' not in attr or 'value' not in attr or 'type' not in attr:
             continue
 
@@ -258,58 +300,85 @@ def get_metrics_helper(port, metrics):
                         results[key] = {'ts': ts, 'type': attr_details[2], 'value': value_sub_metric}
     return results
 
-def updateResult(port, result, metrics):
-    start = time.time()
-    result.update(get_metrics(port, metrics))
-    app_log.info("updateResult for %s finished in %f seconds", metrics['mbean'], time.time() - start)
-
-
-def run_check(port, service_name, m3obj, pretend, debug):
+def run_check(port, service_name, m3obj, debug):
     result = {}
-    for metric in METRICS:
-        updateResult(port, result, metric)
+    all_metrics, ts = get_all_jmx_metrics(port)
+    for metric_name, metrics in metrics_per_mbean.items():
+        result.update(get_metrics_helper(all_metrics, metric_name, metrics, ts))
+    for prefix_mbeans_value in prefix_mbeans.values():
+        metrics = prefix_mbeans_value[0]
+        for metric_name in prefix_mbeans_value[1]:
+            result.update(get_metrics_helper(all_metrics, metric_name, metrics, ts))
+
     filter_none(result)
     if debug:
         app_log.info('Data for graphite:')
         app_log.info(m3obj.format_for_graphite(service_name, result))
-    if not pretend:
-        m3obj.update(service_name, result)
+    m3obj.update(service_name, result)
 
-def create_m3_obj():
-    m3obj = ubermon.Metrics()
-    m3obj.current_check_group = 'neutrino'
-    return m3obj
+class FakeMetricsObject:
+    def update(self, service_name, result):
+        app_log.debug('Publishing ' + str(result))
 
-def run_checks(port, service_name, pretend=False, debug=False):
-    m3obj = create_m3_obj()
-    check_timeout = ubermon.conf('check_timeout', default=20)
+    def format_for_graphite(self, service_name, result):
+        return result
+
+class RealUberMonWrapper:
+    def __init__(self, config_path):
+        import ubermon
+        self.ubermon = ubermon
+        self.ubermon.init(config_path)
+
+    def create_m3_obj(self):
+        m3obj = self.ubermon.Metrics()
+        m3obj.current_check_group = 'neutrino'
+        return m3obj
+
+    def get_config(self, conf, default = None):
+        return self.ubermon.conf(conf, default=20)
+
+class FakeUberMonWrapper:
+    def create_m3_obj(self):
+        self.config = {'check_timeout' : 10}
+        return FakeMetricsObject()
+
+    def get_config(self, conf, default = None):
+        return self.config.get(conf, default)
+
+def run_checks(port, service_name, debug=False):
+    m3obj = ubermon_wrapper.create_m3_obj()
+    check_timeout = ubermon_wrapper.get_config('check_timeout', default=20)
 
     t0 = time.time()
     try:
-        run_check(port, service_name, m3obj, pretend, debug)
+        run_check(port, service_name, m3obj, debug)
     except Exception, e:
         app_log.exception(e)
     app_log.debug('completed in %0.2f seconds\n' % (time.time() - t0))
 
-def daemon_checks(right_away, port, service_name, pretend=False, interval=60, debug=False):
+def daemon_checks(right_away, port, service_name, interval=60, debug=False):
     timer = sched.scheduler(time.time, time.sleep)
 
     def add(wait):
-        timer.enter(wait, 1, run_checks, [port, service_name, pretend, debug])
+        timer.enter(wait, 1, run_checks, [port, service_name, debug])
 
     add(0 if right_away else interval)
     while not timer.empty():
         timer.run()
         add(interval)
 
+app_log = None
+metrics_per_mbean = None
+prefix_mbeans = None
+ubermon_wrapper = None
+
 def main():
+    global ubermon_wrapper
+    global metrics_per_mbean
+    global prefix_mbeans
+
+    metrics_per_mbean, prefix_mbeans = compile_metrics(METRICS)
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-p',
-        '--pretend',
-        action='store_true',
-        help='Print check output instead of sending it to graphite'
-    )
     parser.add_argument(
         '-c',
         '--conf-path',
@@ -356,14 +425,18 @@ def main():
         action='store_true',
         help='Do the first round right away'
     )
+    parser.add_argument(
+        '--fake_ubermon',
+        action='store_true',
+        help='Run with a fake ubermon'
+    )
     args = parser.parse_args()
+    ubermon_wrapper = RealUberMonWrapper(args.conf_path) if not args.fake_ubermon else FakeUberMonWrapper()
     setup_logging(args)
-    ubermon.init(args.conf_path)
     daemon_checks(
         right_away=args.right_away,
         port=args.port,
         service_name=args.service_name,
-        pretend=args.pretend,
         interval=args.interval,
         debug=args.debug
     )
