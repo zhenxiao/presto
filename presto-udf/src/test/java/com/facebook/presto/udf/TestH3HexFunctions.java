@@ -14,16 +14,23 @@
 package com.facebook.presto.udf;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.operator.scalar.FunctionAssertions;
+import com.facebook.presto.spi.type.ArrayType;
 import com.facebook.presto.spi.type.TimeZoneKey;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.testing.LocalQueryRunner;
 import com.facebook.presto.tests.AbstractTestQueryFramework;
 import com.facebook.presto.tpch.TpchConnectorFactory;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static com.facebook.presto.metadata.FunctionExtractor.extractFunctions;
+import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.TimeZoneKey.getTimeZoneKey;
+import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static com.facebook.presto.tpch.TpchMetadata.TINY_SCHEMA_NAME;
 
@@ -33,9 +40,23 @@ import static com.facebook.presto.tpch.TpchMetadata.TINY_SCHEMA_NAME;
 public class TestH3HexFunctions
         extends AbstractTestQueryFramework
 {
+    private FunctionAssertions funcAssert;
+
     protected TestH3HexFunctions()
     {
         super(TestH3HexFunctions::createLocalQueryRunner);
+    }
+
+    @BeforeClass
+    public void setUpClass()
+            throws Exception
+    {
+        UserDefinedFunctionsPlugin plugin = new UserDefinedFunctionsPlugin();
+        this.funcAssert = new FunctionAssertions(this.getSession());
+        for (Type type : plugin.getTypes()) {
+            this.funcAssert.getTypeRegistry().addType(type);
+        }
+        this.funcAssert.getMetadata().addFunctions(extractFunctions(plugin.getFunctions()));
     }
 
     @BeforeMethod
@@ -73,7 +94,7 @@ public class TestH3HexFunctions
         assertQuery("select get_hexagon_addr_wkt(NULL)", "select NULL");
         assertQuery("select get_hexagon_addr_wkt('')", "select NULL");
 
-        assertQueryFails("select get_hexagon_addr_wkt('1231231231')", "Input is not a valid h3 address.");
+        assertQueryFails("select get_hexagon_addr_wkt('1231231231')", "Input is not a valid h3 address \\(1231231231\\).");
     }
 
     @Test
@@ -88,6 +109,196 @@ public class TestH3HexFunctions
 
         assertQueryFails("select get_parent_hexagon_addr('89283475983ffff', 10)", "res \\(10\\) must be between 0 and 9, inclusive");
         assertQueryFails("select get_parent_hexagon_addr('89283475983ffff', -1)", "res \\(-1\\) must be between 0 and 9, inclusive");
+    }
+
+    @Test
+    public void testHexDistance()
+            throws Exception
+    {
+        assertQuery("select h3_distance(NULL, NULL)", "select NULL");
+        assertQuery("select h3_distance('8928308280fffff', NULL)", "select NULL");
+        assertQuery("select h3_distance(NULL, '8928308280fffff')", "select NULL");
+        assertQuery("select h3_distance('', '')", "select NULL");
+        assertQuery("select h3_distance('8928308280fffff', '')", "select NULL");
+        assertQuery("select h3_distance('', '8928308280fffff')", "select NULL");
+
+        assertQuery("select h3_distance('8928308280fffff', '892830828d7ffff')", "select 4");
+        assertQuery("select h3_distance('89283082993ffff', '89283082827ffff')", "select 5");
+
+        assertQueryFails("select h3_distance('8928308280fffff', '892a107748fffff')", "Distance cannot be computed for \\(8928308280fffff, 892a107748fffff\\)");
+        assertQueryFails("select h3_distance('123141411', '8928308280fffff')", "Input is not a valid h3 address \\(123141411\\).");
+        assertQueryFails("select h3_distance('8928308280fffff', '123141411')", "Input is not a valid h3 address \\(123141411\\).");
+    }
+
+    @Test(enabled = false)
+    /*
+     * This test is disabled because the test passes locally but does not pass on jenkins due to a decimal difference in one
+     * of the resulting coordinates.
+     */
+    public void testH3ToGeo()
+            throws Exception
+    {
+        funcAssert.assertFunction("h3_to_geo('89283082993ffff')", new ArrayType(DOUBLE), ImmutableList.of(37.77137479807198, -122.44623843414703));
+        assertQuery("select h3_to_geo(NULL)", "select NULL");
+        assertQuery("select h3_to_geo('')", "select NULL");
+        assertQueryFails("select h3_to_geo('123141411')", "Input is not a valid h3 address \\(123141411\\).");
+    }
+
+    @Test
+    public void testEdgeLength()
+            throws Exception
+    {
+        assertQuery("select h3_edge_length(NULL, 'km')", "select NULL");
+        assertQuery("select h3_edge_length(1, '')", "select NULL");
+        assertQuery("select h3_edge_length(NULL, '')", "select NULL");
+        assertQuery("select h3_edge_length(NULL, NULL)", "select NULL");
+
+        assertQuery("select h3_edge_length(1, 'km')", "select 418.6760055");
+        assertQuery("select h3_edge_length(1, 'm')", "select 418676.0055");
+        assertQuery("select h3_edge_length(5, 'km')", "select 8.544408276");
+
+        assertQueryFails("select h3_edge_length(-1, 'm')", "resolution -1 is out of range \\(must be 0 <= res <= 15\\)");
+        assertQueryFails("select h3_edge_length(1, 'illegal_str')", "Length unit must be 'm' or 'km'.");
+    }
+
+    @Test
+    public void testHexArea()
+            throws Exception
+    {
+        assertQuery("select h3_hex_area(1, '')", "select NULL");
+        assertQuery("select h3_hex_area(NULL, 'km2')", "select NULL");
+        assertQuery("select h3_hex_area(NULL, '')", "select NULL");
+        assertQuery("select h3_hex_area(NULL, NULL)", "select NULL");
+
+        assertQuery("select h3_hex_area(1, 'km2')", "select 607220.9782");
+        assertQuery("select h3_hex_area(1, 'm2')", "select 607221000000.0");
+        assertQuery("select h3_hex_area(5, 'km2')", "select 252.9033645");
+
+        assertQueryFails("select h3_hex_area(-1, 'm2')", "resolution -1 is out of range \\(must be 0 <= res <= 15\\)");
+        assertQueryFails("select h3_hex_area(1, 'illegal_str')", "Area unit must be 'm2' or 'km2'.");
+    }
+
+    @Test
+    public void testGetResolution()
+            throws Exception
+    {
+        assertQuery("select h3_resolution('')", "select NULL");
+        assertQuery("select h3_resolution(NULL)", "select NULL");
+        assertQuery("select h3_resolution('8429ab7ffffffff')", "select 4");
+        assertQuery("select h3_resolution('8944a18ec03ffff')", "select 9");
+        assertQuery("select h3_resolution('8f44a1385a40000')", "select 15");
+
+        assertQueryFails("select h3_resolution('1234112')", "Input is not a valid h3 address \\(1234112\\).");
+    }
+
+    @Test
+    public void testGetH3Children()
+             throws Exception
+    {
+        assertQuery("select h3_to_children('8928308280fffff', NULL)", "select NULL");
+        assertQuery("select h3_to_children('', NULL)", "select NULL");
+        assertQuery("select h3_to_children('', 10)", "select NULL");
+        assertQuery("select h3_to_children(NULL, 10)", "select NULL");
+
+        assertQuery("select h3_to_children('8928308280fffff', 10)", "select ('8a28308280c7fff', '8a28308280cffff', '8a28308280d7fff', '8a28308280dffff', '8a28308280e7fff', '8a28308280effff', '8a28308280f7fff')");
+
+        assertQuery("select h3_to_children('8928308280fffff', 10)", "select ('8a28308280c7fff', '8a28308280cffff', '8a28308280d7fff', '8a28308280dffff', '8a28308280e7fff', '8a28308280effff', '8a28308280f7fff')");
+        assertQuery("select h3_to_children('8928308280fffff', 9)", "select ('8928308280fffff')");
+        assertQuery("select h3_to_children('8928308280fffff', 8)", "select ()");
+
+        assertQueryFails("select h3_to_children('1234112', 5)", "Input is not a valid h3 address \\(1234112\\).");
+        assertQueryFails("select h3_to_children('8928308280fffff', -1)", "resolution -1 is out of range \\(must be 0 <= res <= 15\\)");
+    }
+
+    @Test
+    public void testGetHexRange()
+            throws Exception
+    {
+        assertQuery("select h3_hex_range('', 1)", "select NULL");
+        assertQuery("select h3_hex_range(NULL, 1)", "select NULL");
+        assertQuery("select h3_hex_range('8944a18ec03ffff', NULL)", "select NULL");
+        assertQuery("select h3_hex_range(NULL, NULL)", "select NULL");
+
+        funcAssert.assertFunction("h3_hex_range('8944a18ec03ffff', 2)", new ArrayType(new ArrayType(VARCHAR)), ImmutableList.of(ImmutableList.of("8944a18ec03ffff"), ImmutableList.of("8944a18ec1bffff", "8944a18ec0bffff", "8944a18ec0fffff", "8944a18ec07ffff", "8944a18ec17ffff", "8944a18ec13ffff"), ImmutableList.of("8944a18ecc7ffff", "8944a18eccfffff", "8944a18ec57ffff", "8944a18ec47ffff", "8944a18ec73ffff", "8944a18ec77ffff", "8944a18ec3bffff", "8944a18ec33ffff", "8944a18ecabffff", "8944a18ecbbffff", "8944a18ec8fffff", "8944a18ec8bffff")));
+        funcAssert.assertFunction("h3_hex_range('8944a18ec03ffff', 1)", new ArrayType(new ArrayType(VARCHAR)), ImmutableList.of(ImmutableList.of("8944a18ec03ffff"), ImmutableList.of("8944a18ec1bffff", "8944a18ec0bffff", "8944a18ec0fffff", "8944a18ec07ffff", "8944a18ec17ffff", "8944a18ec13ffff")));
+
+        assertQueryFails("select h3_hex_range('8944a18ec03ffff', -1)", "Number of rings must be greater than or equal to 0.");
+        assertQueryFails("select h3_hex_range('12341134', 2)", "Input is not a valid h3 address \\(12341134\\).");
+    }
+
+    @Test
+    public void testGetHexRing()
+            throws Exception
+    {
+        assertQuery("select h3_hex_ring('', 1)", "select NULL");
+        assertQuery("select h3_hex_ring(NULL, 1)", "select NULL");
+        assertQuery("select h3_hex_ring('8944a18ec03ffff', NULL)", "select NULL");
+        assertQuery("select h3_hex_ring(NULL, NULL)", "select NULL");
+
+        funcAssert.assertFunction("h3_hex_ring('8944a18ec03ffff', 1)", new ArrayType(VARCHAR), ImmutableList.of("8944a18ec13ffff", "8944a18ec1bffff", "8944a18ec0bffff", "8944a18ec0fffff", "8944a18ec07ffff", "8944a18ec17ffff"));
+        funcAssert.assertFunction("h3_hex_ring('8944a18ec03ffff', 0)", new ArrayType(VARCHAR), ImmutableList.of("8944a18ec03ffff"));
+
+        assertQueryFails("select h3_hex_ring('1234235', 1)", "Input is not a valid h3 address \\(1234235\\).");
+        assertQueryFails("select h3_hex_ring('8944a18ec03ffff', -1)", "Ring number must be greater than or equal to 0.");
+    }
+
+    @Test
+    public void testGetKRing()
+            throws Exception
+    {
+        assertQuery("select h3_kring('', 1)", "select NULL");
+        assertQuery("select h3_kring(NULL, 1)", "select NULL");
+        assertQuery("select h3_kring('8944a18ec03ffff', NULL)", "select NULL");
+        assertQuery("select h3_kring(NULL, NULL)", "select NULL");
+
+        funcAssert.assertFunction("h3_kring('8928308280fffff', 2)", new ArrayType(VARCHAR), ImmutableList.of("8928308280fffff", "8928308280bffff", "89283082873ffff", "89283082877ffff", "8928308283bffff", "89283082807ffff", "89283082803ffff", "8928308281bffff", "89283082857ffff", "89283082847ffff", "8928308287bffff", "89283082863ffff", "89283082867ffff", "8928308282bffff", "89283082823ffff", "89283082833ffff", "892830828abffff", "89283082817ffff", "89283082813ffff"));
+        funcAssert.assertFunction("h3_kring('8928308280fffff', 0)", new ArrayType(VARCHAR), ImmutableList.of("8928308280fffff"));
+
+        assertQueryFails("select h3_kring('1234235', 1)", "Input is not a valid h3 address \\(1234235\\).");
+        assertQueryFails("select h3_kring('8944a18ec03ffff', -1)", "Number of rings must be greater than or equal to 0.");
+    }
+
+    @Test
+    public void testIsPentagon()
+            throws Exception
+    {
+        assertQuery("select h3_is_pentagon('')", "select NULL");
+        assertQuery("select h3_is_pentagon(NULL)", "select NULL");
+
+        assertQuery("select h3_is_pentagon('804dfffffffffff')", "select true");
+        assertQuery("select h3_is_pentagon('8f44a1385a40000')", "select false");
+
+        assertQueryFails("select h3_is_pentagon('1234341')", "Input is not a valid h3 address \\(1234341\\).");
+    }
+
+    @Test
+    public void testUncompact()
+            throws Exception
+    {
+        assertQuery("select h3_uncompact(NULL, 9)", "select NULL");
+        assertQuery("select h3_uncompact(array['8844a18ecbfffff'], NULL)", "select NULL");
+        assertQuery("select h3_uncompact(NULL, NULL)", "select NULL");
+
+        funcAssert.assertFunction("h3_uncompact(array['8844a18ecbfffff'], 9)", new ArrayType(VARCHAR), ImmutableList.of("8944a18eca3ffff", "8944a18eca7ffff", "8944a18ecabffff", "8944a18ecafffff", "8944a18ecb3ffff", "8944a18ecb7ffff", "8944a18ecbbffff"));
+        funcAssert.assertFunction("h3_uncompact(array['8844a18ec9fffff', '8844a18ecbfffff'], 9)", new ArrayType(VARCHAR), ImmutableList.of("8944a18ec83ffff", "8944a18ec87ffff", "8944a18ec8bffff", "8944a18ec8fffff", "8944a18ec93ffff", "8944a18ec97ffff", "8944a18ec9bffff", "8944a18eca3ffff", "8944a18eca7ffff", "8944a18ecabffff", "8944a18ecafffff", "8944a18ecb3ffff", "8944a18ecb7ffff", "8944a18ecbbffff"));
+        funcAssert.assertFunction("h3_uncompact(array[], 9)", new ArrayType(VARCHAR), ImmutableList.of());
+
+        assertQueryFails("select h3_uncompact(array['12341111'], 9)", "Input is not a valid h3 address \\(12341111\\).");
+        assertQueryFails("select h3_uncompact(array['8844a18ecbfffff'], -1)", "resolution -1 is out of range \\(must be 0 <= res <= 15\\)");
+    }
+
+    @Test
+    public void testCompact()
+            throws Exception
+    {
+        assertQuery("select h3_compact(NULL)", "select NULL");
+
+        funcAssert.assertFunction("h3_compact(array['8944a18ecb3ffff', '8944a18ecb7ffff'])", new ArrayType(VARCHAR), ImmutableList.of("8944a18ecb3ffff", "8944a18ecb7ffff"));
+        funcAssert.assertFunction("h3_compact(array['8944a18ecb3ffff', '8944a18ecb7ffff', '8944a18ecbbffff', '8944a18ecafffff', '8944a18ecabffff', '8944a18eca7ffff', '8944a18eca3ffff', '8a2a1072b587fff', '8a2a1072b5b7fff'])", new ArrayType(VARCHAR), ImmutableList.of("8a2a1072b587fff", "8a2a1072b5b7fff", "8844a18ecbfffff"));
+        funcAssert.assertFunction("h3_compact(array['8944a18ecb3ffff', '8944a18ecb7ffff', '8944a18ecbbffff', '8944a18ecafffff', '8944a18ecabffff', '8944a18eca7ffff'])", new ArrayType(VARCHAR), ImmutableList.of("8944a18ecb3ffff", "8944a18ecb7ffff", "8944a18ecbbffff", "8944a18ecafffff", "8944a18ecabffff", "8944a18eca7ffff"));
+
+        funcAssert.assertFunction("h3_compact(array[])", new ArrayType(VARCHAR), ImmutableList.of());
+        assertQueryFails("select h3_compact(array['12341111'])", "Input is not a valid h3 address \\(12341111\\).");
     }
 
     private static final TimeZoneKey TIME_ZONE_KEY = getTimeZoneKey("UTC");
