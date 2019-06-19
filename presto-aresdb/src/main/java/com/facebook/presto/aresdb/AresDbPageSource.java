@@ -245,7 +245,7 @@ public class AresDbPageSource
                 }
             }
 
-            return rows.size();
+            return numRows;
         }
         else {
             // parse group by results:

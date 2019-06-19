@@ -158,7 +158,7 @@ public class AresDbQueryGenerator
             filterPredicateOptional = Optional.of(filterPredicate);
         }
         if (context.getTimeColumn().isPresent() && filter.getSymbolNameToDomains().isPresent()) {
-            String timeColumn = context.getTimeColumn().get();
+            String timeColumn = context.getTimeColumn().get().toLowerCase(ENGLISH);
             timeFilter = filter.getSymbolNameToDomains().get().getDomains().flatMap(domains -> Optional.ofNullable(domains.get(timeColumn)));
         }
         else {
