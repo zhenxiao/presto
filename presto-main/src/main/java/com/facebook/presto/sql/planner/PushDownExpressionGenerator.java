@@ -32,6 +32,7 @@ import com.facebook.presto.sql.tree.BooleanLiteral;
 import com.facebook.presto.sql.tree.Cast;
 import com.facebook.presto.sql.tree.CharLiteral;
 import com.facebook.presto.sql.tree.ComparisonExpression;
+import com.facebook.presto.sql.tree.DecimalLiteral;
 import com.facebook.presto.sql.tree.DoubleLiteral;
 import com.facebook.presto.sql.tree.Expression;
 import com.facebook.presto.sql.tree.FunctionCall;
@@ -138,6 +139,12 @@ public class PushDownExpressionGenerator
         }
 
         return new PushDownNotExpression(expressionToTypeConverter.getTypeSignature(node), input);
+    }
+
+    @Override
+    protected PushDownExpression visitDecimalLiteral(DecimalLiteral node, Void context)
+    {
+        return new PushDownLiteral(expressionToTypeConverter.getTypeSignature(node), null, null, Double.parseDouble(node.getValue()), null);
     }
 
     @Override

@@ -35,18 +35,18 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.REGULAR;
-import static com.facebook.presto.pinot.PinotTestUtils.agg;
-import static com.facebook.presto.pinot.PinotTestUtils.cols;
-import static com.facebook.presto.pinot.PinotTestUtils.columnHandles;
-import static com.facebook.presto.pinot.PinotTestUtils.limit;
-import static com.facebook.presto.pinot.PinotTestUtils.pdExpr;
 import static com.facebook.presto.pinot.PinotTestUtils.pipeline;
-import static com.facebook.presto.pinot.PinotTestUtils.project;
 import static com.facebook.presto.pinot.PinotTestUtils.scan;
-import static com.facebook.presto.pinot.PinotTestUtils.types;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
+import static com.facebook.presto.testing.PushdownTestUtils.agg;
+import static com.facebook.presto.testing.PushdownTestUtils.cols;
+import static com.facebook.presto.testing.PushdownTestUtils.columnHandles;
+import static com.facebook.presto.testing.PushdownTestUtils.limit;
+import static com.facebook.presto.testing.PushdownTestUtils.pdExpr;
+import static com.facebook.presto.testing.PushdownTestUtils.project;
+import static com.facebook.presto.testing.PushdownTestUtils.types;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 

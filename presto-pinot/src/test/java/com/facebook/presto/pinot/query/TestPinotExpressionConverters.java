@@ -22,12 +22,12 @@ import org.testng.annotations.Test;
 import java.util.Map;
 
 import static com.facebook.presto.pinot.PinotErrorCode.PINOT_UNSUPPORTED_EXPRESSION;
-import static com.facebook.presto.pinot.PinotTestUtils.pdExpr;
 import static com.facebook.presto.pinot.query.PinotQueryGeneratorContext.Origin.DERIVED;
 import static com.facebook.presto.pinot.query.PinotQueryGeneratorContext.Origin.TABLE_COLUMN;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
+import static com.facebook.presto.testing.PushdownTestUtils.pdExpr;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
 
