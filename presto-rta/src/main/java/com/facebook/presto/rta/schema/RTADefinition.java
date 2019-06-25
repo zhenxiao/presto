@@ -30,6 +30,12 @@ import static com.google.common.base.MoreObjects.toStringHelper;
 public class RTADefinition
 {
     @JsonProperty
+    private String namespace;
+
+    @JsonProperty
+    private String name;
+
+    @JsonProperty
     private List<Field> fields;
 
     @JsonProperty("rtaTableMetadata")
@@ -43,6 +49,16 @@ public class RTADefinition
     public RTAMetadata getMetadata()
     {
         return metadata;
+    }
+
+    public String getNamespace()
+    {
+        return namespace;
+    }
+
+    public String getName()
+    {
+        return name;
     }
 
     @Override

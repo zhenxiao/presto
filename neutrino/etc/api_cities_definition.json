@@ -1,0 +1,135 @@
+{
+  "owner": "niteshs@uber.com",
+  "namespace": "rta",
+  "name": "api_cities",
+  "rtaTableMetadata": {
+    "isFactTable": false,
+    "primaryKeys": [
+      "id"
+    ],
+    "ingestionRate": 5000,
+    "retentionDays": 20,
+    "queryTypes": [
+      "pre_defined"
+    ],
+    "slaSeconds": 0,
+    "sourceName": "hp-web-periscope-eats_live_orders_rta",
+    "qps": 200
+  },
+  "fields": [
+    {
+      "type": "long",
+      "name": "id",
+      "uberLogicalType": "UUID",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "long",
+      "name": "country_id",
+      "uberLogicalType": "UUID",
+      "columnType": "dimension",
+      "cardinality": "low",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "territory_uuid",
+      "uberLogicalType": "UUID",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "label",
+      "uberLogicalType": "UUID",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "sub_region",
+      "uberLogicalType": "string",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "region",
+      "uberLogicalType": "string",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "mega_region",
+      "uberLogicalType": "string",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "country_name",
+      "uberLogicalType": "string",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "boolean",
+      "name": "operational",
+      "uberLogicalType": "boolean",
+      "columnType": "metric",
+      "cardinality": "low",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "timezone",
+      "uberLogicalType": "string",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "sub_region_timezone",
+      "uberLogicalType": "string",
+      "columnType": "dimension",
+      "cardinality": "high",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "region_timezone",
+      "uberLogicalType": "string",
+      "columnType": "metric",
+      "cardinality": "low",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "mega_region_timezone",
+      "uberLogicalType": "string",
+      "columnType": "metric",
+      "cardinality": "low",
+      "doc": null
+    },
+    {
+      "type": "string",
+      "name": "country_timezone",
+      "uberLogicalType": "string",
+      "columnType": "metric",
+      "cardinality": "low",
+      "doc": null
+    }
+  ],
+  "type": "record",
+  "schemaVersion": 2
+}

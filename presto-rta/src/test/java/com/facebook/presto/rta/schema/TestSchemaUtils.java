@@ -67,6 +67,7 @@ public final class TestSchemaUtils
     }
 
     static RTAMSClient getMockClient(String resource, int returnCode)
+            throws IOException
     {
         InputStream deploymentOutput = requireNonNull(TestRTAClient.class.getResourceAsStream(resource), resource + " not found");
         HttpClient client = new TestingHttpClient(request -> {

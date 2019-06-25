@@ -18,6 +18,8 @@ import com.facebook.presto.rta.RtaConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
 import io.airlift.http.client.HttpClient;
@@ -29,6 +31,8 @@ import javax.inject.Inject;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
@@ -129,8 +133,31 @@ public class RTAMSClient
         this.httpClient = httpClient;
     }
 
+    public List<RTADefinition> getExtraDefinitions(String extraDefinitionFiles)
+            throws IOException
+    {
+        ImmutableList.Builder<RTADefinition> definitions = ImmutableList.builder();
+        for (String definitionFile : Splitter.on(",").trimResults().omitEmptyStrings().splitToList(extraDefinitionFiles)) {
+            RTADefinition definition = mapper.readValue(Files.readAllBytes(Paths.get(definitionFile)), RTADefinition.class);
+            definitions.add(definition);
+        }
+        return definitions.build();
+    }
+
+    public List<List<RTADeployment>> getExtraDeployments(String extraDeploymentFiles)
+            throws IOException
+    {
+        ImmutableList.Builder<List<RTADeployment>> deployments = ImmutableList.builder();
+        for (String deploymentFile : Splitter.on(",").trimResults().omitEmptyStrings().splitToList(extraDeploymentFiles)) {
+            List<RTADeployment> deployment = mapper.readValue(Files.readAllBytes(Paths.get(deploymentFile)), new TypeReference<List<RTADeployment>>() {});
+            deployments.add(deployment);
+        }
+        return deployments.build();
+    }
+
     @Inject
     RTAMSClient(@ForRTAMS HttpClient httpClient, RtaConfig rtaConfig)
+            throws IOException
     {
         this(httpClient, rtaConfig.getRtaUmsService());
     }

@@ -15,6 +15,7 @@
 package com.facebook.presto.rta.schema;
 
 import com.facebook.presto.rta.RtaConfig;
+import com.facebook.presto.spi.SchemaTableName;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -25,10 +26,12 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -38,8 +41,8 @@ import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 /**
- * This class is responsble for top level schema/deployment operations and has a unified view of all info regarding query table, such as
- * - Creating namespace->table->deployment hierarchy
+ * This class is responsble for top level schema/deployments operations and has a unified view of all info regarding query table, such as
+ * - Creating namespace->table->deployments hierarchy
  * - Preloading/making all RTAMS calls
  * - Caching
  */
@@ -88,6 +91,14 @@ public class RTASchemaHandler
         {
             return lowerCaseString;
         }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("lowerCaseString", lowerCaseString)
+                    .toString();
+        }
     }
 
     private static class State
@@ -96,7 +107,7 @@ public class RTASchemaHandler
         private Map<String, Map<CaseInsensitiveString, RTATableEntity>> namespaceToTablesMap;
         private Map<String, List<String>> tablesInNamespace;
 
-        public State(List<String> allNamespaces, Map<String, Map<CaseInsensitiveString, RTATableEntity>> namespaceToTablesMap, Map<String, List<String>> tablesInNamespace)
+        public State(Set<String> allNamespaces, Map<String, Map<CaseInsensitiveString, RTATableEntity>> namespaceToTablesMap, Map<String, List<String>> tablesInNamespace)
         {
             this.allNamespaces = ImmutableList.copyOf(allNamespaces);
 
@@ -135,23 +146,51 @@ public class RTASchemaHandler
         }
     }
 
+    private static class TableInNamespaceDetails
+    {
+        private final RTADefinition definition;
+        private List<RTADeployment> deployments;
+
+        public TableInNamespaceDetails(RTADefinition definition, List<RTADeployment> deployments)
+        {
+            this.definition = definition;
+            this.deployments = deployments;
+        }
+    }
+
     private State populate()
     {
         State ret;
         try {
+            List<RTADefinition> extraDefinitions = client.getExtraDefinitions(config.getExtraDefinitionFiles());
+            List<List<RTADeployment>> extraDeployments = client.getExtraDeployments(config.getExtraDeploymentFiles());
             Map<String, Map<CaseInsensitiveString, RTATableEntity>> namespaceToTablesMap = new HashMap<>();
-            List<String> allNamespaces = client.getNamespaces().stream().map(s -> s.toLowerCase(ENGLISH)).collect(toImmutableList());
+            Set<String> allNamespaces = new HashSet<>(client.getNamespaces().stream().map(s -> s.toLowerCase(ENGLISH)).collect(toImmutableList()));
+            Map<SchemaTableName, TableInNamespaceDetails> schemaTableNameMap = new HashMap<>();
             Map<String, List<String>> tablesInNamespace = new HashMap<>();
             for (String namespace : allNamespaces) {
                 for (String table : client.getTables(namespace)) {
                     List<RTADeployment> deployments = client.getDeployments(namespace, table);
                     RTADefinition definition = client.getDefinition(namespace, table);
-                    RTATableEntity entity = new RTATableEntity(table, deployments, definition);
-                    CaseInsensitiveString nonCasedTable = new CaseInsensitiveString(table);
-                    namespaceToTablesMap.computeIfAbsent(namespace, (ignored) -> new HashMap<>()).put(nonCasedTable, entity);
-                    tablesInNamespace.computeIfAbsent(namespace, ignored -> new ArrayList<>()).add(nonCasedTable.getLowerCaseString());
+                    schemaTableNameMap.put(new SchemaTableName(namespace, table), new TableInNamespaceDetails(definition, deployments));
                 }
             }
+
+            extraDefinitions.forEach(definition -> {
+                schemaTableNameMap.put(new SchemaTableName(definition.getNamespace(), definition.getName()), new TableInNamespaceDetails(definition, null));
+            });
+            extraDeployments.forEach(deployments -> {
+                TableInNamespaceDetails tableInNamespaceDetails = schemaTableNameMap.get(new SchemaTableName(deployments.get(0).getNamespace(), deployments.get(0).getName()));
+                if (tableInNamespaceDetails != null) {
+                    tableInNamespaceDetails.deployments = deployments;
+                }
+            });
+            schemaTableNameMap.forEach((schemaTableName, detail) -> {
+                RTATableEntity entity = new RTATableEntity(schemaTableName.getTableName(), detail.deployments, detail.definition);
+                CaseInsensitiveString nonCasedTable = new CaseInsensitiveString(schemaTableName.getTableName());
+                namespaceToTablesMap.computeIfAbsent(schemaTableName.getSchemaName(), (ignored) -> new HashMap<>()).put(nonCasedTable, entity);
+                tablesInNamespace.computeIfAbsent(schemaTableName.getSchemaName(), ignored -> new ArrayList<>()).add(nonCasedTable.getLowerCaseString());
+            });
             ret = new State(allNamespaces, namespaceToTablesMap, tablesInNamespace);
         }
         catch (IOException e) {

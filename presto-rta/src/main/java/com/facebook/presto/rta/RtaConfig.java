@@ -27,6 +27,8 @@ public class RtaConfig
     private String configFile;
     private Duration cacheExpiryTime = new Duration(1, TimeUnit.HOURS);
     private String dataCenterOverride;
+    private String extraDefinitionFiles = "";
+    private String extraDeploymentFiles = "";
 
     @NotNull
     public String getRtaUmsService()
@@ -38,6 +40,32 @@ public class RtaConfig
     public RtaConfig setRtaUmsService(String rtaUmsService)
     {
         this.rtaUmsService = rtaUmsService;
+        return this;
+    }
+
+    @NotNull
+    public String getExtraDefinitionFiles()
+    {
+        return extraDefinitionFiles;
+    }
+
+    @Config("extra_definition_files")
+    public RtaConfig setExtraDefinitionFiles(String extraDefinitionFiles)
+    {
+        this.extraDefinitionFiles = extraDefinitionFiles;
+        return this;
+    }
+
+    @NotNull
+    public String getExtraDeploymentFiles()
+    {
+        return extraDeploymentFiles;
+    }
+
+    @Config("extra_deployment_files")
+    public RtaConfig setExtraDeploymentFiles(String extraDeploymentFiles)
+    {
+        this.extraDeploymentFiles = extraDeploymentFiles;
         return this;
     }
 
