@@ -34,6 +34,7 @@ import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -80,7 +81,7 @@ public class AresDbMetadata
         try {
             TableScanPipeline newPipeline = new TableScanPipeline(new ArrayList<>(scanPipeline.getPipelineNodes()), scanPipeline.getOutputColumnHandles());
             newPipeline.addPipeline(newPipelineNode, createDerivedColumnHandles(newPipelineNode));
-            AresDbQueryGenerator.generate(newPipeline, Optional.empty());
+            AresDbQueryGenerator.generate(newPipeline, Optional.empty(), Optional.of(aresDbConfig), Optional.empty());
             return Optional.of(newPipeline);
         }
         catch (Exception e) {
@@ -90,7 +91,8 @@ public class AresDbMetadata
         }
     }
 
-    private static List<ColumnHandle> createDerivedColumnHandles(PipelineNode pipelineNode)
+    @VisibleForTesting
+    static List<ColumnHandle> createDerivedColumnHandles(PipelineNode pipelineNode)
     {
         List<ColumnHandle> outputColumnHandles = new ArrayList<>();
         List<String> outputColumns = pipelineNode.getOutputColumns();
@@ -114,7 +116,7 @@ public class AresDbMetadata
     @Override
     public ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        return new AresDbTableHandle(connectorId, tableName.getTableName(), aresDbConnection.getTimeColumn(tableName.getTableName()));
+        return new AresDbTableHandle(connectorId, tableName.getTableName(), aresDbConnection.getTimeColumn(tableName.getTableName()), Optional.empty(), Optional.empty());
     }
 
     @Override

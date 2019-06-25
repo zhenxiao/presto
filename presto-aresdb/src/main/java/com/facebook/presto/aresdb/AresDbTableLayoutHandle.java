@@ -89,7 +89,7 @@ public class AresDbTableLayoutHandle
         StringBuilder result = new StringBuilder();
         result.append(table.toString());
         if (scanPipeline.isPresent()) {
-            result.append(", aql=" + AresDbQueryGenerator.generate(scanPipeline.get(), Optional.empty()));
+            result.append(", aql=" + AresDbQueryGenerator.generate(scanPipeline.get(), Optional.empty(), Optional.empty(), Optional.empty()));
         }
         if (constraint.isPresent()) {
             result.append(", constraint=" + constraint.get().toString());

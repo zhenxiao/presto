@@ -18,6 +18,7 @@ import com.facebook.presto.spi.type.Type;
 
 import java.util.Objects;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Locale.ENGLISH;
 
 public class RtaColumnMetadata
@@ -30,6 +31,14 @@ public class RtaColumnMetadata
     {
         super(name, type);
         this.name = name;
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("name", name)
+                .toString();
     }
 
     @Override

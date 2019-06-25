@@ -168,6 +168,14 @@ public class RTADefinition
         @JsonProperty
         private List<String> queryTypes;
 
+        @JsonProperty
+        private String retentionDays;
+
+        public String getRetentionDays()
+        {
+            return retentionDays;
+        }
+
         public boolean isFactTable()
         {
             return isFactTable;
@@ -190,6 +198,7 @@ public class RTADefinition
                     .add("isFactTable", isFactTable)
                     .add("primaryKeys", primaryKeys)
                     .add("queryTypes", queryTypes)
+                    .add("retentionDays", retentionDays)
                     .toString();
         }
     }

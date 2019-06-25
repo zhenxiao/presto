@@ -31,11 +31,13 @@ public class AresDbPageSourceProvider
         implements ConnectorPageSourceProvider
 {
     private final AresDbConnection aresDbConnection;
+    private final AresDbConfig aresDbConfig;
 
     @Inject
-    public AresDbPageSourceProvider(AresDbConnection aresDbConnection)
+    public AresDbPageSourceProvider(AresDbConnection aresDbConnection, AresDbConfig aresDbConfig)
     {
         this.aresDbConnection = requireNonNull(aresDbConnection, "aresDbConnection is null");
+        this.aresDbConfig = requireNonNull(aresDbConfig, "aresDb config is null");
     }
 
     @Override
@@ -44,6 +46,6 @@ public class AresDbPageSourceProvider
         AresDbSplit aresDbSplit = (AresDbSplit) split;
         List<AresDbColumnHandle> aresDbColumns = columns.stream().map(c -> (AresDbColumnHandle) c).collect(Collectors.toList());
 
-        return new AresDbPageSource(aresDbSplit, aresDbColumns, aresDbConnection);
+        return new AresDbPageSource(aresDbSplit, aresDbColumns, aresDbConnection, aresDbConfig, session);
     }
 }

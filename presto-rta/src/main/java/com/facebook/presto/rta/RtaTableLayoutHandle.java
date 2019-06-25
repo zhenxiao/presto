@@ -106,7 +106,7 @@ public class RtaTableLayoutHandle
     {
         switch (table.getKey().getType()) {
             case ARESDB:
-                return AresDbQueryGenerator.generate(scanPipeline.get(), Optional.empty());
+                return AresDbQueryGenerator.generate(scanPipeline.get(), Optional.empty(), Optional.empty(), Optional.empty());
             case PINOT:
                 return PinotQueryGenerator.generatePQL(scanPipeline.get(), Optional.empty());
             default:

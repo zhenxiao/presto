@@ -28,9 +28,13 @@ import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.PushDownLiteral;
 import com.facebook.presto.spi.pipeline.PushDownLogicalBinaryExpression;
 import com.facebook.presto.spi.pipeline.PushDownNotExpression;
+import com.facebook.presto.spi.type.StandardTypes;
+import com.google.common.collect.ImmutableSet;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNSUPPORTED_EXPRESSION;
@@ -44,6 +48,8 @@ import static java.util.Objects.requireNonNull;
 public class AresDbExpressionConverter
         extends PushDownExpressionVisitor<AresDbExpressionConverter.AresDbExpression, Map<String, Selection>>
 {
+    private static final Set<String> TIME_EQUIVALENT_TYPES = ImmutableSet.of(StandardTypes.BIGINT, StandardTypes.INTEGER, StandardTypes.TINYINT, StandardTypes.SMALLINT);
+
     public static class AresDbExpression
     {
         private final String definition;
@@ -101,9 +107,24 @@ public class AresDbExpressionConverter
         }
     }
 
+    private PushDownFunction getExpressionAsFunction(PushDownExpression originalExpression, PushDownExpression expression, Map<String, Selection> context)
+    {
+        if (expression instanceof PushDownFunction) {
+            return (PushDownFunction) expression;
+        }
+        else if (expression instanceof PushDownCastExpression) {
+            PushDownCastExpression castExpression = ((PushDownCastExpression) expression);
+            if (isImplicitCast(castExpression)) {
+                return getExpressionAsFunction(originalExpression, castExpression.getInput(), context);
+            }
+        }
+        throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Could not dig function out of expression: " + originalExpression + ", inside of " + expression);
+    }
+
     private AresDbExpression handleDateTrunc(PushDownFunction function, Map<String, Selection> context)
     {
         PushDownExpression timeInputParameter = function.getInputs().get(1);
+        timeInputParameter = getExpressionAsFunction(timeInputParameter, timeInputParameter, context);
         if (!(timeInputParameter instanceof PushDownFunction)) {
             throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "input parameter to date_trunc is expected to be a function: " + function);
         }
@@ -113,25 +134,7 @@ public class AresDbExpressionConverter
         PushDownFunction timeConversion = (PushDownFunction) timeInputParameter;
         switch (timeConversion.getName().toLowerCase(ENGLISH)) {
             case "from_unixtime":
-                String column;
-                if (timeConversion.getInputs().get(0) instanceof PushDownInputColumn) {
-                    PushDownInputColumn pushdownInputColumn = (PushDownInputColumn) timeConversion.getInputs().get(0);
-                    column = pushdownInputColumn.accept(this, context).getDefinition();
-                    String columnName = pushdownInputColumn.getName();
-                    if (!columnName.equalsIgnoreCase(column)) {
-                        // AresDb can only handle the direct column input to `dateTimeConvert` function
-                        throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "unsupported expr: " + function);
-                    }
-                }
-                else if (timeConversion.getInputs().get(0) instanceof PushDownCastExpression) {
-                    PushDownCastExpression pushdownInputColumn = (PushDownCastExpression) timeConversion.getInputs().get(0);
-                    column = pushdownInputColumn.accept(this, context).getDefinition();
-                }
-                else {
-                    throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "input to time conversion function is not supported type: " + timeConversion.getInputs().get(0));
-                }
-
-                inputColumn = column;
+                inputColumn = timeConversion.getInputs().get(0).accept(this, context).getDefinition();
                 break;
             default:
                 throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "not supported: " + timeConversion.getName());
@@ -172,7 +175,17 @@ public class AresDbExpressionConverter
     @Override
     public AresDbExpression visitArithmeticExpression(PushDownArithmeticExpression expression, Map<String, Selection> context)
     {
-        return super.visitArithmeticExpression(expression, context);
+        AresDbExpression right = expression.getRight().accept(this, context);
+        if (expression.getLeft() == null) {
+            // unary ...
+            String prefix = expression.getOperator().equals("-") ? "-" : "";
+            return derived(prefix + right.getDefinition());
+        }
+
+        AresDbExpression left = expression.getLeft().accept(this, context);
+        String prestoOp = expression.getOperator();
+
+        return derived(format("%s %s %s", left.getDefinition(), prestoOp, right.getDefinition()));
     }
 
     @Override
@@ -200,15 +213,25 @@ public class AresDbExpressionConverter
                 column, between.getRight().accept(this, context).definition));
     }
 
+    private static boolean isImplicitCast(PushDownCastExpression cast)
+    {
+        return cast.isImplicitCast(Optional.of((resultType, inputTypeSignature) -> Objects.equals(StandardTypes.TIMESTAMP, resultType) && TIME_EQUIVALENT_TYPES.contains(inputTypeSignature.getBase())));
+    }
+
     @Override
     public AresDbExpression visitCastExpression(PushDownCastExpression cast, Map<String, Selection> context)
     {
-        return cast.getInput().accept(this, context);
+        if (isImplicitCast(cast)) {
+            return cast.getInput().accept(this, context);
+        }
+        else {
+            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Non implicit casts not supported: " + cast);
+        }
     }
 
     @Override
     public AresDbExpression visitNotExpression(PushDownNotExpression not, Map<String, Selection> context)
     {
-        return super.visitNotExpression(not, context);
+        return derived("! " + not.getInput().accept(this, context).getDefinition());
     }
 }

@@ -101,7 +101,8 @@ public class RtaMetadata
         ConnectorTableHandle underlyingHandle;
         switch (key.getType()) {
             case ARESDB:
-                underlyingHandle = new AresDbTableHandle(new AresDbConnectorId(connectorId.getId()), entity.getTable(), entity.getTimestampField());
+                Optional<String> timestampField = entity.getTimestampField();
+                underlyingHandle = new AresDbTableHandle(new AresDbConnectorId(connectorId.getId()), entity.getTable(), timestampField, entity.getTimestampType(), timestampField.isPresent() ? entity.getRetention() : Optional.empty());
                 break;
             case PINOT:
                 underlyingHandle = new PinotTableHandle(connectorId.getId(), entity.getTable(), entity.getTable());

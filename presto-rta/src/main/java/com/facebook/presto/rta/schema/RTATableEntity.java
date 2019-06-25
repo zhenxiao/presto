@@ -20,11 +20,13 @@ import com.facebook.presto.spi.type.BooleanType;
 import com.facebook.presto.spi.type.DoubleType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
+import io.airlift.units.Duration;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -77,7 +79,7 @@ public class RTATableEntity
         return definition;
     }
 
-    public Optional<String> getTimestampField()
+    private Optional<RTADefinition.Field> getTimestampFieldHelper()
     {
         List<RTADefinition.Field> timeFields = getDefinition().getFields().stream().filter(t -> t.getColumnType().equals("time")).collect(Collectors.toList());
         if (timeFields.isEmpty()) {
@@ -87,8 +89,13 @@ public class RTATableEntity
             throw new NoSuchElementException("Multiple time fields to choose from for " + this + " : " + timeFields);
         }
         else {
-            return Optional.of(timeFields.get(0).getName());
+            return Optional.of(timeFields.get(0));
         }
+    }
+
+    public Optional<String> getTimestampField()
+    {
+        return getTimestampFieldHelper().map(RTADefinition.Field::getName);
     }
 
     public List<ColumnMetadata> getColumnsMetadata()
@@ -105,5 +112,21 @@ public class RTATableEntity
                 .add("definition", definition)
                 .add("columns", columns)
                 .toString();
+    }
+
+    public Optional<Duration> getRetention()
+    {
+        String numDaysBack = getDefinition().getMetadata().getRetentionDays();
+        try {
+            return Optional.of(new Duration(Double.parseDouble(numDaysBack), TimeUnit.DAYS));
+        }
+        catch (NumberFormatException ne) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<Type> getTimestampType()
+    {
+        return getTimestampFieldHelper().map(field -> getPrestoTypeFromRtaType(field.getType()));
     }
 }

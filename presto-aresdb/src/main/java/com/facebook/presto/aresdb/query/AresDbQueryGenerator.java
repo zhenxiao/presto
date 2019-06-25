@@ -14,11 +14,13 @@
 package com.facebook.presto.aresdb.query;
 
 import com.facebook.presto.aresdb.AresDbColumnHandle;
+import com.facebook.presto.aresdb.AresDbConfig;
 import com.facebook.presto.aresdb.AresDbException;
 import com.facebook.presto.aresdb.AresDbTableHandle;
 import com.facebook.presto.aresdb.query.AresDbExpressionConverter.AresDbExpression;
 import com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.Selection;
 import com.facebook.presto.spi.ColumnHandle;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
@@ -31,6 +33,7 @@ import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.pipeline.TableScanPipelineVisitor;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.ArrayList;
@@ -57,7 +60,7 @@ public class AresDbQueryGenerator
             "sum", "sum",
             "approx_distinct", "countdistincthll");
 
-    public static AresDbQueryGeneratorContext.AugmentedAQL generate(TableScanPipeline scanPipeline, Optional<List<AresDbColumnHandle>> columnHandles)
+    public static AresDbQueryGeneratorContext.AugmentedAQL generate(TableScanPipeline scanPipeline, Optional<List<AresDbColumnHandle>> columnHandles, Optional<AresDbConfig> config, Optional<ConnectorSession> session)
     {
         AresDbQueryGeneratorContext context = null;
 
@@ -67,7 +70,7 @@ public class AresDbQueryGenerator
             context = node.accept(visitor, context);
         }
 
-        return context.toAresDbRequest(columnHandles);
+        return context.toAresDbRequest(columnHandles, config, session);
     }
 
     private static String handleAggregationFunction(AggregationPipelineNode.Aggregation aggregation, Map<String, Selection> inputSelections)
@@ -105,9 +108,7 @@ public class AresDbQueryGenerator
             selections.put(outputColumns.get(fieldId), Selection.of(aresDbColumn.getColumnName(), TABLE, aresDbColumn.getDataType()));
         }
 
-        Optional<String> timeColumn = tableHandle.getTimeColumnName();
-
-        return new AresDbQueryGeneratorContext(selections, tableHandle.getTableName(), timeColumn);
+        return new AresDbQueryGeneratorContext(selections, tableHandle);
     }
 
     @Override
@@ -146,16 +147,16 @@ public class AresDbQueryGenerator
         requireNonNull(context, "context is null");
         Optional<Domain> timeFilter;
         PushDownExpression predicate = filter.getPredicate();
-        Optional<String> filterPredicateOptional;
+        List<String> filters;
         if (isBooleanTrue(predicate)) {
-            filterPredicateOptional = Optional.empty();
+            filters = ImmutableList.of();
         }
         else {
             String filterPredicate = predicate.accept(new AresDbExpressionConverter(), context.getSelections()).getDefinition();
             if (filterPredicate == null) {
                 throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, String.format("Cannot convert the filter %s", predicate));
             }
-            filterPredicateOptional = Optional.of(filterPredicate);
+            filters = ImmutableList.of(filterPredicate);
         }
         if (context.getTimeColumn().isPresent() && filter.getSymbolNameToDomains().isPresent()) {
             String timeColumn = context.getTimeColumn().get().toLowerCase(ENGLISH);
@@ -164,7 +165,7 @@ public class AresDbQueryGenerator
         else {
             timeFilter = Optional.empty();
         }
-        return context.withFilter(filterPredicateOptional, timeFilter);
+        return context.withFilters(filters, timeFilter);
     }
 
     @Override
@@ -204,7 +205,7 @@ public class AresDbQueryGenerator
         }
 
         if (numberOfAggregations > 1 && groupByExists) {
-            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "AresDB doesn't support semantically SQL equivalent multiple aggregations with GROUP BY in a query");
+            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "AresDB doesn't support multiple aggregations with GROUP BY in a query");
         }
 
         return context.withAggregation(newSelections, groupByColumns);

@@ -17,13 +17,22 @@ package com.facebook.presto.aresdb.query;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.facebook.presto.aresdb.AresDbColumnHandle;
+import com.facebook.presto.aresdb.AresDbConfig;
+import com.facebook.presto.aresdb.AresDbException;
+import com.facebook.presto.aresdb.AresDbTableHandle;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.SortedRangeSet;
 import com.facebook.presto.spi.predicate.ValueSet;
+import com.facebook.presto.spi.type.TimeZoneKey;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import io.airlift.units.Duration;
+import org.joda.time.DateTimeZone;
+import org.joda.time.chrono.ISOChronology;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -31,8 +40,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNSUPPORTED_EXPRESSION;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -47,40 +58,40 @@ public class AresDbQueryGeneratorContext
     // order map that maps the column definition in terms of input relation column(s)
     private final LinkedHashMap<String, Selection> selections;
     private final List<String> groupByColumns;
-    private final String from;
-    private final Optional<String> timeColumn;
+    private final AresDbTableHandle tableHandle;
     private final Optional<Domain> timeFilter;
-    private final Optional<String> filter;
+    private final List<String> filters;
     private final Long limit;
     private final boolean aggregationApplied;
 
-    AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeColumn)
+    AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, AresDbTableHandle tableHandle)
     {
-        this(selections, from, timeColumn, Optional.empty(), Optional.empty(), false, ImmutableList.of(), null);
+        this(selections, tableHandle, Optional.empty(), ImmutableList.of(), false, ImmutableList.of(), null);
     }
 
-    private AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, String from, Optional<String> timeColumn, Optional<Domain> timeFilter,
-            Optional<String> filter, boolean aggregationApplied, List<String> groupByColumns, Long limit)
+    private AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, AresDbTableHandle tableHandle, Optional<Domain> timeFilter,
+            List<String> filters, boolean aggregationApplied, List<String> groupByColumns, Long limit)
     {
         this.selections = requireNonNull(selections, "selections can't be null");
-        this.from = requireNonNull(from, "source can't be null");
+        this.tableHandle = requireNonNull(tableHandle, "source can't be null");
         this.aggregationApplied = aggregationApplied;
         this.groupByColumns = requireNonNull(groupByColumns, "groupByColumns can't be null. It could be empty if not available");
-        this.filter = filter;
+        this.filters = filters;
         this.limit = limit;
-        this.timeColumn = timeColumn;
         this.timeFilter = timeFilter;
     }
 
     /**
      * Apply the given filter to current context and return the updated context. Throws error for invalid operations.
      */
-    AresDbQueryGeneratorContext withFilter(Optional<String> filter, Optional<Domain> timeFilter)
+    AresDbQueryGeneratorContext withFilters(List<String> extraFilters, Optional<Domain> extraTimeFilter)
     {
-        checkArgument(!hasFilter(), "There already exists a filter. AresDb doesn't support filters at multiple levels");
         checkArgument(!hasAggregation(), "AresDB doesn't support filtering the results of aggregation");
         checkArgument(!hasLimit(), "AresDB doesn't support filtering on top of the limit");
-        return new AresDbQueryGeneratorContext(selections, from, timeColumn, timeFilter, filter, aggregationApplied, groupByColumns, limit);
+        checkArgument(!extraTimeFilter.isPresent() || !this.timeFilter.isPresent(), "Cannot put a time filter on top of a time filter");
+        List<String> newFilters = ImmutableList.<String>builder().addAll(this.filters).addAll(extraFilters).build();
+        Optional<Domain> newTimeFilter = this.timeFilter.isPresent() ? this.timeFilter : extraTimeFilter;
+        return new AresDbQueryGeneratorContext(selections, tableHandle, newTimeFilter, newFilters, aggregationApplied, groupByColumns, limit);
     }
 
     /**
@@ -91,7 +102,7 @@ public class AresDbQueryGeneratorContext
         // there is only one aggregation supported.
         checkArgument(!hasAggregation(), "AresDB doesn't support aggregation on top of the aggregated data");
         checkArgument(!hasLimit(), "AresDB doesn't support aggregation on top of the limit");
-        return new AresDbQueryGeneratorContext(newSelections, from, timeColumn, timeFilter, filter, true, groupByColumns, limit);
+        return new AresDbQueryGeneratorContext(newSelections, tableHandle, timeFilter, filters, true, groupByColumns, limit);
     }
 
     /**
@@ -100,7 +111,7 @@ public class AresDbQueryGeneratorContext
     AresDbQueryGeneratorContext withProject(LinkedHashMap<String, Selection> newSelections)
     {
         checkArgument(!hasAggregation(), "AresDB doesn't support new selections on top of the aggregated data");
-        return new AresDbQueryGeneratorContext(newSelections, from, timeColumn, timeFilter, filter, false, ImmutableList.of(), limit);
+        return new AresDbQueryGeneratorContext(newSelections, tableHandle, timeFilter, filters, false, ImmutableList.of(), limit);
     }
 
     /**
@@ -108,12 +119,7 @@ public class AresDbQueryGeneratorContext
      */
     AresDbQueryGeneratorContext withLimit(long limit)
     {
-        return new AresDbQueryGeneratorContext(selections, from, timeColumn, timeFilter, filter, aggregationApplied, groupByColumns, limit);
-    }
-
-    private boolean hasFilter()
-    {
-        return filter.isPresent() || timeFilter.isPresent();
+        return new AresDbQueryGeneratorContext(selections, tableHandle, timeFilter, filters, aggregationApplied, groupByColumns, limit);
     }
 
     private boolean hasAggregation()
@@ -133,13 +139,47 @@ public class AresDbQueryGeneratorContext
 
     public Optional<String> getTimeColumn()
     {
-        return timeColumn;
+        return tableHandle.getTimeColumnName();
+    }
+
+    private static ISOChronology getChronology(ConnectorSession session)
+    {
+        if (session.isLegacyTimestamp()) {
+            return ISOChronology.getInstanceUTC();
+        }
+        TimeZoneKey timeZoneKey = session.getTimeZoneKey();
+        DateTimeZone dateTimeZone = DateTimeZone.forID(timeZoneKey.getId());
+        return ISOChronology.getInstance(dateTimeZone);
+    }
+
+    // Stolen from com.facebook.presto.operator.scalar.DateTimeFunctions.localTime
+    private static long getSessionStartTimeInMs(ConnectorSession session)
+    {
+        if (session.isLegacyTimestamp()) {
+            return session.getStartTime();
+        }
+        else {
+            return getChronology(session).getZone().convertUTCToLocal(session.getStartTime());
+        }
+    }
+
+    private static Optional<Domain> retentionToDefaultTimeFilter(ConnectorSession session, Optional<Type> timestampType, Optional<Duration> duration)
+    {
+        if (!duration.isPresent() || !timestampType.isPresent()) {
+            return Optional.empty();
+        }
+        long sessionStartTimeInMs = getSessionStartTimeInMs(session);
+        long retentionInstantInMs = getChronology(session).seconds().subtract(sessionStartTimeInMs, duration.get().roundTo(TimeUnit.SECONDS));
+        long lowTimeSeconds = retentionInstantInMs / 1000; // round down
+        long highTimeSeconds = (sessionStartTimeInMs + 999) / 1000; // round up
+
+        return Optional.of(Domain.create(ValueSet.ofRanges(new Range(Marker.above(timestampType.get(), lowTimeSeconds), Marker.below(timestampType.get(), highTimeSeconds))), false));
     }
 
     /**
      * Convert the current context to a AresDB request (AQL)
      */
-    public AugmentedAQL toAresDbRequest(Optional<List<AresDbColumnHandle>> columnHandles)
+    public AugmentedAQL toAresDbRequest(Optional<List<AresDbColumnHandle>> columnHandles, Optional<AresDbConfig> aresDbConfig, Optional<ConnectorSession> session)
     {
         List<Selection> measures;
         List<Selection> dimensions;
@@ -148,7 +188,7 @@ public class AresDbQueryGeneratorContext
             measures = ImmutableList.of(Selection.of("1", Origin.LITERAL, BIGINT));
             dimensions = selections.values().stream().collect(Collectors.toList());
         }
-        else {
+        else if (!groupByColumns.isEmpty()) {
             measures = selections.entrySet().stream()
                     .filter(c -> !groupByColumns.contains(c.getKey()))
                     .map(c -> c.getValue())
@@ -158,6 +198,9 @@ public class AresDbQueryGeneratorContext
                     .filter(c -> groupByColumns.contains(c.getKey()))
                     .map(c -> c.getValue())
                     .collect(Collectors.toList());
+        }
+        else {
+            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Ares does not handle non group by aggregation queries yet, either fix in Ares or add final aggregation to table " + tableHandle.getTableName());
         }
 
         JSONObject request = new JSONObject();
@@ -180,17 +223,34 @@ public class AresDbQueryGeneratorContext
             dimensionsJson.add(dimensionJson);
         }
 
-        request.put("table", from);
+        request.put("table", tableHandle.getTableName());
         request.put("measures", measuresJson);
         request.put("dimensions", dimensionsJson);
-        timeFilter.ifPresent(timeFilter -> addTimeFilter(request, timeColumn.get(), timeFilter));
+        Optional<Domain> timeFilter = this.timeFilter.isPresent() ? this.timeFilter : session.flatMap(s -> retentionToDefaultTimeFilter(s, tableHandle.getTimeColumnType(), tableHandle.getRetention()));
+        timeFilter.ifPresent(tf -> addTimeFilter(request, tableHandle.getTimeColumnName().get(), tf));
 
-        filter.ifPresent(filter -> {
+        if (!filters.isEmpty()) {
             JSONArray filterJson = new JSONArray();
-            filterJson.add(filter);
+            filters.forEach(filterJson::add);
             request.put("rowFilters", filterJson);
-        });
+        }
 
+        Long limit = this.limit;
+        if (!hasAggregation()) {
+            if (limit == null) {
+                limit = -1L;
+            }
+            if (session.isPresent()) {
+                // This is only safe to throw in the actual getNextPage (execution) code path.
+                // Outside of that, it will simply disable the (partial) pushdown and lead to wrong planning
+                // So we are using the presence of session as a proxy for being in the getNextPage code path
+                // Creating a separate "ExecutionContext" class would be an overkill, but worth doing for later
+                long maxLimit = aresDbConfig.map(AresDbConfig::getMaxLimitWithoutAggregates).orElse(-1L);
+                if (maxLimit > 0 && (limit < 0 || limit > maxLimit)) {
+                    throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, String.format("Inferred limit %d (specified %d) is greater than max aresdb allowed limit of %d when no aggregates are present in table %s", limit, this.limit, maxLimit, tableHandle.getTableName()));
+                }
+            }
+        }
         if (limit != null) {
             request.put("limit", limit);
         }
@@ -261,7 +321,7 @@ public class AresDbQueryGeneratorContext
         });
     }
 
-    private void addTimeFilter(JSONObject request, String timeColumn, Domain timeFilter)
+    private static void addTimeFilter(JSONObject request, String timeColumn, Domain timeFilter)
     {
         if (timeFilter.isAll()) {
             return;
@@ -292,7 +352,7 @@ public class AresDbQueryGeneratorContext
         request.put("timeFilter", timeFilterJson);
     }
 
-    private Optional<String> objectToTimeLiteral(Object literal, boolean isLow)
+    private static Optional<String> objectToTimeLiteral(Object literal, boolean isLow)
     {
         if (!(literal instanceof Number)) {
             return Optional.empty();

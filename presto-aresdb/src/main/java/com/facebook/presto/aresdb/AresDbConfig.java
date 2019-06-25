@@ -41,6 +41,7 @@ public class AresDbConfig
     private boolean filterPushDownEnabled = true;
     private boolean projectPushDownEnabled = true;
     private boolean limitPushDownEnabled = true;
+    private long maxLimitWithoutAggregates = -1;
 
     @NotNull
     public String getServiceName()
@@ -143,6 +144,19 @@ public class AresDbConfig
     public AresDbConfig setExtraHttpHeaders(String headers)
     {
         extraHttpHeaders = ImmutableMap.copyOf(Splitter.on(",").trimResults().omitEmptyStrings().withKeyValueSeparator(":").split(headers));
+        return this;
+    }
+
+    @NotNull
+    public long getMaxLimitWithoutAggregates()
+    {
+        return maxLimitWithoutAggregates;
+    }
+
+    @Config("max-limit-without-aggregates")
+    public AresDbConfig setMaxLimitWithoutAggregates(long maxLimitWithoutAggregates)
+    {
+        this.maxLimitWithoutAggregates = maxLimitWithoutAggregates;
         return this;
     }
 

@@ -20,6 +20,7 @@ import com.facebook.presto.aresdb.query.AresDbQueryGenerator;
 import com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.AresDbOutputInfo;
 import com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.AugmentedAQL;
 import com.facebook.presto.spi.ConnectorPageSource;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PageBuilder;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -52,16 +53,20 @@ public class AresDbPageSource
     private final AresDbSplit aresDbSplit;
     private final List<AresDbColumnHandle> columns;
     private final AresDbConnection aresDbConnection;
+    private final AresDbConfig aresDbConfig;
+    private final ConnectorSession session;
 
     // state information
     private boolean finished;
     private long readTimeNanos;
 
-    public AresDbPageSource(AresDbSplit aresDbSplit, List<AresDbColumnHandle> columns, AresDbConnection aresDbConnection)
+    public AresDbPageSource(AresDbSplit aresDbSplit, List<AresDbColumnHandle> columns, AresDbConnection aresDbConnection, AresDbConfig aresDbConfig, ConnectorSession session)
     {
         this.aresDbSplit = aresDbSplit;
         this.columns = columns;
         this.aresDbConnection = aresDbConnection;
+        this.aresDbConfig = aresDbConfig;
+        this.session = session;
     }
 
     private static void setValue(Type type, BlockBuilder blockBuilder, Object value)
@@ -192,7 +197,7 @@ public class AresDbPageSource
 
         long start = System.nanoTime();
         try {
-            AugmentedAQL aql = AresDbQueryGenerator.generate(aresDbSplit.getPipeline(), Optional.of(columns));
+            AugmentedAQL aql = AresDbQueryGenerator.generate(aresDbSplit.getPipeline(), Optional.of(columns), Optional.of(aresDbConfig), Optional.of(session));
 
             List<Type> expectedTypes = columns.stream().map(AresDbColumnHandle::getDataType).collect(Collectors.toList());
             PageBuilder pageBuilder = new PageBuilder(expectedTypes);
