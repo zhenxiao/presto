@@ -29,6 +29,7 @@ import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
@@ -253,5 +254,11 @@ public class AresDbMetadata
         checkArgument(!currentHandle.getScanPipeline().isPresent(), "layout already has a scan pipeline");
 
         return Optional.of(new AresDbTableLayoutHandle(currentHandle.getTable(), currentHandle.getConstraint(), Optional.of(scanPipeline)));
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushRightJoinIntoScan(ConnectorSession connectorSession, ConnectorTableHandle connectorHandle, TableScanPipeline currentPipeline, JoinPipelineNode join)
+    {
+        return tryCreatingNewPipeline(aresDbConfig::isJoinPushDownEnabled, currentPipeline, join);
     }
 }

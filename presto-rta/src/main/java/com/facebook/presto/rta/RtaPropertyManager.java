@@ -318,12 +318,14 @@ public class RtaPropertyManager
         return candidates.get(0);
     }
 
-    public RTADeployment getDefaultDeployment(RTATableEntity entity)
+    private RTADeployment getDefaultDeployment(RTATableEntity entity)
     {
         Map<RtaStorageKey, Map<String, String>> properties = getProperties();
-        ArrayList<RTADeployment> candidateDeployments = new ArrayList<>();
+        List<RTADeployment> candidateDeployments;
+        candidateDeployments = new ArrayList<>();
         for (RTADeployment deployment : entity.getDeployments()) {
-            if (properties.containsKey(RtaStorageKey.fromDeployment(deployment))) {
+            RtaStorageKey thisDeploymentKey = RtaStorageKey.fromDeployment(deployment);
+            if (properties.containsKey(thisDeploymentKey)) {
                 candidateDeployments.add(deployment);
             }
         }
@@ -333,5 +335,16 @@ public class RtaPropertyManager
         else {
             return pickDeployment(candidateDeployments);
         }
+    }
+
+    private Optional<RTADeployment> getDeploymentInGivenLocation(RTATableEntity entity, RtaStorageKey hintLocation)
+    {
+        Map<RtaStorageKey, Map<String, String>> properties = getProperties();
+        return entity.getDeployments().stream().filter(deployment -> properties.containsKey(hintLocation) && hintLocation.equals(RtaStorageKey.fromDeployment(deployment))).findFirst();
+    }
+
+    public Optional<RTADeployment> getDeployment(RTATableEntity entity, Optional<RtaStorageKey> hintLocation)
+    {
+        return hintLocation.isPresent() ? getDeploymentInGivenLocation(entity, hintLocation.get()) : Optional.of(getDefaultDeployment(entity));
     }
 }

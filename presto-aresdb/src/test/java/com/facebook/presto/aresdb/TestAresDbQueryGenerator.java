@@ -23,7 +23,10 @@ import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
+import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.PushDownExpression;
+import com.facebook.presto.spi.pipeline.PushDownInputColumn;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
@@ -40,6 +43,8 @@ import com.google.common.collect.ImmutableMap;
 import io.airlift.units.Duration;
 import org.testng.annotations.Test;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -61,6 +66,7 @@ import static com.facebook.presto.testing.PushdownTestUtils.project;
 import static com.facebook.presto.testing.PushdownTestUtils.types;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static java.lang.String.format;
 import static java.util.Locale.ENGLISH;
 import static org.testng.Assert.assertEquals;
@@ -69,8 +75,12 @@ public class TestAresDbQueryGenerator
 {
     // Test table and related info
     private static AresDbTableHandle aresdbTable = new AresDbTableHandle(new AresDbConnectorId("connId"), "tbl", Optional.of("secondsSinceEpoch"), Optional.of(BIGINT), Optional.of(new Duration(2, TimeUnit.DAYS)));
+    private static AresDbTableHandle joinTable = new AresDbTableHandle(new AresDbConnectorId("connId"), "dim", Optional.empty(), Optional.empty(), Optional.empty());
     private static AresDbColumnHandle regionId = new AresDbColumnHandle("regionId", BIGINT, REGULAR);
     private static AresDbColumnHandle city = new AresDbColumnHandle("city", VARCHAR, REGULAR);
+    private static AresDbColumnHandle cityId = new AresDbColumnHandle("cityId", BIGINT, REGULAR);
+    private static AresDbColumnHandle cityZipCode = new AresDbColumnHandle("zip", BIGINT, REGULAR);
+    private static AresDbColumnHandle cityPopulation = new AresDbColumnHandle("population", BIGINT, REGULAR);
     private static AresDbColumnHandle fare = new AresDbColumnHandle("fare", DOUBLE, REGULAR);
     private static AresDbColumnHandle secondsSinceEpoch = new AresDbColumnHandle("secondsSinceEpoch", BIGINT, REGULAR);
 
@@ -127,6 +137,24 @@ public class TestAresDbQueryGenerator
     }
 
     @Test
+    public void testJoin()
+    {
+        PipelineNode aggNode = agg(ImmutableList.of(new AggregationPipelineNode.GroupByColumn("city", "city", VARCHAR), new AggregationPipelineNode.Aggregation(ImmutableList.of("fare"), "avg", "fare_avg", DOUBLE)), false);
+        List<ColumnHandle> joinScanColumns = columnHandles(cityId, cityPopulation, cityZipCode);
+        TableScanPipeline joinPipeline = pipeline(
+                scan(joinTable, joinScanColumns),
+                createFilterForExpression(joinScanColumns, "population > 1000 and cityid not in (1, 2, 3)", cols("cityid", "population", "zip")));
+        List<ColumnHandle> leftScanColumns = columnHandles(regionId, city, fare, secondsSinceEpoch);
+        TableScanPipeline leftPipeline = pipeline(
+                scan(aresdbTable, leftScanColumns),
+                createFilterForExpression(leftScanColumns, "secondssinceepoch between 100 and 200 or secondssinceepoch between 175 and 275 and fare > 10 and city != 'DEL'", cols("regionid", "city", "fare")),
+                new JoinPipelineNode(Optional.empty(), cols("city", "fare", "zip"), ImmutableList.of(VARCHAR, DOUBLE, BIGINT), joinTable, Optional.of(joinPipeline), ImmutableList.of(new JoinPipelineNode.EquiJoinClause(new PushDownInputColumn(BIGINT.getTypeSignature(), "regionid"), new PushDownInputColumn(BIGINT.getTypeSignature(), "cityid"))), JoinPipelineNode.JoinType.INNER),
+                filter(pdExpr("zip != 94587"), cols("city", "fare"), ImmutableList.of(VARCHAR, DOUBLE)),
+                aggNode);
+        testAQL(leftPipeline, "{\"dimensions\":[{\"sqlExpression\":\"city\"}],\"joins\":[{\"alias\":\"dim\",\"conditions\":[\"regionId = dim.cityId\"],\"table\":\"dim\"}],\"measures\":[{\"sqlExpression\":\"avg(fare)\"}],\"rowFilters\":[\"(((secondsSinceEpoch >= 100) AND (secondsSinceEpoch <= 200)) OR ((((secondsSinceEpoch >= 175) AND (secondsSinceEpoch <= 275)) AND (fare > 10)) AND (city <> 'DEL')))\",\"((dim.population > 1000) AND ! (dim.cityId IN (1, 2, 3)))\",\"(dim.zip <> 94587)\"],\"table\":\"tbl\",\"timeFilter\":{\"column\":\"secondsSinceEpoch\",\"from\":\"100\",\"to\":\"275\"}}");
+    }
+
+    @Test
     public void testSimpleSelectStar()
     {
         testAQL(pipeline(scan(aresdbTable, columnHandles(regionId, city, fare, secondsSinceEpoch))),
@@ -178,14 +206,15 @@ public class TestAresDbQueryGenerator
                 "{\"dimensions\":[{\"sqlExpression\":\"city\"},{\"sqlExpression\":\"secondsSinceEpoch\"}],\"limit\":50,\"measures\":[{\"sqlExpression\":\"1\"}],\"rowFilters\":[\"(secondsSinceEpoch > 20)\"],\"table\":\"tbl\"}");
     }
 
-    private static FilterPipelineNode createFilterForExpression(String expressionSql)
+    private static FilterPipelineNode createFilterForExpression(List<ColumnHandle> incomingColumns, String expressionSql, List<String> cols)
     {
         Metadata metadata = MetadataManager.createTestMetadataManager();
         Session session = testSessionBuilder().build();
         Expression predicate = expression(expressionSql);
         PushDownUtils.ExpressionToTypeConverter typeConverter = expression -> BIGINT;
         PushDownExpression pushdownPredicate = new PushDownExpressionGenerator(typeConverter).process(predicate);
-        DomainTranslator.ExtractionResult extractionResult = DomainTranslator.fromPredicate(metadata, session, predicate, new SymbolAllocator(ImmutableMap.of(new Symbol("secondssinceepoch"), BIGINT, new Symbol("regionid"), BIGINT)).getTypes());
+        Map<Symbol, Type> incomingTypes = incomingColumns.stream().map(c -> (AresDbColumnHandle) c).collect(toImmutableMap(ch -> new Symbol(ch.getColumnName().toLowerCase(ENGLISH)), AresDbColumnHandle::getDataType));
+        DomainTranslator.ExtractionResult extractionResult = DomainTranslator.fromPredicate(metadata, session, predicate, new SymbolAllocator(incomingTypes).getTypes());
         Optional<PushDownExpression> remainingPredicate = Optional.ofNullable(new PushDownExpressionGenerator(typeConverter).process(extractionResult.getRemainingExpression()));
         Optional<TupleDomain<String>> symbolNameToDomains;
 
@@ -198,7 +227,7 @@ public class TestAresDbQueryGenerator
         }
         return new FilterPipelineNode(
                 pushdownPredicate,
-                cols("regionid", "city", "secondssinceepoch"),
+                cols,
                 types(BIGINT, VARCHAR, BIGINT), symbolNameToDomains, remainingPredicate);
     }
 
@@ -210,9 +239,10 @@ public class TestAresDbQueryGenerator
         long highSecondsExpected = (currentTime + 999) / 1000;
         long lowSecondsExpected = retentionTime / 1000;
         ConnectorSession session = new TestingConnectorSession("user", Optional.of("test"), Optional.empty(), UTC_KEY, ENGLISH, currentTime, ImmutableList.of(), ImmutableMap.of(), new FeaturesConfig().isLegacyTimestamp());
+        List<ColumnHandle> columnHandles = columnHandles(city, regionId, secondsSinceEpoch);
         testAQL(pipeline(
-                scan(aresdbTable, columnHandles(city, regionId, secondsSinceEpoch)),
-                createFilterForExpression("regionid in (3, 4)"),
+                scan(aresdbTable, columnHandles),
+                createFilterForExpression(columnHandles, "regionid in (3, 4)", cols("regionid", "city", "secondssinceepoch")),
                 limit(50, true, cols("city"), types(VARCHAR))),
                 String.format("{\"dimensions\":[{\"sqlExpression\":\"city\"},{\"sqlExpression\":\"regionId\"},{\"sqlExpression\":\"secondsSinceEpoch\"}],\"limit\":50,\"measures\":[{\"sqlExpression\":\"1\"}],\"rowFilters\":[\"(regionId IN (3, 4))\"],\"table\":\"tbl\",\"timeFilter\":{\"column\":\"secondsSinceEpoch\",\"from\":\"%d\",\"to\":\"%d\"}}", lowSecondsExpected, highSecondsExpected), Optional.of(session));
     }
@@ -220,9 +250,10 @@ public class TestAresDbQueryGenerator
     @Test
     public void testTimeFilter()
     {
+        List<ColumnHandle> columnHandles = columnHandles(city, regionId, secondsSinceEpoch);
         testAQL(pipeline(
-                scan(aresdbTable, columnHandles(city, regionId, secondsSinceEpoch)),
-                createFilterForExpression("regionid in (3, 4) and (secondssinceepoch between 100 and 200) and (secondssinceepoch >= 150 or secondssinceepoch < 300)"),
+                scan(aresdbTable, columnHandles),
+                createFilterForExpression(columnHandles, "regionid in (3, 4) and (secondssinceepoch between 100 and 200) and (secondssinceepoch >= 150 or secondssinceepoch < 300)", cols("regionid", "city", "secondssinceepoch")),
                 limit(50, true, cols("city"), types(VARCHAR))),
                 "{\"dimensions\":[{\"sqlExpression\":\"city\"},{\"sqlExpression\":\"regionId\"},{\"sqlExpression\":\"secondsSinceEpoch\"}],\"limit\":50,\"measures\":[{\"sqlExpression\":\"1\"}],\"rowFilters\":[\"(((regionId IN (3, 4)) AND ((secondsSinceEpoch >= 100) AND (secondsSinceEpoch <= 200))) AND ((secondsSinceEpoch >= 150) OR (secondsSinceEpoch < 300)))\"],\"table\":\"tbl\",\"timeFilter\":{\"column\":\"secondsSinceEpoch\",\"from\":\"100\",\"to\":\"200\"}}");
     }

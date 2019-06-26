@@ -23,6 +23,7 @@ import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
@@ -45,7 +46,9 @@ import java.util.Optional;
 import static com.facebook.presto.aresdb.AresDbErrorCode.ARESDB_UNSUPPORTED_EXPRESSION;
 import static com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.Origin.DERIVED;
 import static com.facebook.presto.aresdb.query.AresDbQueryGeneratorContext.Origin.TABLE;
+import static com.facebook.presto.spi.pipeline.JoinPipelineNode.JoinType.INNER;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
@@ -60,7 +63,7 @@ public class AresDbQueryGenerator
             "sum", "sum",
             "approx_distinct", "countdistincthll");
 
-    public static AresDbQueryGeneratorContext.AugmentedAQL generate(TableScanPipeline scanPipeline, Optional<List<AresDbColumnHandle>> columnHandles, Optional<AresDbConfig> config, Optional<ConnectorSession> session)
+    private static AresDbQueryGeneratorContext generateContext(TableScanPipeline scanPipeline)
     {
         AresDbQueryGeneratorContext context = null;
 
@@ -70,7 +73,12 @@ public class AresDbQueryGenerator
             context = node.accept(visitor, context);
         }
 
-        return context.toAresDbRequest(columnHandles, config, session);
+        return context;
+    }
+
+    public static AresDbQueryGeneratorContext.AugmentedAQL generate(TableScanPipeline scanPipeline, Optional<List<AresDbColumnHandle>> columnHandles, Optional<AresDbConfig> aresDbConfig, Optional<ConnectorSession> connectorSession)
+    {
+        return generateContext(scanPipeline).toAresDbRequest(columnHandles, aresDbConfig, connectorSession);
     }
 
     private static String handleAggregationFunction(AggregationPipelineNode.Aggregation aggregation, Map<String, Selection> inputSelections)
@@ -209,6 +217,36 @@ public class AresDbQueryGenerator
         }
 
         return context.withAggregation(newSelections, groupByColumns);
+    }
+
+    @Override
+    public AresDbQueryGeneratorContext visitJoinNode(JoinPipelineNode join, AresDbQueryGeneratorContext context)
+    {
+        if (join.getFilter().isPresent() || !INNER.equals(join.getJoinType())) {
+            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "AresDB does not support joins with filters or non inner joins");
+        }
+        TableScanPipeline otherPipeline = join.getOtherPipeline().orElseThrow(() -> new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Right side must have a scan pipeline"));
+        AresDbTableHandle other = (AresDbTableHandle) join.getOther();
+        String otherTableName = other.getTableName();
+        AresDbQueryGeneratorContext otherContext = generateContext(rewriteOtherPipelineWithAlias(otherPipeline, otherTableName));
+        return context.withJoin(otherContext, otherTableName, join.getCriteria());
+    }
+
+    private TableScanPipeline rewriteOtherPipelineWithAlias(TableScanPipeline tableScanPipeline, String otherTableName)
+    {
+        List<PipelineNode> pipelineNodes = tableScanPipeline.getPipelineNodes();
+        if (pipelineNodes.isEmpty() || !(pipelineNodes.get(0) instanceof TablePipelineNode)) {
+            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Only handle the table pipeline node being the base of the other pipeline");
+        }
+        TablePipelineNode tablePipelineNode = (TablePipelineNode) pipelineNodes.get(0);
+        List<ColumnHandle> newColumnHandles = tablePipelineNode.getInputColumns().stream().map(c -> {
+            AresDbColumnHandle ch = (AresDbColumnHandle) c;
+            return new AresDbColumnHandle(otherTableName + "." + ch.getColumnName(), ch.getDataType(), ch.getType());
+        }).collect(toImmutableList());
+        ImmutableList.Builder<PipelineNode> newPipelineNodes = ImmutableList.builder();
+        newPipelineNodes.add(new TablePipelineNode(tablePipelineNode.getTableHandle(), newColumnHandles, tablePipelineNode.getOutputColumns(), tablePipelineNode.getRowType()));
+        newPipelineNodes.addAll(pipelineNodes.subList(1, pipelineNodes.size()));
+        return new TableScanPipeline(newPipelineNodes.build(), tableScanPipeline.getOutputColumnHandles());
     }
 
     @Override

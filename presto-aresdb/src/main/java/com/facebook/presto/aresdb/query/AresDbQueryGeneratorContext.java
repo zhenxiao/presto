@@ -21,6 +21,7 @@ import com.facebook.presto.aresdb.AresDbConfig;
 import com.facebook.presto.aresdb.AresDbException;
 import com.facebook.presto.aresdb.AresDbTableHandle;
 import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Range;
@@ -48,6 +49,7 @@ import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
@@ -63,14 +65,15 @@ public class AresDbQueryGeneratorContext
     private final List<String> filters;
     private final Long limit;
     private final boolean aggregationApplied;
+    private final List<JoinInfo> joins;
 
     AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, AresDbTableHandle tableHandle)
     {
-        this(selections, tableHandle, Optional.empty(), ImmutableList.of(), false, ImmutableList.of(), null);
+        this(selections, tableHandle, Optional.empty(), ImmutableList.of(), false, ImmutableList.of(), null, ImmutableList.of());
     }
 
     private AresDbQueryGeneratorContext(LinkedHashMap<String, Selection> selections, AresDbTableHandle tableHandle, Optional<Domain> timeFilter,
-            List<String> filters, boolean aggregationApplied, List<String> groupByColumns, Long limit)
+            List<String> filters, boolean aggregationApplied, List<String> groupByColumns, Long limit, List<JoinInfo> joins)
     {
         this.selections = requireNonNull(selections, "selections can't be null");
         this.tableHandle = requireNonNull(tableHandle, "source can't be null");
@@ -79,6 +82,7 @@ public class AresDbQueryGeneratorContext
         this.filters = filters;
         this.limit = limit;
         this.timeFilter = timeFilter;
+        this.joins = joins;
     }
 
     /**
@@ -91,7 +95,7 @@ public class AresDbQueryGeneratorContext
         checkArgument(!extraTimeFilter.isPresent() || !this.timeFilter.isPresent(), "Cannot put a time filter on top of a time filter");
         List<String> newFilters = ImmutableList.<String>builder().addAll(this.filters).addAll(extraFilters).build();
         Optional<Domain> newTimeFilter = this.timeFilter.isPresent() ? this.timeFilter : extraTimeFilter;
-        return new AresDbQueryGeneratorContext(selections, tableHandle, newTimeFilter, newFilters, aggregationApplied, groupByColumns, limit);
+        return new AresDbQueryGeneratorContext(selections, tableHandle, newTimeFilter, newFilters, aggregationApplied, groupByColumns, limit, joins);
     }
 
     /**
@@ -102,7 +106,7 @@ public class AresDbQueryGeneratorContext
         // there is only one aggregation supported.
         checkArgument(!hasAggregation(), "AresDB doesn't support aggregation on top of the aggregated data");
         checkArgument(!hasLimit(), "AresDB doesn't support aggregation on top of the limit");
-        return new AresDbQueryGeneratorContext(newSelections, tableHandle, timeFilter, filters, true, groupByColumns, limit);
+        return new AresDbQueryGeneratorContext(newSelections, tableHandle, timeFilter, filters, true, groupByColumns, limit, joins);
     }
 
     /**
@@ -111,7 +115,7 @@ public class AresDbQueryGeneratorContext
     AresDbQueryGeneratorContext withProject(LinkedHashMap<String, Selection> newSelections)
     {
         checkArgument(!hasAggregation(), "AresDB doesn't support new selections on top of the aggregated data");
-        return new AresDbQueryGeneratorContext(newSelections, tableHandle, timeFilter, filters, false, ImmutableList.of(), limit);
+        return new AresDbQueryGeneratorContext(newSelections, tableHandle, timeFilter, filters, false, ImmutableList.of(), limit, joins);
     }
 
     /**
@@ -119,7 +123,7 @@ public class AresDbQueryGeneratorContext
      */
     AresDbQueryGeneratorContext withLimit(long limit)
     {
-        return new AresDbQueryGeneratorContext(selections, tableHandle, timeFilter, filters, aggregationApplied, groupByColumns, limit);
+        return new AresDbQueryGeneratorContext(selections, tableHandle, timeFilter, filters, aggregationApplied, groupByColumns, limit, joins);
     }
 
     private boolean hasAggregation()
@@ -255,6 +259,19 @@ public class AresDbQueryGeneratorContext
             request.put("limit", limit);
         }
 
+        JSONArray requestJoins = new JSONArray(joins.size());
+        for (JoinInfo joinInfo : joins) {
+            JSONObject join = new JSONObject();
+            join.put("alias", joinInfo.alias);
+            join.put("table", joinInfo.name);
+            JSONArray conditions = new JSONArray();
+            joinInfo.conditions.forEach(conditions::add);
+            join.put("conditions", conditions);
+            requestJoins.add(join);
+        }
+        if (!requestJoins.isEmpty()) {
+            request.put("joins", requestJoins);
+        }
         String aql = request.toJSONString();
 
         Optional<List<AresDbOutputInfo>> expectedIndicesInOutput = getIndicesMappingFromAresDbSchemaToPrestoSchema(columnHandles, aql);
@@ -362,6 +379,31 @@ public class AresDbQueryGeneratorContext
         return Optional.of(Long.toString(numAsLong));
     }
 
+    public AresDbQueryGeneratorContext withJoin(AresDbQueryGeneratorContext otherContext, String otherTableName, List<JoinPipelineNode.EquiJoinClause> criterias)
+    {
+        List<String> joinCriterias = criterias.stream().map(criteria -> {
+            AresDbExpressionConverter.AresDbExpression left = criteria.getLeft().accept(new AresDbExpressionConverter(), selections);
+            AresDbExpressionConverter.AresDbExpression right = criteria.getRight().accept(new AresDbExpressionConverter(), otherContext.selections);
+            return format("%s = %s", left.getDefinition(), right.getDefinition());
+        }).collect(toImmutableList());
+        JoinInfo newJoinInfo = new JoinInfo(otherTableName, otherTableName, joinCriterias);
+        AresDbQueryGeneratorContext ret = new AresDbQueryGeneratorContext(selections, tableHandle, timeFilter, filters, aggregationApplied, groupByColumns, limit, ImmutableList.<JoinInfo>builder().addAll(joins).add(newJoinInfo).build());
+        if (otherContext.hasAggregation() || !otherContext.groupByColumns.isEmpty() || otherContext.hasLimit()) {
+            throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, "Can only join with a right side that does not have limits nor aggregations");
+        }
+        ret = ret.withFilters(otherContext.filters, otherContext.timeFilter);
+        LinkedHashMap<String, Selection> originalLeftSelections = ret.selections;
+        LinkedHashMap<String, Selection> newSelections = new LinkedHashMap<>(originalLeftSelections);
+        otherContext.selections.forEach((otherSymbol, otherSelection) -> {
+            if (newSelections.containsKey(otherSymbol)) {
+                throw new AresDbException(ARESDB_UNSUPPORTED_EXPRESSION, String.format("Found duplicate selection b/w left and right: %s. Left is %s, Right is %s", otherSymbol, originalLeftSelections, otherContext.selections));
+            }
+            newSelections.put(otherSymbol, otherSelection);
+        });
+        ret = ret.withProject(newSelections);
+        return ret;
+    }
+
     public enum Origin
     {
         TABLE,
@@ -443,6 +485,20 @@ public class AresDbQueryGeneratorContext
                     .add("aql", aql)
                     .add("outputInfo", outputInfo)
                     .toString();
+        }
+    }
+
+    public static class JoinInfo
+    {
+        private final String alias;
+        private final String name;
+        private final List<String> conditions;
+
+        public JoinInfo(String alias, String name, List<String> conditions)
+        {
+            this.alias = alias;
+            this.name = name;
+            this.conditions = conditions;
         }
     }
 

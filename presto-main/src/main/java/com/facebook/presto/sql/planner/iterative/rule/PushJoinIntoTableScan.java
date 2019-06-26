@@ -24,7 +24,6 @@ import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.parser.SqlParser;
 import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
 import com.facebook.presto.sql.planner.PushDownExpressionGenerator;
-import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.iterative.Lookup;
 import com.facebook.presto.sql.planner.iterative.Rule;
 import com.facebook.presto.sql.planner.plan.JoinNode;
@@ -88,8 +87,6 @@ public class PushJoinIntoTableScan
         if (leftConnectorId == null || rightConnectorId == null || !leftConnectorId.equals(rightConnectorId)) {
             return Result.empty();
         }
-
-        List<Symbol> originalDesiredOutputSymbols = join.getOutputSymbols();
 
         Optional<JoinPipelineNode> joinPipelineNode = inConnectorFormat(join, context, left.get(), right.get());
 

@@ -209,6 +209,7 @@ public class RTASchemaHandler
                 () -> populate(),
                 (long) config.getMetadataCacheExpiryTime().getValue(TimeUnit.SECONDS),
                 TimeUnit.SECONDS);
+        this.stateSupplier.get(); // force a prefetch to avoid a query time hit
     }
 
     public List<String> getAllNamespaces()
@@ -219,6 +220,11 @@ public class RTASchemaHandler
     public List<String> getTablesInNamespace(String namespace)
     {
         return requireNonNull(stateSupplier.get().getTablesInNamespace().get(namespace), "Unknown namespace " + namespace);
+    }
+
+    public RTATableEntity getEntity(SchemaTableName schemaTableName)
+    {
+        return getEntity(schemaTableName.getSchemaName(), schemaTableName.getTableName());
     }
 
     public RTATableEntity getEntity(String namespace, String table)

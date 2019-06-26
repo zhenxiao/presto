@@ -18,7 +18,6 @@ import com.facebook.presto.aresdb.AresDbConnectorId;
 import com.facebook.presto.aresdb.AresDbTableHandle;
 import com.facebook.presto.pinot.PinotColumnHandle;
 import com.facebook.presto.pinot.PinotTableHandle;
-import com.facebook.presto.rta.schema.RTADeployment;
 import com.facebook.presto.rta.schema.RTASchemaHandler;
 import com.facebook.presto.rta.schema.RTATableEntity;
 import com.facebook.presto.spi.ColumnHandle;
@@ -36,11 +35,14 @@ import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
+import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.log.Logger;
@@ -89,28 +91,32 @@ public class RtaMetadata
         return schemaHandler.getAllNamespaces();
     }
 
+    private Optional<RtaTableHandle> getTableHandleHelper(ConnectorSession session, SchemaTableName tableName, Optional<RtaStorageKey> hint)
+    {
+        RTATableEntity entity = schemaHandler.getEntity(tableName.getSchemaName(), tableName.getTableName());
+        return propertyManager.getDeployment(entity, hint).map(deployment -> {
+            RtaStorageKey key = RtaStorageKey.fromDeployment(deployment);
+            String storageTableName = entity.getDefinition().getName();
+            ConnectorTableHandle underlyingHandle;
+            switch (key.getType()) {
+                case ARESDB:
+                    Optional<String> timestampField = entity.getTimestampField();
+                    underlyingHandle = new AresDbTableHandle(new AresDbConnectorId(connectorId.getId()), storageTableName, timestampField, entity.getTimestampType(), timestampField.isPresent() ? entity.getRetention() : Optional.empty());
+                    break;
+                case PINOT:
+                    underlyingHandle = new PinotTableHandle(connectorId.getId(), storageTableName, storageTableName);
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown connector type " + key.getType());
+            }
+            return new RtaTableHandle(connectorId, key, tableName, underlyingHandle);
+        });
+    }
+
     @Override
     public RtaTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        RTATableEntity entity = schemaHandler.getEntity(tableName.getSchemaName(), tableName.getTableName());
-        RTADeployment deployment = propertyManager.getDefaultDeployment(entity);
-
-        // Check if the datacenter field I added in the deployment is actually exposed by the API
-        RtaStorageKey key = RtaStorageKey.fromDeployment(deployment);
-
-        ConnectorTableHandle underlyingHandle;
-        switch (key.getType()) {
-            case ARESDB:
-                Optional<String> timestampField = entity.getTimestampField();
-                underlyingHandle = new AresDbTableHandle(new AresDbConnectorId(connectorId.getId()), entity.getTable(), timestampField, entity.getTimestampType(), timestampField.isPresent() ? entity.getRetention() : Optional.empty());
-                break;
-            case PINOT:
-                underlyingHandle = new PinotTableHandle(connectorId.getId(), entity.getTable(), entity.getTable());
-                break;
-            default:
-                throw new IllegalStateException("Unknown connector type " + key.getType());
-        }
-        return new RtaTableHandle(connectorId, key, tableName, underlyingHandle);
+        return getTableHandleHelper(session, tableName, Optional.empty()).orElseThrow(() -> new IllegalArgumentException("Cannot find any valid deployment for " + tableName));
     }
 
     @Override
@@ -286,5 +292,65 @@ public class RtaMetadata
         checkArgument(!currentHandle.getScanPipeline().isPresent(), "layout already has a scan pipeline");
 
         return Optional.of(new RtaTableLayoutHandle(currentHandle.getTable(), currentHandle.getConstraint(), Optional.of(scanPipeline)));
+    }
+
+    private Optional<RtaTableHandle> coerceRightTableToBeJoined(ConnectorSession session, RtaTableHandle leftTableHandle, RtaTableHandle rightTableHandle)
+    {
+        RTATableEntity leftEntity = schemaHandler.getEntity(leftTableHandle.getSchemaTableName());
+        RTATableEntity rightEntity = schemaHandler.getEntity(rightTableHandle.getSchemaTableName());
+        boolean leftIsFact = leftEntity.getDefinition().getMetadata().isFactTable();
+        boolean rightIsFact = rightEntity.getDefinition().getMetadata().isFactTable();
+        boolean joinAllowed = (leftIsFact && !rightIsFact);
+        if (!joinAllowed) {
+            return Optional.empty();
+        }
+
+        RtaStorageKey leftKey = leftTableHandle.getKey();
+        RtaStorageKey rightKey = rightTableHandle.getKey();
+        if (leftKey.equals(rightKey)) {
+            return Optional.of(rightTableHandle);
+        }
+        Optional<RtaTableHandle> newRightTableHandleOptional = getTableHandleHelper(session, rightTableHandle.getSchemaTableName(), Optional.of(leftKey));
+        newRightTableHandleOptional.ifPresent(newRightTableHandle -> {
+            RtaStorageKey newRightKey = newRightTableHandle.getKey();
+            Preconditions.checkState(newRightKey.equals(leftKey), "Expected %s to equal %s", leftKey, newRightKey);
+        });
+        return newRightTableHandleOptional;
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushRightJoinIntoScan(ConnectorSession connectorSession, ConnectorTableHandle leftTableHandle, TableScanPipeline existingPipeline, JoinPipelineNode join)
+    {
+        Optional<RtaTableHandle> newRightHandle = coerceRightTableToBeJoined(connectorSession, (RtaTableHandle) leftTableHandle, (RtaTableHandle) join.getOther());
+        if (!newRightHandle.isPresent()) {
+            return Optional.empty();
+        }
+        else {
+            RtaTableHandle leftTable = (RtaTableHandle) leftTableHandle;
+            RtaTableHandle rightTable = newRightHandle.get();
+            Optional<TableScanPipeline> newRightScanPipeline = join.getOtherPipeline().flatMap(p -> rewriteTable(p, rightTable));
+            if (!newRightScanPipeline.isPresent()) {
+                return Optional.empty();
+            }
+            ConnectorMetadata metadata = connectorProvider.getConnector(leftTable.getKey()).getMetadata(RtaTransactionHandle.INSTANCE);
+            JoinPipelineNode newJoinPipeline = new JoinPipelineNode(join.getFilter(), join.getOutputColumns(), join.getRowType(), rightTable.getHandle(), newRightScanPipeline, join.getCriteria(), join.getJoinType());
+            return metadata.pushRightJoinIntoScan(connectorSession, leftTable.getHandle(), existingPipeline, newJoinPipeline);
+        }
+    }
+
+    private static Optional<TableScanPipeline> rewriteTable(TableScanPipeline current, RtaTableHandle rightTable)
+    {
+        List<PipelineNode> pipelineNodes = current.getPipelineNodes();
+        if (pipelineNodes.isEmpty()) {
+            return Optional.empty();
+        }
+        PipelineNode pipelineNode = pipelineNodes.get(0);
+        if (!(pipelineNode instanceof TablePipelineNode)) {
+            return Optional.empty();
+        }
+        TablePipelineNode tablePipelineNode = (TablePipelineNode) pipelineNode;
+        TablePipelineNode newTablePipelineNode = new TablePipelineNode(rightTable.getHandle(), tablePipelineNode.getInputColumns(), tablePipelineNode.getOutputColumns(), tablePipelineNode.getRowType());
+        List<PipelineNode> newPipelineNodes = ImmutableList.<PipelineNode>builder().add(newTablePipelineNode).addAll(pipelineNodes.subList(1, pipelineNodes.size())).build();
+        return Optional.of(new TableScanPipeline(newPipelineNodes, current.getOutputColumnHandles()));
     }
 }

@@ -42,6 +42,7 @@ public class AresDbConfig
     private boolean projectPushDownEnabled = true;
     private boolean limitPushDownEnabled = true;
     private long maxLimitWithoutAggregates = -1;
+    private boolean joinPushDownEnabled = true;
 
     @NotNull
     public String getServiceName()
@@ -219,6 +220,18 @@ public class AresDbConfig
     public AresDbConfig setLimitPushDownEnabled(boolean limitPushDownEnabled)
     {
         this.limitPushDownEnabled = limitPushDownEnabled;
+        return this;
+    }
+
+    public boolean isJoinPushDownEnabled()
+    {
+        return joinPushDownEnabled;
+    }
+
+    @Config("join-pushdown-enabled")
+    public AresDbConfig setJoinPushDownEnabled(boolean joinPushDownEnabled)
+    {
+        this.joinPushDownEnabled = joinPushDownEnabled;
         return this;
     }
 }
