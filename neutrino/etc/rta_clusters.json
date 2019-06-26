@@ -5,6 +5,7 @@
         "aresdb" : {
            "config" : {
                "service-url" : "localhost:5436",
+               "max-limit-without-aggregates" : 10000,
                "metadata-service-name" : "unused",
                "metadata-service-url" : "unused"
            },
@@ -53,7 +54,6 @@
         },
         "pinot" : {
            "config" : {
-               "pinot-cluster" : "upinot",
                "controller-url" : "localhost:5436",
                "scan-parallelism-enabled" : "false",
                "allow-multiple-aggregations" : "true",
@@ -61,10 +61,10 @@
            },
            "environments" : {
                "dca1": {
-                   "baseConfigFile":"etc/catalog/pinotstg.properties"
+                   "baseConfigFile":"etc/catalog/pinotprod.properties"
                },
                "phx2": {
-                   "baseConfigFile":"etc/catalog/pinotphxstg.properties"
+                   "baseConfigFile":"etc/catalog/pinotprod.properties"
                }
            }
         }

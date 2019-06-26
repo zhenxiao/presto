@@ -1,7 +1,5 @@
 [
   {
-    "uuid": "1-8a94er3f-fc28-1952-3486-5e837899864b",
-    "virtualTableUUID": "1-eac8fab6-be9d-145d-3ca3-51f967fe5528",
     "storageType": "ARESDB",
     "namespace": "rta",
     "name": "api_cities",
@@ -13,8 +11,6 @@
     "cluster": "prodh"
   },
   {
-    "uuid": "2-8a94er3f-fc28-1952-3486-5e837899864b",
-    "virtualTableUUID": "2-eac8fab6-be9d-145d-3ca3-51f967fe5528",
     "storageType": "ARESDB",
     "namespace": "rta",
     "name": "api_cities",
@@ -24,5 +20,49 @@
     "config": "{}",
     "deleted": false,
     "cluster": "prodh"
+  },
+  {
+    "storageType": "ARESDB",
+    "namespace": "rta",
+    "name": "api_cities",
+    "datacenter": "dca1",
+    "version": 2,
+    "schema": "{}",
+    "config": "{}",
+    "deleted": false,
+    "cluster": "prodj"
+  },
+  {
+    "storageType": "ARESDB",
+    "namespace": "rta",
+    "name": "api_cities",
+    "datacenter": "phx2",
+    "version": 2,
+    "schema": "{}",
+    "config": "{}",
+    "deleted": false,
+    "cluster": "prodj"
+  },
+  {
+    "storageType": "ARESDB",
+    "namespace": "rta",
+    "name": "api_cities",
+    "datacenter": "phx2",
+    "version": 2,
+    "schema": "{}",
+    "config": "{}",
+    "deleted": false,
+    "cluster": "stagingb"
+  },
+  {
+    "storageType": "ARESDB",
+    "namespace": "rta",
+    "name": "api_cities",
+    "datacenter": "phx2",
+    "version": 2,
+    "schema": "{}",
+    "config": "{}",
+    "deleted": false,
+    "cluster": "staginga"
   }
 ]
