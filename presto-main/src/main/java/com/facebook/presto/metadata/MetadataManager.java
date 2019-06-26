@@ -44,6 +44,7 @@ import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.function.OperatorType;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
@@ -1163,5 +1164,15 @@ public class MetadataManager
         }
 
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushRightJoinIntoScan(Session session, TableHandle tableHandle, TableScanPipeline existingPipeline, JoinPipelineNode joinPipelineNode)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        ConnectorMetadata metadata = getMetadata(session, connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        return metadata.pushRightJoinIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, joinPipelineNode);
     }
 }

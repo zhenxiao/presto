@@ -37,6 +37,7 @@ import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
@@ -545,6 +546,14 @@ public class ClassLoaderSafeConnectorMetadata
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
             return delegate.pushTableScanIntoConnectorLayoutHandle(session, scanPipeline, connectorTableLayoutHandle);
+        }
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushRightJoinIntoScan(ConnectorSession connectorSession, ConnectorTableHandle connectorHandle, TableScanPipeline existingPipeline, JoinPipelineNode joinPipelineNode)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.pushRightJoinIntoScan(connectorSession, connectorHandle, existingPipeline, joinPipelineNode);
         }
     }
 }

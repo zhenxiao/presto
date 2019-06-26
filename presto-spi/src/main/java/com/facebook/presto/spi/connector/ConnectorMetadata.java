@@ -34,6 +34,7 @@ import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
@@ -517,6 +518,7 @@ public interface ConnectorMetadata
 
     /**
      * Convert the given the scan to a pipeline
+     *
      * @return New {@link TableScanPipeline} if the connector supports scan pipeline. Otherwise empty.
      */
     default Optional<TableScanPipeline> convertToTableScanPipeline(ConnectorSession session, ConnectorTableHandle tableHandle, TablePipelineNode tablePipelineNode)
@@ -566,6 +568,11 @@ public interface ConnectorMetadata
 
     default Optional<ConnectorTableLayoutHandle> pushTableScanIntoConnectorLayoutHandle(ConnectorSession session, TableScanPipeline scanPipeline,
             ConnectorTableLayoutHandle connectorTableLayoutHandle)
+    {
+        return Optional.empty();
+    }
+
+    default Optional<TableScanPipeline> pushRightJoinIntoScan(ConnectorSession connectorSession, ConnectorTableHandle connectorHandle, TableScanPipeline existingPipeline, JoinPipelineNode joinPipelineNode)
     {
         return Optional.empty();
     }

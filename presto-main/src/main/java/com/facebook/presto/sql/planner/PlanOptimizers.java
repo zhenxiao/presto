@@ -74,6 +74,7 @@ import com.facebook.presto.sql.planner.iterative.rule.PruneWindowColumns;
 import com.facebook.presto.sql.planner.iterative.rule.PushAggregationIntoTableScan;
 import com.facebook.presto.sql.planner.iterative.rule.PushAggregationThroughOuterJoin;
 import com.facebook.presto.sql.planner.iterative.rule.PushFilterIntoTableScan;
+import com.facebook.presto.sql.planner.iterative.rule.PushJoinIntoTableScan;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.FinalLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitIntoTableScan.PartialLimitPushDown;
 import com.facebook.presto.sql.planner.iterative.rule.PushLimitThroughMarkDistinct;
@@ -465,6 +466,7 @@ public class PlanOptimizers
                         new PushFilterIntoTableScan(metadata, sqlParser),
                         new PushProjectIntoTableScan(metadata, sqlParser),
                         new PushAggregationIntoTableScan(metadata),
+                        new PushJoinIntoTableScan(metadata, sqlParser),
                         new FinalLimitPushDown(metadata))));
 
         if (!forceSingleNode) {

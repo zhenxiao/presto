@@ -26,6 +26,7 @@ import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
 import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.JoinPipelineNode;
 import com.facebook.presto.spi.pipeline.LimitPipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
@@ -504,6 +505,12 @@ public abstract class AbstractMockMetadata
 
     @Override
     public Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushRightJoinIntoScan(Session session, TableHandle table, TableScanPipeline tableScanPipeline, JoinPipelineNode joinPipelineNode)
     {
         throw new UnsupportedOperationException();
     }

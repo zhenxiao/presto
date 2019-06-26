@@ -49,4 +49,9 @@ public abstract class TableScanPipelineVisitor<R, C>
     {
         return visitNode(sort, context);
     }
+
+    public R visitJoinNode(JoinPipelineNode joinPipelineNode, C context)
+    {
+        return visitNode(joinPipelineNode, context);
+    }
 }

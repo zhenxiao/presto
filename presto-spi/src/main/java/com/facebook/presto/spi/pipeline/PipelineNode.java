@@ -29,6 +29,7 @@ import java.util.List;
         @JsonSubTypes.Type(value = FilterPipelineNode.class, name = "filter"),
         @JsonSubTypes.Type(value = AggregationPipelineNode.class, name = "aggregations"),
         @JsonSubTypes.Type(value = LimitPipelineNode.class, name = "limit"),
+        @JsonSubTypes.Type(value = JoinPipelineNode.class, name = "join"),
         @JsonSubTypes.Type(value = SortPipelineNode.class, name = "sort")})
 public abstract class PipelineNode
 {
