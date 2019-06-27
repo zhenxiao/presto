@@ -104,6 +104,12 @@
             <groupId>com.facebook.presto</groupId>
             <artifactId>presto-hive-hadoop2</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

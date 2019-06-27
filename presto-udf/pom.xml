@@ -80,6 +80,12 @@
             <groupId>com.facebook.presto</groupId>
             <artifactId>presto-tests</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.airlift</groupId>
+                    <artifactId>joni</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

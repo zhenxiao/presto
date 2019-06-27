@@ -99,6 +99,12 @@
             <groupId>com.facebook.presto</groupId>
             <artifactId>presto-hive</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpcore</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- This is required for test cases in Geospatial that plugins in hive-->
