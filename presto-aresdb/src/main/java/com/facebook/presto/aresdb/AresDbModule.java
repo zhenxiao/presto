@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.aresdb;
 
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -49,6 +50,9 @@ public class AresDbModule
         binder.bind(AresDbSplitManager.class).in(Scopes.SINGLETON);
         binder.bind(AresDbPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(AresDbConnection.class).in(Scopes.SINGLETON);
+        binder.bind(AresDbNodePartitioningProvider.class).in(Scopes.SINGLETON);
+        binder.bind(ConnectorNodePartitioningProvider.class).to(AresDbNodePartitioningProvider.class).in(Scopes.SINGLETON);
+
         httpClientBinder(binder).bindHttpClient("aresDb", ForAresDb.class)
                 .withConfigDefaults(cfg -> defaultHttpConfigs(cfg));
 

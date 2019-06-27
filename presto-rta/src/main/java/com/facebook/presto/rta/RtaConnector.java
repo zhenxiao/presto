@@ -19,10 +19,14 @@ import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.session.PropertyMetadata;
 import com.facebook.presto.spi.transaction.IsolationLevel;
+import com.google.common.collect.ImmutableList;
 import io.airlift.bootstrap.LifeCycleManager;
 
 import javax.inject.Inject;
+
+import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -34,15 +38,17 @@ public class RtaConnector
     private final RtaSplitManager splitManager;
     private final RtaPageSourceProvider pageSourceProvider;
     private final RtaNodePartitioningProvider nodePartitioningProvider;
+    private final List<PropertyMetadata<?>> sessionProperties;
 
     @Inject
-    public RtaConnector(LifeCycleManager lifeCycleManager, RtaMetadata metadata, RtaSplitManager splitManager, RtaPageSourceProvider pageSourceProvider, RtaNodePartitioningProvider nodePartitioningProvider)
+    public RtaConnector(LifeCycleManager lifeCycleManager, RtaMetadata metadata, RtaSplitManager splitManager, RtaPageSourceProvider pageSourceProvider, RtaNodePartitioningProvider nodePartitioningProvider, RtaSessionProperties rtaSessionProperties)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
         this.nodePartitioningProvider = requireNonNull(nodePartitioningProvider, "nodePartitioningProvider is null");
+        this.sessionProperties = ImmutableList.copyOf(requireNonNull(rtaSessionProperties, "sessionProperties is null").getSessionProperties());
     }
 
     @Override
@@ -73,6 +79,12 @@ public class RtaConnector
     public ConnectorNodePartitioningProvider getNodePartitioningProvider()
     {
         return nodePartitioningProvider;
+    }
+
+    @Override
+    public List<PropertyMetadata<?>> getSessionProperties()
+    {
+        return sessionProperties;
     }
 
     @Override

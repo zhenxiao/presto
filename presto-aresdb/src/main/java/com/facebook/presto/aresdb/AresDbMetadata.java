@@ -22,6 +22,7 @@ import com.facebook.presto.spi.ConnectorTableLayout;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutResult;
 import com.facebook.presto.spi.ConnectorTableMetadata;
+import com.facebook.presto.spi.ConnectorTablePartitioning;
 import com.facebook.presto.spi.Constraint;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
@@ -33,6 +34,7 @@ import com.facebook.presto.spi.pipeline.PipelineNode;
 import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
 import com.facebook.presto.spi.pipeline.TablePipelineNode;
 import com.facebook.presto.spi.pipeline.TableScanPipeline;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
@@ -52,6 +54,7 @@ import java.util.stream.Collectors;
 import static com.facebook.presto.aresdb.AresDbColumnHandle.AresDbColumnType.DERIVED;
 import static com.facebook.presto.aresdb.AresDbColumnHandle.AresDbColumnType.REGULAR;
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Collections.emptyList;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
@@ -130,7 +133,25 @@ public class AresDbMetadata
     @Override
     public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
-        return new ConnectorTableLayout(handle);
+        AresDbTableLayoutHandle aresDbTableLayoutHandle = (AresDbTableLayoutHandle) handle;
+        if (aresDbTableLayoutHandle.getScanPipeline().isPresent()) {
+            // AresDB only supports single node plans now, ie the split manager can only return one split period.
+            // create a single node only distribution
+            return new ConnectorTableLayout(
+                    handle,
+                    Optional.empty(),
+                    TupleDomain.all(),
+                    Optional.of(
+                            new ConnectorTablePartitioning(
+                                    new AresDbPartitioningHandle(true),
+                                    ImmutableList.of())),
+                    Optional.empty(),
+                    Optional.empty(),
+                    emptyList());
+        }
+        else {
+            return new ConnectorTableLayout(handle);
+        }
     }
 
     @Override

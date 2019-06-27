@@ -16,6 +16,7 @@ package com.facebook.presto.rta;
 import com.facebook.presto.rta.schema.ForRTAMS;
 import com.facebook.presto.rta.schema.RTAMSClient;
 import com.facebook.presto.rta.schema.RTASchemaHandler;
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
@@ -44,6 +45,9 @@ public class RtaModule
         binder.bind(RtaPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(RTASchemaHandler.class).in(Scopes.SINGLETON);
         binder.bind(RtaNodePartitioningProvider.class).in(Scopes.SINGLETON);
+        binder.bind(ConnectorNodePartitioningProvider.class).to(RtaNodePartitioningProvider.class).in(Scopes.SINGLETON);
+        binder.bind(RtaSessionProperties.class).in(Scopes.SINGLETON);
+
         httpClientBinder(binder).bindHttpClient("rtams", ForRTAMS.class)
                 .withConfigDefaults(cfg -> defaultHttpConfigs(cfg));
     }

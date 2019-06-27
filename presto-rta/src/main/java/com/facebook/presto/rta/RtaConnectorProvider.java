@@ -19,45 +19,42 @@ import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
 
-import javax.annotation.concurrent.GuardedBy;
 import javax.inject.Inject;
 
-import java.util.HashMap;
 import java.util.Map;
 
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static java.util.Objects.requireNonNull;
 
 public class RtaConnectorProvider
 {
-    private final Map<RtaStorageKey, Map<String, String>> properties;
-    private final RtaConnectorId connectorId;
-    private final ConnectorContext connectorContext;
-
-    @GuardedBy("this")
-    private final Map<RtaStorageKey, Connector> connectors = new HashMap<>();
+    private final Map<RtaStorageKey, Connector> connectors;
 
     @Inject
     public RtaConnectorProvider(RtaPropertyManager propertyManager, RtaConnectorId connectorId, ConnectorContext connectorContext)
     {
-        this.properties = propertyManager.getProperties();
-        this.connectorId = connectorId;
-        this.connectorContext = connectorContext;
+        this.connectors = propertyManager.getProperties().entrySet().stream().collect(toImmutableMap(entry -> entry.getKey(), entry -> createConnector(entry.getKey(), connectorId, entry.getValue(), connectorContext)));
     }
 
-    public synchronized Connector getConnector(RtaStorageKey key)
+    public Connector getConnector(RtaStorageKey key)
     {
-        return connectors.computeIfAbsent(key, this::createConnector);
+        return requireNonNull(connectors.get(key), "Unknown RTA storage key " + key);
     }
 
-    private synchronized Connector createConnector(RtaStorageKey rtaStorageKey)
+    public Map<RtaStorageKey, Connector> getConnectors()
+    {
+        return connectors;
+    }
+
+    private static Connector createConnector(RtaStorageKey rtaStorageKey, RtaConnectorId connectorId, Map<String, String> properties, ConnectorContext connectorContext)
     {
         return createConnectFactory(rtaStorageKey.getType()).create(
                 connectorId.getId() + "-" + rtaStorageKey.getEnvironment(),
-                requireNonNull(properties.get(rtaStorageKey), "Cannot find RTA cluster definition for " + rtaStorageKey),
+                properties,
                 connectorContext);
     }
 
-    private ConnectorFactory createConnectFactory(RtaStorageType type)
+    private static ConnectorFactory createConnectFactory(RtaStorageType type)
     {
         switch (type) {
             case ARESDB:

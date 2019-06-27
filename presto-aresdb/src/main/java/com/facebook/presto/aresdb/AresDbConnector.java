@@ -16,6 +16,7 @@ package com.facebook.presto.aresdb;
 
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
@@ -36,14 +37,16 @@ public class AresDbConnector
     private final AresDbMetadata metadata;
     private final AresDbSplitManager splitManager;
     private final AresDbPageSourceProvider pageSourceProvider;
+    private final AresDbNodePartitioningProvider partitioningProvider;
 
     @Inject
-    public AresDbConnector(LifeCycleManager lifeCycleManager, AresDbMetadata metadata, AresDbSplitManager splitManager, AresDbPageSourceProvider pageSourceProvider)
+    public AresDbConnector(LifeCycleManager lifeCycleManager, AresDbMetadata metadata, AresDbSplitManager splitManager, AresDbPageSourceProvider pageSourceProvider, AresDbNodePartitioningProvider partitioningProvider)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
+        this.partitioningProvider = partitioningProvider;
     }
 
     @Override
@@ -68,6 +71,12 @@ public class AresDbConnector
     public ConnectorPageSourceProvider getPageSourceProvider()
     {
         return pageSourceProvider;
+    }
+
+    @Override
+    public ConnectorNodePartitioningProvider getNodePartitioningProvider()
+    {
+        return partitioningProvider;
     }
 
     @Override

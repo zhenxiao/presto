@@ -24,6 +24,7 @@ import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
+import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.inject.Injector;
@@ -77,6 +78,12 @@ public class AresDbConnectorFactory
             public Class<? extends ConnectorTransactionHandle> getTransactionHandleClass()
             {
                 return AresDbTransactionHandle.class;
+            }
+
+            @Override
+            public Class<? extends ConnectorPartitioningHandle> getPartitioningHandleClass()
+            {
+                return AresDbPartitioningHandle.class;
             }
         };
     }
