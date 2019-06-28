@@ -13,6 +13,8 @@
  */
 package com.facebook.presto.spi;
 
+import static java.lang.String.format;
+
 public class PrestoException
         extends RuntimeException
 {
@@ -20,7 +22,7 @@ public class PrestoException
 
     public PrestoException(ErrorCodeSupplier errorCode, String message)
     {
-        this(errorCode, message, null);
+        this(errorCode, getGuidanceMessage(errorCode, message), null);
     }
 
     public PrestoException(ErrorCodeSupplier errorCode, Throwable throwable)
@@ -50,5 +52,10 @@ public class PrestoException
             message = errorCode.getName();
         }
         return message;
+    }
+
+    private static String getGuidanceMessage(ErrorCodeSupplier errorCode, String message)
+    {
+        return errorCode.getGuidance().isPresent() ? format("%s. %s", message, errorCode.getGuidance().get()) : message;
     }
 }

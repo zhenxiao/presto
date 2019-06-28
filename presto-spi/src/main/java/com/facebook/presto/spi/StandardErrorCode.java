@@ -13,16 +13,19 @@
  */
 package com.facebook.presto.spi;
 
+import java.util.Optional;
+
 import static com.facebook.presto.spi.ErrorType.INSUFFICIENT_RESOURCES;
 import static com.facebook.presto.spi.ErrorType.INTERNAL_ERROR;
 import static com.facebook.presto.spi.ErrorType.USER_ERROR;
+import static com.facebook.presto.spi.StandardErrorCode.Constants.DEFAULT_GUIDANCE;
 
 public enum StandardErrorCode
         implements ErrorCodeSupplier
 {
     GENERIC_USER_ERROR(0x0000_0000, USER_ERROR),
     SYNTAX_ERROR(0x0000_0001, USER_ERROR),
-    ABANDONED_QUERY(0x0000_0002, USER_ERROR),
+    ABANDONED_QUERY(0x0000_0002, USER_ERROR, "This usually means client(piper, prism, tableau etc) abandoned fetching query results from presto"),
     USER_CANCELED(0x0000_0003, USER_ERROR),
     PERMISSION_DENIED(0x0000_0004, USER_ERROR),
     NOT_FOUND(0x0000_0005, USER_ERROR),
@@ -60,7 +63,7 @@ public enum StandardErrorCode
     EXCEEDED_FUNCTION_MEMORY_LIMIT(0x0000_0025, USER_ERROR),
     ADMINISTRATIVELY_KILLED(0x0000_0026, USER_ERROR),
     INVALID_COLUMN_PROPERTY(0x0000_0027, USER_ERROR),
-    QUERY_HAS_TOO_MANY_STAGES(0x0000_0028, USER_ERROR),
+    QUERY_HAS_TOO_MANY_STAGES(0x0000_0028, USER_ERROR, DEFAULT_GUIDANCE),
     INVALID_SPATIAL_PARTITIONING(0x0000_0029, USER_ERROR),
     INVALID_ANALYZE_PROPERTY(0x0000_002A, USER_ERROR),
     GEOSPATIAL_CREATE_INDEX_ERROR(0x0000_002B, USER_ERROR),
@@ -73,7 +76,7 @@ public enum StandardErrorCode
     PAGE_TOO_LARGE(0x0001_0002, INTERNAL_ERROR),
     PAGE_TRANSPORT_ERROR(0x0001_0003, INTERNAL_ERROR),
     PAGE_TRANSPORT_TIMEOUT(0x0001_0004, INTERNAL_ERROR),
-    NO_NODES_AVAILABLE(0x0001_0005, INTERNAL_ERROR),
+    NO_NODES_AVAILABLE(0x0001_0005, INTERNAL_ERROR, "Cluster is starting. Please wait for 5min and retry."),
     REMOTE_TASK_ERROR(0x0001_0006, INTERNAL_ERROR),
     COMPILER_ERROR(0x0001_0007, INTERNAL_ERROR),
     REMOTE_TASK_MISMATCH(0x0001_0008, INTERNAL_ERROR),
@@ -96,13 +99,13 @@ public enum StandardErrorCode
     INVALID_RESOURCE_GROUP(0x0001_0019, INTERNAL_ERROR),
 
     GENERIC_INSUFFICIENT_RESOURCES(0x0002_0000, INSUFFICIENT_RESOURCES),
-    EXCEEDED_GLOBAL_MEMORY_LIMIT(0x0002_0001, INSUFFICIENT_RESOURCES),
+    EXCEEDED_GLOBAL_MEMORY_LIMIT(0x0002_0001, INSUFFICIENT_RESOURCES, DEFAULT_GUIDANCE),
     QUERY_QUEUE_FULL(0x0002_0002, INSUFFICIENT_RESOURCES),
-    EXCEEDED_TIME_LIMIT(0x0002_0003, INSUFFICIENT_RESOURCES),
+    EXCEEDED_TIME_LIMIT(0x0002_0003, INSUFFICIENT_RESOURCES, DEFAULT_GUIDANCE),
     CLUSTER_OUT_OF_MEMORY(0x0002_0004, INSUFFICIENT_RESOURCES),
-    EXCEEDED_CPU_LIMIT(0x0002_0005, INSUFFICIENT_RESOURCES),
+    EXCEEDED_CPU_LIMIT(0x0002_0005, INSUFFICIENT_RESOURCES, DEFAULT_GUIDANCE),
     EXCEEDED_SPILL_LIMIT(0x0002_0006, INSUFFICIENT_RESOURCES),
-    EXCEEDED_LOCAL_MEMORY_LIMIT(0x0002_0007, INSUFFICIENT_RESOURCES),
+    EXCEEDED_LOCAL_MEMORY_LIMIT(0x0002_0007, INSUFFICIENT_RESOURCES, DEFAULT_GUIDANCE),
     ADMINISTRATIVELY_PREEMPTED(0x0002_0008, INSUFFICIENT_RESOURCES),
     /**/;
 
@@ -110,15 +113,37 @@ public enum StandardErrorCode
     // See https://github.com/prestodb/presto/wiki/Error-Codes
 
     private final ErrorCode errorCode;
+    private final Optional<String> guidance;
 
     StandardErrorCode(int code, ErrorType type)
     {
-        errorCode = new ErrorCode(code, name(), type);
+        this.errorCode = new ErrorCode(code, name(), type);
+        this.guidance = Optional.empty();
+    }
+
+    StandardErrorCode(int code, ErrorType type, String guidance)
+    {
+        this.errorCode = new ErrorCode(code, name(), type);
+        this.guidance = Optional.of(guidance);
     }
 
     @Override
     public ErrorCode toErrorCode()
     {
         return errorCode;
+    }
+
+    @Override
+    public Optional<String> getGuidance()
+    {
+        return guidance;
+    }
+
+    static class Constants
+    {
+        static final String url = "https://engdocs.uberinternal.com/sql-analytics-guide/presto_pages/optimization.html";
+        static final String DEFAULT_GUIDANCE = String.format("Please optimize your query with suggestions from %s.", url);
+
+        private Constants() {}
     }
 }

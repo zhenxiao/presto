@@ -13,7 +13,14 @@
  */
 package com.facebook.presto.spi;
 
+import java.util.Optional;
+
 public interface ErrorCodeSupplier
 {
     ErrorCode toErrorCode();
+
+    default Optional<String> getGuidance()
+    {
+        return Optional.empty();
+    }
 }

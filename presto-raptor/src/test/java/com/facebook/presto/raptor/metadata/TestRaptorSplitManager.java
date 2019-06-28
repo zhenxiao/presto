@@ -186,7 +186,7 @@ public class TestRaptorSplitManager
         assertEquals(getOnlyElement(getOnlyElement(batch).getAddresses()), node.getHostAndPort());
     }
 
-    @Test(expectedExceptions = PrestoException.class, expectedExceptionsMessageRegExp = "No nodes available to run query")
+    @Test(expectedExceptions = PrestoException.class, expectedExceptionsMessageRegExp = ".*No nodes available to run query.*")
     public void testNoNodes()
     {
         deleteShardNodes();

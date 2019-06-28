@@ -17,6 +17,9 @@ import com.facebook.presto.spi.ErrorCode;
 import com.facebook.presto.spi.ErrorCodeSupplier;
 import com.facebook.presto.spi.ErrorType;
 
+import java.util.Optional;
+
+import static com.facebook.presto.hive.HiveErrorCode.Constants.DEFAULT_ERROR_MESSAGE;
 import static com.facebook.presto.spi.ErrorType.EXTERNAL;
 import static com.facebook.presto.spi.ErrorType.INTERNAL_ERROR;
 import static com.facebook.presto.spi.ErrorType.USER_ERROR;
@@ -25,15 +28,15 @@ public enum HiveErrorCode
         implements ErrorCodeSupplier
 {
     HIVE_METASTORE_ERROR(0, EXTERNAL),
-    HIVE_CURSOR_ERROR(1, EXTERNAL),
+    HIVE_CURSOR_ERROR(1, EXTERNAL, DEFAULT_ERROR_MESSAGE),
     HIVE_TABLE_OFFLINE(2, USER_ERROR),
-    HIVE_CANNOT_OPEN_SPLIT(3, EXTERNAL),
-    HIVE_FILE_NOT_FOUND(4, EXTERNAL),
+    HIVE_CANNOT_OPEN_SPLIT(3, EXTERNAL, DEFAULT_ERROR_MESSAGE),
+    HIVE_FILE_NOT_FOUND(4, EXTERNAL, DEFAULT_ERROR_MESSAGE),
     HIVE_UNKNOWN_ERROR(5, EXTERNAL),
     HIVE_PARTITION_OFFLINE(6, USER_ERROR),
-    HIVE_BAD_DATA(7, EXTERNAL),
+    HIVE_BAD_DATA(7, EXTERNAL, DEFAULT_ERROR_MESSAGE),
     HIVE_PARTITION_SCHEMA_MISMATCH(8, EXTERNAL),
-    HIVE_MISSING_DATA(9, EXTERNAL),
+    HIVE_MISSING_DATA(9, EXTERNAL, DEFAULT_ERROR_MESSAGE),
     HIVE_INVALID_PARTITION_VALUE(10, EXTERNAL),
     HIVE_TIMEZONE_MISMATCH(11, EXTERNAL),
     HIVE_INVALID_METADATA(12, EXTERNAL),
@@ -52,7 +55,7 @@ public enum HiveErrorCode
     HIVE_WRITER_OPEN_ERROR(25, EXTERNAL),
     HIVE_WRITER_CLOSE_ERROR(26, EXTERNAL),
     HIVE_WRITER_DATA_ERROR(27, EXTERNAL),
-    HIVE_INVALID_BUCKET_FILES(28, EXTERNAL),
+    HIVE_INVALID_BUCKET_FILES(28, EXTERNAL, DEFAULT_ERROR_MESSAGE),
     HIVE_EXCEEDED_PARTITION_LIMIT(29, USER_ERROR),
     HIVE_WRITE_VALIDATION_FAILED(30, INTERNAL_ERROR),
     HIVE_PARTITION_DROPPED_DURING_QUERY(31, EXTERNAL),
@@ -68,15 +71,36 @@ public enum HiveErrorCode
     /**/;
 
     private final ErrorCode errorCode;
+    private final Optional<String> guidance;
 
     HiveErrorCode(int code, ErrorType type)
     {
         errorCode = new ErrorCode(code + 0x0100_0000, name(), type);
+        guidance = Optional.empty();
+    }
+
+    HiveErrorCode(int code, ErrorType type, String guidance)
+    {
+        errorCode = new ErrorCode(code + 0x0100_0000, name(), type);
+        this.guidance = Optional.of(guidance);
     }
 
     @Override
     public ErrorCode toErrorCode()
     {
         return errorCode;
+    }
+
+    @Override
+    public Optional<String> getGuidance()
+    {
+        return guidance;
+    }
+
+    class Constants
+    {
+        static final String DEFAULT_ERROR_MESSAGE = "Please find table owner through https://databook.uberinternal.com/ and report the issue.";
+
+        private Constants() {}
     }
 }

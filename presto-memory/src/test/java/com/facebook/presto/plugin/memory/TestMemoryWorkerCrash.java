@@ -40,10 +40,10 @@ public class TestMemoryWorkerCrash
         getQueryRunner().execute("CREATE TABLE test_nation as SELECT * FROM nation");
         assertQuery("SELECT * FROM test_nation ORDER BY nationkey", "SELECT * FROM nation ORDER BY nationkey");
         closeWorker();
-        assertQueryFails("SELECT * FROM test_nation ORDER BY nationkey", "No nodes available to run query");
+        assertQueryFails("SELECT * FROM test_nation ORDER BY nationkey", ".*No nodes available to run query.*");
         getQueryRunner().execute("INSERT INTO test_nation SELECT * FROM tpch.tiny.nation");
 
-        assertQueryFails("SELECT * FROM test_nation ORDER BY nationkey", "No nodes available to run query");
+        assertQueryFails("SELECT * FROM test_nation ORDER BY nationkey", ".*No nodes available to run query.*");
 
         getQueryRunner().execute("CREATE TABLE test_region as SELECT * FROM tpch.tiny.region");
         assertQuery("SELECT * FROM test_region ORDER BY regionkey", "SELECT * FROM region ORDER BY regionkey");
