@@ -62,8 +62,7 @@ public class UberEventListener
             return heatpipeProducerFactory.get(topic, version);
         }
         catch (IOException | SchemaServiceNotAvailableException | KafkaRestClientException ex) {
-            log.error("Failed to create kafka producer" + ex);
-            ex.printStackTrace();
+            log.error("Failed to create kafka producer", ex);
             return null;
         }
     }
@@ -78,8 +77,7 @@ public class UberEventListener
             producer.produce(queryEventInfo.toMap());
         }
         catch (HeatpipeEncodeError heatpipeEncodeError) {
-            log.error("failed to send data: " + heatpipeEncodeError);
-            heatpipeEncodeError.printStackTrace();
+            log.error("failed to send data:", heatpipeEncodeError);
         }
     }
 

@@ -196,7 +196,9 @@ public class RTASchemaHandler
         catch (IOException e) {
             throw new RuntimeException("Error when preloading RTA schema state", e);
         }
-        log.info("Created Rta schema state " + ret);
+        if (log.isDebugEnabled()) {
+            log.debug("Created Rta schema state " + ret);
+        }
         return ret;
     }
 
